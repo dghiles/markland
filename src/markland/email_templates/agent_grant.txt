@@ -1,0 +1,9 @@
+{{ granter_display }} granted your agent {{ agent_name }} ({{ agent_id }}) {{ level }} access to "{{ doc_title }}".
+
+Open: {{ doc_url }}
+
+If this wasn't expected, revoke it from the document's sharing panel.
+
+--
+Markland · {{ base_url }}
+Manage notifications: {{ base_url }}/settings/notifications

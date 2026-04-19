@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Sign in — Markland</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 28rem; margin: 4rem auto; padding: 1rem; }
+    h1 { font-size: 1.5rem; }
+    label { display: block; margin-top: 1rem; }
+    input[type=email] { width: 100%; padding: 0.5rem; font-size: 1rem; box-sizing: border-box; }
+    button { margin-top: 1rem; padding: 0.5rem 1rem; font-size: 1rem; cursor: pointer; }
+    .msg { margin-top: 1rem; color: #0a7; }
+    .err { margin-top: 1rem; color: #c22; }
+  </style>
+</head>
+<body>
+  <h1>Sign in to Markland</h1>
+  <p>Enter your email; we'll send you a one-time sign-in link.</p>
+  <form id="f">
+    <label for="email">Email</label>
+    <input type="email" id="email" name="email" required>
+    <button type="submit">Send magic link</button>
+  </form>
+  <div id="msg"></div>
+  <script>
+    document.getElementById('f').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const msg = document.getElementById('msg');
+      msg.className = '';
+      msg.textContent = 'Sending...';
+      const r = await fetch('/api/auth/magic-link', {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({email}),
+      });
+      if (r.ok) {
+        msg.className = 'msg';
+        msg.textContent = 'Check your email for the sign-in link.';
+      } else {
+        msg.className = 'err';
+        msg.textContent = 'Something went wrong. Check the email and try again.';
+      }
+    });
+  </script>
+</body>
+</html>

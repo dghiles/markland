@@ -1,0 +1,7 @@
+{{ accepter_display }} accepted your invite to "{{ doc_title }}".
+
+Open: {{ doc_url }}
+
+--
+Markland · {{ base_url }}
+Manage notifications: {{ base_url }}/settings/notifications

@@ -1,0 +1,16 @@
+{
+  "markland": {
+    "type": "stdio",
+    "command": "/Users/daveyhiles/.local/bin/uv",
+    "args": [
+      "run",
+      "--with", "mcp[cli]",
+      "--with-editable", "/Users/daveyhiles/Developer/markland",
+      "mcp", "run",
+      "/Users/daveyhiles/Developer/markland/src/markland/server.py"
+    ],
+    "env": {
+      "MARKLAND_BASE_URL": "http://127.0.0.1:8950"
+    }
+  }
+}

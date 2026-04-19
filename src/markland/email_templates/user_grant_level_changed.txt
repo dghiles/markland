@@ -1,0 +1,7 @@
+{{ granter_display }} changed your access to "{{ doc_title }}" to {{ new_level }} (was {{ old_level }}).
+
+Open: {{ doc_url }}
+
+--
+Markland · {{ base_url }}
+Manage notifications: {{ base_url }}/settings/notifications

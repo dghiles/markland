@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Markland{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Canvas */
+            --bg: #0A0A0A;
+            --surface: #0F0F12;
+            --surface-2: #16171B;
+            --text: #FFFFFF;
+            --text-2: #E8EAED;
+            --muted: #9AA0A6;
+
+            /* Outlines — the signature */
+            --outline: rgba(255, 255, 255, 0.22);
+            --outline-strong: rgba(255, 255, 255, 0.45);
+            --outline-hairline: rgba(255, 255, 255, 0.09);
+
+            /* Primary colors — used as DISCRETE solid blocks. Never gradients. */
+            --blue: #4285F4;
+            --red: #EA4335;
+            --yellow: #FBBC04;
+            --green: #34A853;
+
+            --radius: 20px;
+            --radius-lg: 28px;
+            --radius-xl: 32px;
+            --radius-pill: 999px;
+
+            --font-display: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            --font-body: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            --font-mono: 'DM Mono', 'Menlo', monospace;
+
+            --max-width: 1180px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scrollbar-gutter: stable; -webkit-font-smoothing: antialiased; }
+        body {
+            font-family: var(--font-body);
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.55;
+            min-height: 100vh;
+            font-weight: 400;
+        }
+        a { color: inherit; text-decoration: none; }
+        ::selection { background: var(--blue); color: var(--text); }
+
+        /* --- Header --- */
+        .site-header {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            padding: 1rem 1.5rem;
+            background: rgba(10, 10, 10, 0.7);
+            backdrop-filter: saturate(160%) blur(14px);
+            -webkit-backdrop-filter: saturate(160%) blur(14px);
+            border-bottom: 1px solid var(--outline-hairline);
+        }
+        .site-header-inner {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+        .wordmark {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 1.25rem;
+            letter-spacing: -0.025em;
+            color: var(--text);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.55rem;
+            line-height: 1;
+        }
+        .wordmark .dot {
+            width: 0.6rem;
+            height: 0.6rem;
+            border-radius: 50%;
+            background: var(--red);
+        }
+        .site-nav {
+            display: flex;
+            gap: 0.4rem;
+            font-family: var(--font-display);
+            font-weight: 500;
+            font-size: 0.92rem;
+        }
+        .site-nav a {
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius-pill);
+            color: var(--text-2);
+            border: 1px solid transparent;
+            transition: border-color 0.18s ease, color 0.18s ease;
+        }
+        .site-nav a:hover {
+            border-color: var(--outline);
+            color: var(--text);
+        }
+        .site-nav a.active {
+            border-color: var(--outline-strong);
+            color: var(--text);
+        }
+
+        /* --- Main + Footer --- */
+        .main {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            padding: 3rem 1.5rem 5rem;
+        }
+        .site-footer {
+            padding: 2.5rem 1.5rem;
+            color: var(--muted);
+            font-size: 0.88rem;
+            text-align: center;
+            border-top: 1px solid var(--outline-hairline);
+        }
+        .site-footer a {
+            color: var(--text);
+            padding-bottom: 1px;
+            border-bottom: 1px solid var(--outline);
+            transition: border-color 0.18s ease;
+        }
+        .site-footer a:hover { border-bottom-color: var(--text); }
+
+        {% block head_extra %}{% endblock %}
+    </style>
+</head>
+<body class="{% block body_class %}{% endblock %}">
+    <header class="site-header">
+        <div class="site-header-inner">
+            <a href="/" class="wordmark" aria-label="Markland home">
+                <span class="dot" aria-hidden="true"></span>
+                <span>Markland</span>
+            </a>
+            <nav class="site-nav">
+                <a href="/explore" class="{% block nav_explore %}{% endblock %}">Explore</a>
+                <a href="https://github.com/" target="_blank" rel="noopener">Docs</a>
+            </nav>
+        </div>
+    </header>
+    <main class="main">
+        {% block content %}{% endblock %}
+    </main>
+    <footer class="site-footer">
+        Markland &middot; an experiment in agent-native publishing &middot; <a href="/explore">Browse public docs</a>
+    </footer>
+</body>
+</html>

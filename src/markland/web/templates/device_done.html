@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Device authorized — Markland</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, sans-serif; max-width: 36rem;
+           margin: 4rem auto; padding: 0 1rem; line-height: 1.5; color: #111; }
+    h1 { font-size: 1.5rem; }
+    .ok { color: #0a7a2f; }
+    .warn { background: #fff3e0; border: 1px solid #e69138; padding: 0.75rem 1rem;
+            border-radius: 6px; margin: 1rem 0; }
+  </style>
+</head>
+<body>
+  <h1 class="ok">Device authorized</h1>
+  <p>You can return to your CLI — the access token has been issued and your
+     tool should complete setup automatically within a few seconds.</p>
+  {% if invite_accepted %}
+    <p>The attached invite was accepted — the shared doc now appears in your library.</p>
+  {% elif invite_error %}
+    <div class="warn">
+      We authorized the device, but couldn't accept the attached invite:
+      <strong>{{ invite_error }}</strong>. Ask whoever sent you the link for a new one.
+    </div>
+  {% endif %}
+  <p><a href="/">Return to Markland</a></p>
+</body>
+</html>

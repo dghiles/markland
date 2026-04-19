@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Audit Log &mdash; Markland Admin</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.4rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { border-bottom: 1px solid #eee; padding: 0.35rem 0.5rem; text-align: left; vertical-align: top; }
+    th { background: #fafafa; }
+    code { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.85rem; }
+    .meta { color: #666; max-width: 360px; overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <h1>Audit Log ({{ rows|length }} most recent)</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>When</th>
+        <th>Action</th>
+        <th>Principal</th>
+        <th>Doc</th>
+        <th>Metadata</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><code>{{ r.created_at }}</code></td>
+        <td>{{ r.action }}</td>
+        <td><code>{{ r.principal_id }}</code> <small>({{ r.principal_type }})</small></td>
+        <td>{% if r.doc_id %}<code>{{ r.doc_id }}</code>{% else %}&mdash;{% endif %}</td>
+        <td class="meta"><code>{{ r.metadata_json }}</code></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

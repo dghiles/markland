@@ -1,0 +1,8 @@
+{% extends "_layout.html" %}
+{% block content %}
+<h1 style="margin:0 0 16px 0;font-size:22px;font-weight:600;">Your invite was accepted</h1>
+<p style="margin:0 0 20px 0;"><strong>{{ accepter_display }}</strong> accepted your invite to <strong>{{ doc_title }}</strong>.</p>
+<p style="margin:0 0 24px 0;">
+  <a href="{{ doc_url }}" style="display:inline-block;background:#1a1a1a;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:6px;font-weight:500;">Open document</a>
+</p>
+{% endblock %}

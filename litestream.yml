@@ -1,0 +1,14 @@
+# Continuously replicates /data/markland.db to Cloudflare R2.
+# Credentials come from env: LITESTREAM_ACCESS_KEY_ID, LITESTREAM_SECRET_ACCESS_KEY.
+# Endpoint + bucket come from: LITESTREAM_REPLICA_URL (e.g. s3://markland-db.<acct>.r2.cloudflarestorage.com/markland).
+
+dbs:
+  - path: /data/markland.db
+    replicas:
+      - type: s3
+        url: ${LITESTREAM_REPLICA_URL}
+        access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
+        secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
+        sync-interval: 10s
+        retention: 72h
+        snapshot-interval: 6h

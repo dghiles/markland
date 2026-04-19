@@ -1,0 +1,11 @@
+Your Markland login link
+
+Click the link below to sign in. It expires in {{ expires_in_minutes }} minutes and can be used once.
+
+{{ verify_url }}
+
+If you didn't request this, you can safely ignore this email.
+
+--
+Markland · {{ base_url }}
+Manage notifications: {{ base_url }}/settings/notifications
