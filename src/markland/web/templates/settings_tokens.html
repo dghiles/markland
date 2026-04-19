@@ -1,0 +1,84 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Tokens — Markland</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 1rem; }
+    h1 { font-size: 1.5rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #eee; }
+    form.inline { display: inline; }
+    .newtoken { background: #efe; border: 1px solid #aca; padding: 1rem; margin-top: 1rem; word-break: break-all; }
+    .newtoken code { font-size: 1rem; }
+    button { padding: 0.4rem 0.8rem; cursor: pointer; }
+    input[type=text] { padding: 0.4rem; width: 16rem; }
+  </style>
+</head>
+<body>
+  <h1>API tokens for {{ user.email }}</h1>
+  <p>Use these tokens in your MCP client's <code>Authorization: Bearer ...</code> header.</p>
+
+  <h2>Create a token</h2>
+  <form id="create">
+    <input type="text" id="label" name="label" placeholder="e.g. laptop" required>
+    <button type="submit">Create</button>
+  </form>
+  <div id="newbox"></div>
+
+  <h2>Your tokens</h2>
+  {% if tokens %}
+  <table>
+    <thead><tr><th>Label</th><th>Created</th><th>Last used</th><th></th></tr></thead>
+    <tbody>
+    {% for t in tokens %}
+      <tr id="row-{{ t.id }}">
+        <td>{{ t.label or "(unlabeled)" }}</td>
+        <td>{{ t.created_at }}</td>
+        <td>{{ t.last_used_at or "never" }}</td>
+        <td>
+          <button class="revoke" data-id="{{ t.id }}">Revoke</button>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>No tokens yet.</p>
+  {% endif %}
+
+  <p style="margin-top:2rem;"><a href="#" id="logout">Sign out</a></p>
+
+  <script>
+    document.getElementById('create').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const label = document.getElementById('label').value.trim();
+      const r = await fetch('/api/tokens', {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({label}),
+      });
+      if (r.ok) {
+        const body = await r.json();
+        document.getElementById('newbox').innerHTML =
+          '<div class="newtoken">New token (copy now — it will not be shown again):<br>' +
+          '<code>' + body.token + '</code></div>';
+        setTimeout(() => location.reload(), 500);
+      }
+    });
+    document.querySelectorAll('.revoke').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        if (!confirm('Revoke this token?')) return;
+        const r = await fetch('/api/tokens/' + id, {method: 'DELETE'});
+        if (r.ok) document.getElementById('row-' + id).remove();
+      });
+    });
+    document.getElementById('logout').addEventListener('click', async (e) => {
+      e.preventDefault();
+      await fetch('/api/auth/logout', {method: 'POST'});
+      location.href = '/login';
+    });
+  </script>
+</body>
+</html>

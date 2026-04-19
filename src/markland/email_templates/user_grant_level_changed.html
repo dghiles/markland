@@ -1,0 +1,9 @@
+{% extends "_layout.html" %}
+{% block content %}
+<h1 style="margin:0 0 16px 0;font-size:22px;font-weight:600;">Your access changed</h1>
+<p style="margin:0 0 8px 0;">{{ granter_display }} changed your access to <strong>{{ doc_title }}</strong>.</p>
+<p style="margin:0 0 20px 0;color:#6b6b68;">New level: <strong>{{ new_level }}</strong> (was {{ old_level }}).</p>
+<p style="margin:0 0 24px 0;">
+  <a href="{{ doc_url }}" style="display:inline-block;background:#1a1a1a;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:6px;font-weight:500;">Open document</a>
+</p>
+{% endblock %}

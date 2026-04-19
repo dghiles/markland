@@ -1,0 +1,10 @@
+{% extends "_layout.html" %}
+{% block content %}
+<h1 style="margin:0 0 16px 0;font-size:22px;font-weight:600;">Your Markland login link</h1>
+<p style="margin:0 0 20px 0;">Click the button below to sign in. This link expires in {{ expires_in_minutes }} minutes and can be used once.</p>
+<p style="margin:0 0 24px 0;">
+  <a href="{{ verify_url }}" style="display:inline-block;background:#1a1a1a;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:6px;font-weight:500;">Sign in to Markland</a>
+</p>
+<p style="margin:0 0 8px 0;color:#6b6b68;font-size:13px;">Or paste this URL into your browser:</p>
+<p style="margin:0;word-break:break-all;color:#6b6b68;font-size:13px;"><a href="{{ verify_url }}" style="color:#6b6b68;">{{ verify_url }}</a></p>
+{% endblock %}

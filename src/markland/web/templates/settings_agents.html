@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Agents — Markland</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.5rem; }
+    .agent { border: 1px solid #ddd; border-radius: 6px; padding: 1rem; margin: 0.75rem 0; }
+    .agent-id { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.85rem; color: #555; }
+    form.inline { display: inline; }
+    button { font: inherit; padding: 0.25rem 0.75rem; }
+    .token-plain { background: #fff8c4; padding: 0.5rem; border-radius: 4px; font-family: monospace; word-break: break-all; }
+    .muted { color: #888; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <h1>Agents</h1>
+  <p class="muted">Agents act on your behalf. They inherit your grants automatically &mdash; no need to re-grant a doc to every agent you own.</p>
+
+  <h2>Create agent</h2>
+  <form method="post" action="/settings/agents/create">
+    <label>Display name <input type="text" name="display_name" required minlength="1" maxlength="200"></label>
+    <button type="submit">Create agent</button>
+  </form>
+
+  {% if new_token %}
+    <div class="token-plain">
+      <strong>New token (copy now; you won't see it again):</strong><br>
+      {{ new_token }}
+    </div>
+  {% endif %}
+
+  <h2>Your agents</h2>
+  {% if not agents %}
+    <p class="muted">You have no agents yet.</p>
+  {% endif %}
+  {% for a in agents %}
+    <div class="agent">
+      <div><strong>{{ a.display_name }}</strong></div>
+      <div class="agent-id">{{ a.id }}</div>
+      <div class="muted">Created {{ a.created_at }}</div>
+
+      <form class="inline" method="post" action="/settings/agents/{{ a.id }}/tokens/create">
+        <input type="text" name="label" placeholder="token label" required>
+        <button type="submit">Mint token</button>
+      </form>
+      <form class="inline" method="post" action="/settings/agents/{{ a.id }}/delete"
+            onsubmit="return confirm('Revoke agent {{ a.display_name }}? This cannot be undone.');">
+        <button type="submit">Revoke agent</button>
+      </form>
+    </div>
+  {% endfor %}
+</body>
+</html>

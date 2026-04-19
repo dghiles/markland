@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Authorize device — Markland</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, sans-serif; max-width: 36rem;
+           margin: 4rem auto; padding: 0 1rem; line-height: 1.5; color: #111; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    .code-input { font-family: ui-monospace, monospace; font-size: 1.5rem;
+                  letter-spacing: 0.2rem; padding: 0.75rem 1rem; width: 100%;
+                  box-sizing: border-box; text-transform: uppercase; }
+    .invite-note { background: #fffbea; border: 1px solid #f4c430;
+                   padding: 0.75rem 1rem; border-radius: 6px; margin: 1rem 0; }
+    .btn { background: #111; color: #fff; padding: 0.6rem 1rem; border: none;
+           border-radius: 6px; font-size: 1rem; cursor: pointer; }
+    .btn.secondary { background: #eee; color: #111; }
+    .error { color: #b00020; }
+  </style>
+</head>
+<body>
+  <h1>Authorize a device</h1>
+
+  {% if not session %}
+    <p>Please <a href="/login?next=/device{% if code %}?code={{ code }}{% endif %}">sign in</a>
+       to continue. After you sign in you'll be brought back here to enter the code.</p>
+  {% else %}
+    <p>Hi {{ session.display_name or session.user_id }} — a CLI is requesting
+       access to your Markland account.</p>
+
+    {% if invite_description %}
+      <div class="invite-note">
+        This will also give you <strong>{{ invite_description.level }}</strong>
+        access to <em>{{ invite_description.doc_title }}</em>
+        (shared by {{ invite_description.granter_display }}).
+      </div>
+    {% elif invite_token %}
+      <div class="invite-note">
+        This will also accept the attached invite.
+      </div>
+    {% endif %}
+
+    {% if error %}
+      <p class="error">{{ error }}</p>
+    {% endif %}
+
+    <form method="post" action="/device/confirm" autocomplete="off">
+      <input type="hidden" name="csrf" value="{{ csrf }}" />
+      <label for="user_code">Enter the code shown in your CLI:</label>
+      <input class="code-input" type="text" id="user_code" name="user_code"
+             value="{{ code or '' }}" placeholder="ABCD-EFGH" maxlength="9"
+             required autofocus />
+      <div style="margin-top:1rem;">
+        <button class="btn" type="submit">Authorize</button>
+        <a class="btn secondary" href="/" role="button" style="text-decoration:none;display:inline-block;">Cancel</a>
+      </div>
+    </form>
+  {% endif %}
+</body>
+</html>

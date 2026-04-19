@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Quickstart &mdash; Markland</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #111; }
+    h1 { font-size: 2rem; margin-bottom: 0.25rem; }
+    .sub { color: #555; margin-bottom: 2rem; }
+    ol { padding-left: 1.2rem; }
+    ol > li { margin-bottom: 1.5rem; }
+    code, pre { font-family: "SF Mono", Menlo, monospace; }
+    pre { background: #f5f5f5; padding: 0.8rem 1rem; border-radius: 6px; overflow-x: auto; }
+    a { color: #0b5bd3; }
+    .footer { margin-top: 3rem; color: #888; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <h1>Markland Quickstart</h1>
+  <p class="sub">Publish a markdown doc with your agent in five steps.</p>
+
+  <ol>
+    <li>
+      <strong>Sign up.</strong> Head to <a href="/">markland.dev</a>, enter your email,
+      click the magic-link you receive, and you're in.
+    </li>
+
+    <li>
+      <strong>Paste <code>/setup</code> into Claude Code.</strong> In Claude Code, run:
+      <pre>claude mcp add markland https://markland.dev/setup</pre>
+      Claude Code will walk you through authorizing a token and wiring up the MCP server.
+    </li>
+
+    <li>
+      <strong>Publish a doc.</strong> Ask Claude:
+      <blockquote>Publish a markdown doc titled "Hello Markland" with some notes about my project.</blockquote>
+      Your agent calls <code>markland_publish</code>. You get back a share link.
+    </li>
+
+    <li>
+      <strong>Share it.</strong> Ask Claude:
+      <blockquote>Grant view access on that doc to friend@example.com.</blockquote>
+      Your agent calls <code>markland_grant</code>. Your friend gets an email.
+    </li>
+
+    <li>
+      <strong>View the doc.</strong> Open the share link in a browser. You'll see the
+      rendered markdown. Your friend signs in and sees it under "Mine + Shared" on
+      <a href="/explore?view=mine">/explore</a>.
+    </li>
+  </ol>
+
+  <p class="footer">
+    Stuck? Check the <a href="/">landing page</a> or the README on GitHub.
+  </p>
+</body>
+</html>

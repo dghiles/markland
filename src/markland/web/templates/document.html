@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} &middot; Markland</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0A0A0A;
+            --surface: #0F0F12;
+            --surface-2: #16171B;
+            --text: #FFFFFF;
+            --text-2: #E8EAED;
+            --muted: #9AA0A6;
+            --outline: rgba(255, 255, 255, 0.22);
+            --outline-strong: rgba(255, 255, 255, 0.45);
+            --outline-hairline: rgba(255, 255, 255, 0.09);
+
+            --blue: #4285F4;
+            --red: #EA4335;
+            --yellow: #FBBC04;
+            --green: #34A853;
+
+            --radius: 20px;
+            --radius-lg: 28px;
+
+            --max-width: 760px;
+            --font-display: 'Figtree', -apple-system, sans-serif;
+            --font-body: 'Newsreader', 'Charter', 'Georgia', serif;
+            --font-mono: 'DM Mono', 'Menlo', monospace;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { -webkit-font-smoothing: antialiased; }
+        body {
+            background: var(--bg);
+            color: var(--text-2);
+            font-family: var(--font-body);
+            font-size: 1.12rem;
+            line-height: 1.75;
+            padding: 3rem 1rem 4rem;
+        }
+        ::selection { background: var(--blue); color: var(--text); }
+        .container {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            background: var(--surface);
+            border: 1.5px solid var(--outline);
+            border-radius: var(--radius-lg);
+            padding: 2.5rem 2.5rem 3rem;
+        }
+        .meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            font-family: var(--font-mono);
+            font-size: 0.76rem;
+            letter-spacing: 0.05em;
+            color: var(--muted);
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--outline-hairline);
+        }
+        .meta .brand {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: var(--text);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            letter-spacing: -0.015em;
+            text-transform: none;
+        }
+        .meta .brand .dot {
+            width: 0.55rem;
+            height: 0.55rem;
+            border-radius: 50%;
+            background: var(--red);
+        }
+        .meta .brand a { color: inherit; text-decoration: none; }
+        .content h1, .content h2, .content h3 {
+            font-family: var(--font-display);
+            color: var(--text);
+            letter-spacing: -0.028em;
+            line-height: 1.15;
+        }
+        .content h1 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            margin: 1.8rem 0 1rem;
+        }
+        .content h2 {
+            font-size: 1.55rem;
+            font-weight: 700;
+            margin: 2rem 0 0.9rem;
+        }
+        .content h3 {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin: 1.5rem 0 0.6rem;
+        }
+        .content p { margin: 0.85rem 0; }
+        .content strong { color: var(--text); font-weight: 600; }
+        .content em { font-style: italic; }
+        .content a {
+            color: var(--blue);
+            font-weight: 500;
+            text-decoration: none;
+            border-bottom: 1.5px solid rgba(66, 133, 244, 0.45);
+            transition: border-color 0.18s ease;
+        }
+        .content a:hover { border-bottom-color: var(--blue); }
+        .content ul, .content ol { margin: 0.85rem 0; padding-left: 1.6rem; }
+        .content li { margin: 0.35rem 0; }
+        .content blockquote {
+            font-family: var(--font-body);
+            font-style: italic;
+            font-size: 1.08rem;
+            color: var(--text-2);
+            background: var(--surface-2);
+            border: 1px solid var(--outline-hairline);
+            border-left: 3px solid var(--yellow);
+            border-radius: var(--radius);
+            padding: 1rem 1.25rem;
+            margin: 1.3rem 0;
+        }
+        .content code {
+            font-family: var(--font-mono);
+            background: var(--surface-2);
+            border: 1px solid var(--outline-hairline);
+            padding: 0.08rem 0.4rem;
+            font-size: 0.86em;
+            border-radius: 6px;
+            color: var(--text);
+        }
+        .content pre {
+            background: #000000;
+            color: var(--text-2);
+            border: 1px solid var(--outline);
+            border-radius: var(--radius);
+            padding: 1.1rem 1.2rem;
+            overflow-x: auto;
+            margin: 1.3rem 0;
+            font-family: var(--font-mono);
+            font-size: 0.88rem;
+            line-height: 1.6;
+        }
+        .content pre code {
+            background: none;
+            border: none;
+            padding: 0;
+            color: inherit;
+            font-size: inherit;
+            border-radius: 0;
+        }
+        .content table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 1.3rem 0;
+            font-family: var(--font-display);
+            font-size: 0.92rem;
+            border: 1px solid var(--outline);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+        .content th, .content td {
+            border-bottom: 1px solid var(--outline-hairline);
+            padding: 0.65rem 0.9rem;
+            text-align: left;
+        }
+        .content tr:last-child th, .content tr:last-child td { border-bottom: none; }
+        .content th {
+            font-weight: 600;
+            font-size: 0.85rem;
+            background: var(--surface-2);
+            color: var(--text);
+        }
+        .content img {
+            max-width: 100%;
+            border: 1px solid var(--outline);
+            border-radius: var(--radius);
+        }
+        .content hr {
+            border: none;
+            border-top: 1px solid var(--outline-hairline);
+            margin: 2.2rem 0;
+        }
+
+        /* Pygments tokens on black pre — primary-color-coded, discrete fills */
+        .highlight .k { color: var(--red); }         /* keyword */
+        .highlight .s, .highlight .s1, .highlight .s2 { color: var(--green); } /* string */
+        .highlight .c, .highlight .c1 { color: var(--muted); font-style: italic; }
+        .highlight .mi, .highlight .mf { color: var(--yellow); }
+        .highlight .nf, .highlight .nx { color: var(--blue); }
+        .highlight .nb, .highlight .bp { color: var(--yellow); }
+
+        @media (max-width: 640px) {
+            body { padding: 1rem 0.5rem 2rem; }
+            .container { padding: 1.8rem 1.4rem 2rem; border-radius: var(--radius); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="meta">
+            <span class="brand">
+                <span class="dot" aria-hidden="true"></span>
+                <a href="/">Markland</a>
+            </span>
+            <span>Published {{ created_at[:10] }}</span>
+        </div>
+        {% if is_owner %}
+          {% include "_share_dialog.html" %}
+        {% endif %}
+        {% if active_principals %}
+        <div data-presence-badge style="margin:0.5rem 0 1.2rem 0; padding:0.6rem 0.9rem; border:1px solid var(--outline-hairline); border-radius:12px; background:var(--surface-2); font-family:var(--font-display); font-size:0.88rem; color:var(--text-2);">
+          {% for p in active_principals %}
+            <div style="display:flex; gap:0.5rem; align-items:center; padding:0.15rem 0;">
+              <span aria-hidden="true" style="display:inline-block; width:0.55rem; height:0.55rem; border-radius:50%; background: {% if p.status == 'editing' %}var(--red){% else %}var(--green){% endif %};"></span>
+              <strong style="color:var(--text); font-weight:600;">{{ p.display_name }}</strong>
+              <span>is {{ p.status }}</span>
+              {% if p.note %}<span style="color:var(--muted);">&mdash; {{ p.note }}</span>{% endif %}
+              <span style="color:var(--muted);">&middot; {% if p.minutes_ago < 1 %}just now{% else %}{{ p.minutes_ago }} min ago{% endif %}</span>
+            </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <div class="content">
+            {{ content_html | safe }}
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,107 @@
+"""Magic-link login: itsdangerous-signed single-use tokens, delivered via dispatcher.
+
+Token carries the target email; validity = 15 minutes. "Single-use" is enforced at
+the verify route by issuing a session immediately on first success; the token itself
+has no server-side state (the 15-minute expiry is the belt-and-braces).
+"""
+
+from __future__ import annotations
+
+import logging
+from urllib.parse import urlencode
+
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+
+from markland.service import email_templates
+
+logger = logging.getLogger("markland.magic_link")
+
+MAGIC_LINK_MAX_AGE_SECONDS = 15 * 60
+_SALT = "mk.magiclink.v1"
+
+
+class InvalidMagicLink(Exception):
+    """Raised when a magic-link token is missing, tampered, or expired."""
+
+
+def _serializer(secret: str) -> URLSafeTimedSerializer:
+    if not secret:
+        raise ValueError("session secret must be non-empty")
+    return URLSafeTimedSerializer(secret, salt=_SALT)
+
+
+def safe_return_to(raw: str | None) -> str:
+    """Whitelist `return_to` values to avoid open redirects."""
+    if not raw:
+        return "/"
+    if not raw.startswith("/") or raw.startswith("//"):
+        return "/"
+    return raw
+
+
+def issue_magic_link_token(
+    email: str,
+    *,
+    secret: str,
+    max_age_seconds: int = MAGIC_LINK_MAX_AGE_SECONDS,  # kept for symmetry; serializer ignores
+) -> str:
+    """Sign a token carrying this email."""
+    return _serializer(secret).dumps(email.strip().lower())
+
+
+def read_magic_link_token(
+    token: str,
+    *,
+    secret: str,
+    max_age_seconds: int = MAGIC_LINK_MAX_AGE_SECONDS,
+) -> str:
+    """Return the email encoded in `token`. Raises `InvalidMagicLink`."""
+    try:
+        return _serializer(secret).loads(token, max_age=max_age_seconds)
+    except SignatureExpired as e:
+        raise InvalidMagicLink("magic link expired") from e
+    except BadSignature as e:
+        raise InvalidMagicLink("invalid magic link") from e
+
+
+def send_magic_link(
+    *,
+    dispatcher,
+    email: str,
+    secret: str,
+    base_url: str,
+    return_to: str | None = None,
+    expires_in_minutes: int = 15,
+) -> str:
+    """Issue a magic-link token, enqueue the email, return the token for testing.
+
+    Synchronous: `dispatcher.enqueue(...)` is a sync non-blocking call that pushes
+    the item onto an asyncio.Queue and returns immediately. Plan 2's sync route
+    handler continues to call this directly.
+    """
+    normalized = email.strip().lower()
+    token = issue_magic_link_token(normalized, secret=secret)
+    params = {"token": token}
+    safe_rt = safe_return_to(return_to)
+    if safe_rt != "/":
+        params["return_to"] = safe_rt
+    verify_url = f"{base_url.rstrip('/')}/verify?" + urlencode(params)
+
+    rendered = email_templates.magic_link(
+        email=normalized,
+        verify_url=verify_url,
+        expires_in_minutes=expires_in_minutes,
+    )
+    try:
+        dispatcher.enqueue(
+            to=normalized,
+            subject=rendered["subject"],
+            html=rendered["html"],
+            text=rendered.get("text"),
+            metadata={"template": "magic_link"},
+        )
+    except Exception as exc:  # pragma: no cover — defensive
+        logger.warning("Failed to enqueue magic_link email to %s: %s", normalized, exc)
+    else:
+        logger.info("Magic-link email enqueued for %s", normalized)
+    return token

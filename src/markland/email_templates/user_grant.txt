@@ -1,0 +1,7 @@
+{{ granter_display }} shared "{{ doc_title }}" with you — {{ level }} access.
+
+Open: {{ doc_url }}
+
+--
+Markland · {{ base_url }}
+Manage notifications: {{ base_url }}/settings/notifications

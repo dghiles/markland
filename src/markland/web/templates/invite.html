@@ -1,0 +1,54 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Invited to {{ doc_title }} — Markland</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 4rem auto; padding: 0 1.5rem; line-height: 1.5; }
+      h1 { font-size: 1.4rem; margin-bottom: 0.5rem; }
+      .level { display: inline-block; padding: 0.15rem 0.5rem; background: #eef; border-radius: 0.25rem; font-size: 0.85rem; font-weight: 600; }
+      form { margin-top: 1.5rem; }
+      input[type="email"] { padding: 0.5rem 0.75rem; font-size: 1rem; border: 1px solid #999; border-radius: 0.25rem; width: 100%; box-sizing: border-box; }
+      button { margin-top: 0.75rem; padding: 0.6rem 1.2rem; font-size: 1rem; border: 0; border-radius: 0.25rem; background: #111; color: #fff; cursor: pointer; }
+      .note { color: #555; font-size: 0.9rem; margin-top: 1rem; }
+      .error { color: #b00; margin-top: 0.5rem; }
+    </style>
+  </head>
+  <body>
+    <h1>{{ inviter_name }} invited you to <em>{{ doc_title }}</em></h1>
+    <p>They're giving you <span class="level">{{ level }}</span> access.</p>
+
+    {% if signed_in %}
+      <form id="accept-form">
+        <button type="submit">Accept and open document</button>
+      </form>
+      <script>
+        document.getElementById("accept-form").addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const resp = await fetch("/api/invites/{{ token }}/accept", { method: "POST" });
+          if (resp.ok) {
+            window.location.href = "/d/{{ doc_share_token }}";
+          } else {
+            const el = document.createElement("p");
+            el.className = "error";
+            el.textContent = resp.status === 410
+              ? "This invite is no longer valid."
+              : "Could not accept the invite right now.";
+            document.body.appendChild(el);
+          }
+        });
+      </script>
+    {% else %}
+      <form method="post" action="/api/auth/magic-link">
+        <input type="hidden" name="return_to" value="/invite/{{ token }}" />
+        <label for="email"><strong>Enter your email to sign in or create an account</strong></label>
+        <input type="email" id="email" name="email" required placeholder="you@example.com" autocomplete="email" />
+        <button type="submit">Send magic link</button>
+      </form>
+      <p class="note">
+        If you don't have a Markland account, signing in will create one automatically.
+        After you click the magic-link in your email, you'll be returned here and can accept the invite.
+      </p>
+    {% endif %}
+  </body>
+</html>

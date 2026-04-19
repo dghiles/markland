@@ -1,0 +1,54 @@
+<section id="share-dialog" style="border:1px solid #ccc;padding:1rem;margin:1rem 0;">
+  <h3 style="margin-top:0;">Share</h3>
+  <form id="share-form">
+    <label>
+      Email
+      <input type="email" name="principal" placeholder="alice@example.com" required />
+    </label>
+    <label>
+      Level
+      <select name="level">
+        <option value="view">view</option>
+        <option value="edit">edit</option>
+      </select>
+    </label>
+    <button type="submit">Grant</button>
+  </form>
+  <ul id="grants-list">
+    {% for g in grants %}
+      <li data-principal="{{ g.principal_id }}">
+        {{ g.principal_id }} · {{ g.level }}
+        <button class="revoke" data-principal="{{ g.principal_id }}">revoke</button>
+      </li>
+    {% endfor %}
+  </ul>
+  <script>
+    (function () {
+      const docId = {{ doc_id|tojson }};
+      const form = document.getElementById("share-form");
+      const list = document.getElementById("grants-list");
+      form.addEventListener("submit", async (ev) => {
+        ev.preventDefault();
+        const fd = new FormData(form);
+        const body = { principal: fd.get("principal"), level: fd.get("level") };
+        const r = await fetch(`/api/docs/${docId}/grants`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(body),
+        });
+        if (r.ok) { location.reload(); }
+        else { alert(`Grant failed: ${r.status}`); }
+      });
+      list.addEventListener("click", async (ev) => {
+        const btn = ev.target.closest(".revoke");
+        if (!btn) return;
+        const pid = btn.getAttribute("data-principal");
+        const r = await fetch(`/api/docs/${docId}/grants/${pid}`, {
+          method: "DELETE", credentials: "include",
+        });
+        if (r.ok) { location.reload(); }
+      });
+    })();
+  </script>
+</section>
