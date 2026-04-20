@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sqlite3
-from urllib.parse import unquote
 
 import pytest
 from fastapi.testclient import TestClient
@@ -61,7 +60,7 @@ def test_anonymous_fork_sets_pending_intent_and_redirects_to_login(tmp_path):
 
     intent_cookie = r.cookies.get(PENDING_INTENT_COOKIE_NAME)
     assert intent_cookie
-    intent = read_pending_intent(unquote(intent_cookie), secret=SECRET)
+    intent = read_pending_intent(intent_cookie, secret=SECRET)
     assert intent.action == "fork"
     assert intent.share_token == doc.share_token
 
@@ -151,7 +150,7 @@ def test_anonymous_bookmark_sets_pending_intent_and_redirects(tmp_path):
     assert r.status_code in (302, 303)
     intent_cookie = r.cookies.get(PENDING_INTENT_COOKIE_NAME)
     assert intent_cookie
-    intent = read_pending_intent(unquote(intent_cookie), secret=SECRET)
+    intent = read_pending_intent(intent_cookie, secret=SECRET)
     assert intent.action == "bookmark"
     assert intent.share_token == doc.share_token
 
