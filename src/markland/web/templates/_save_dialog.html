@@ -1,0 +1,199 @@
+{# Included from document.html when the viewer is NOT the owner.
+   Renders:
+   - Desktop (≥641px): a small button in the .meta row with an anchored popover.
+   - Mobile (≤640px): a sticky bottom bar that opens a full-width bottom sheet.
+   Both options are real <form method="post"> elements — JS only toggles visibility. #}
+
+<style>
+  .save-root { position: relative; }
+  .save-btn-desktop {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 0.82rem;
+    color: var(--text);
+    background: var(--surface-2);
+    border: 1px solid var(--outline);
+    border-radius: 999px;
+    padding: 0.35rem 0.85rem;
+    cursor: pointer;
+  }
+  .save-btn-desktop:hover { border-color: var(--outline-strong); }
+  .save-popover {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 0.5rem);
+    min-width: 200px;
+    background: var(--surface-2);
+    border: 1px solid var(--outline);
+    border-radius: 14px;
+    padding: 0.3rem;
+    z-index: 10;
+    display: none;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+  .save-popover[data-open="true"] { display: block; }
+  .save-popover form { display: block; }
+  .save-popover button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-family: var(--font-display);
+    font-size: 0.9rem;
+    padding: 0.55rem 0.75rem;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  .save-popover button:hover { background: rgba(255,255,255,0.06); }
+
+  /* Mobile sticky bar + sheet. Hidden on desktop. */
+  .save-mobile-bar { display: none; }
+  .save-sheet-backdrop { display: none; }
+  .save-sheet { display: none; }
+
+  @media (max-width: 640px) {
+    .save-btn-desktop { display: none; }
+
+    .save-mobile-bar {
+      display: block;
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 0.8rem 1rem max(0.8rem, env(safe-area-inset-bottom)) 1rem;
+      background: var(--surface);
+      border-top: 1px solid var(--outline);
+      z-index: 20;
+    }
+    .save-mobile-bar button {
+      width: 100%;
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 1rem;
+      color: var(--text);
+      background: var(--blue);
+      border: none;
+      border-radius: 12px;
+      padding: 0.85rem 1rem;
+      cursor: pointer;
+    }
+
+    .save-sheet-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 30;
+      display: none;
+    }
+    .save-sheet-backdrop[data-open="true"] { display: block; }
+
+    .save-sheet {
+      display: block;
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: var(--surface-2);
+      border-top: 1px solid var(--outline);
+      border-radius: 18px 18px 0 0;
+      padding: 1.2rem 1rem max(1.2rem, env(safe-area-inset-bottom)) 1rem;
+      z-index: 40;
+      transform: translateY(100%);
+      transition: transform 0.22s ease;
+    }
+    .save-sheet[data-open="true"] { transform: translateY(0); }
+    .save-sheet form { display: block; margin: 0.4rem 0; }
+    .save-sheet button {
+      width: 100%;
+      text-align: left;
+      font-family: var(--font-display);
+      font-size: 1rem;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--outline);
+      border-radius: 12px;
+      padding: 0.85rem 1rem;
+      cursor: pointer;
+    }
+    .save-sheet .save-cancel {
+      width: 100%;
+      margin-top: 0.6rem;
+      background: transparent;
+      color: var(--muted);
+      border: none;
+      font-family: var(--font-display);
+      font-size: 0.95rem;
+      padding: 0.6rem;
+      cursor: pointer;
+    }
+  }
+</style>
+
+<div class="save-root">
+  <button type="button" class="save-btn-desktop" data-save-open>
+    Save to Markland ▾
+  </button>
+
+  <div class="save-popover" data-save-popover role="menu" aria-hidden="true">
+    <form method="post" action="/d/{{ share_token }}/fork">
+      <button type="submit" role="menuitem">Save a copy</button>
+    </form>
+    <form method="post" action="/d/{{ share_token }}/bookmark">
+      <button type="submit" role="menuitem">Add to library</button>
+    </form>
+  </div>
+
+  <div class="save-mobile-bar">
+    <button type="button" data-save-open>Save to Markland</button>
+  </div>
+
+  <div class="save-sheet-backdrop" data-save-backdrop></div>
+  <div class="save-sheet" data-save-sheet role="dialog" aria-label="Save this document">
+    <form method="post" action="/d/{{ share_token }}/fork">
+      <button type="submit">Save a copy</button>
+    </form>
+    <form method="post" action="/d/{{ share_token }}/bookmark">
+      <button type="submit">Add to library</button>
+    </form>
+    <button type="button" class="save-cancel" data-save-close>Cancel</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  const root = document.currentScript.previousElementSibling;  // .save-root
+  if (!root) return;
+  const popover = root.querySelector('[data-save-popover]');
+  const sheet = root.querySelector('[data-save-sheet]');
+  const backdrop = root.querySelector('[data-save-backdrop]');
+  const openBtns = root.querySelectorAll('[data-save-open]');
+  const closeBtns = root.querySelectorAll('[data-save-close]');
+
+  function setOpen(open) {
+    if (popover) {
+      popover.dataset.open = open ? 'true' : 'false';
+      popover.setAttribute('aria-hidden', open ? 'false' : 'true');
+    }
+    if (sheet) sheet.dataset.open = open ? 'true' : 'false';
+    if (backdrop) backdrop.dataset.open = open ? 'true' : 'false';
+  }
+
+  openBtns.forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    setOpen(true);
+  }));
+  closeBtns.forEach(b => b.addEventListener('click', () => setOpen(false)));
+  if (backdrop) backdrop.addEventListener('click', () => setOpen(false));
+  document.addEventListener('click', (e) => {
+    if (!root.contains(e.target)) setOpen(false);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') setOpen(false);
+  });
+})();
+</script>

@@ -336,6 +336,7 @@ def create_app(
             is_owner=is_owner,
             grants=grants_for_template,
             doc_id=doc.id,
+            share_token=doc.share_token,
             active_principals=active_principals,
         )
         return HTMLResponse(html)
