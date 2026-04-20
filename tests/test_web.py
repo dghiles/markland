@@ -333,3 +333,40 @@ def test_share_dialog_shown_for_owner_only(tmp_path):
     r_anon = c.get(f"/d/{share_token}")
     assert r_anon.status_code == 200
     assert 'id="share-dialog"' not in r_anon.text
+
+
+def test_alternatives_hub_lists_competitors(client):
+    r = client.get("/alternatives")
+    assert r.status_code == 200
+    assert "Markland vs Markshare.to" in r.text
+    assert "Markland vs GitHub" in r.text
+    assert "Markland vs Google Docs" in r.text
+    assert "Markland vs Notion" in r.text
+
+
+def test_alternatives_hub_has_summary_and_cta(client):
+    r = client.get("/alternatives")
+    assert r.status_code == 200
+    assert "hosted markdown publishing service" in r.text
+    assert "Join the waitlist" in r.text
+
+
+def test_alternative_page_renders_markshare(client):
+    r = client.get("/alternatives/markshare")
+    assert r.status_code == 200
+    assert "Markland vs Markshare.to" in r.text
+    assert "MCP-native vs CLI" in r.text
+    assert "Pick Markshare.to when" in r.text
+    assert "Pick Markland when" in r.text
+
+
+def test_alternative_page_renders_github(client):
+    r = client.get("/alternatives/github")
+    assert r.status_code == 200
+    assert "Sharing unit mismatch" in r.text
+    assert "Code-review chrome bounces readers" in r.text
+
+
+def test_alternative_page_unknown_slug_returns_404(client):
+    r = client.get("/alternatives/bogus")
+    assert r.status_code == 404

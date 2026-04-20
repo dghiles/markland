@@ -17,6 +17,7 @@ from markland.db import (
     list_featured_and_recent_public,
     list_public_documents,
 )
+from markland.web.competitors import COMPETITORS, MARKLAND, get_competitor
 from markland.web.renderer import make_excerpt, render_markdown
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -185,6 +186,8 @@ def create_app(
     document_tpl = env.get_template("document.html")
     quickstart_tpl = env.get_template("quickstart.html")
     admin_audit_tpl = env.get_template("admin_audit.html")
+    alternatives_tpl = env.get_template("alternatives.html")
+    alternative_tpl = env.get_template("alternative.html")
 
     mcp_snippet = _load_mcp_snippet()
     mcp_snippet_json = json.dumps(mcp_snippet)
@@ -196,6 +199,33 @@ def create_app(
     @app.get("/quickstart", response_class=HTMLResponse)
     def quickstart():
         return HTMLResponse(quickstart_tpl.render())
+
+    @app.get("/alternatives", response_class=HTMLResponse)
+    def alternatives():
+        return HTMLResponse(
+            alternatives_tpl.render(
+                competitors=COMPETITORS,
+                markland=MARKLAND,
+            )
+        )
+
+    @app.get("/alternatives/{slug}", response_class=HTMLResponse)
+    def alternative(slug: str):
+        competitor = get_competitor(slug)
+        if competitor is None:
+            return HTMLResponse(
+                "<html><body style='font-family:system-ui;padding:2rem;background:#0A0A0A;color:#fff;'>"
+                "<h1>Alternative not found</h1>"
+                "<p><a href='/alternatives' style='color:#4285F4;'>See all alternatives</a></p>"
+                "</body></html>",
+                status_code=404,
+            )
+        return HTMLResponse(
+            alternative_tpl.render(
+                competitor=competitor,
+                markland=MARKLAND,
+            )
+        )
 
     @app.get("/admin/audit", response_class=HTMLResponse)
     def admin_audit(request: Request):

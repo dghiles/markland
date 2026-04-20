@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block title %}Markland vs {{ competitor.name }} &middot; Markland{% endblock %}
+
+{% block head_extra %}
+        .cmp-crumbs {
+            max-width: 860px;
+            margin: 0 auto;
+            padding-top: 0.5rem;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: var(--muted);
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+        .cmp-crumbs a { color: var(--muted); border-bottom: 1px solid var(--outline-hairline); padding-bottom: 1px; }
+        .cmp-crumbs a:hover { color: var(--text); }
+
+        .cmp-hero {
+            max-width: 860px;
+            margin: 1.2rem auto 0;
+            padding: 2rem 0 3rem;
+            text-align: left;
+        }
+        .cmp-hero h1 {
+            font-family: var(--font-display);
+            font-size: clamp(2.2rem, 5vw, 3.6rem);
+            line-height: 1.05;
+            letter-spacing: -0.04em;
+            font-weight: 800;
+            margin-bottom: 1.2rem;
+        }
+        .cmp-hero h1 .period-red { color: var(--red); }
+        .cmp-hero p.lede {
+            font-size: 1.1rem;
+            color: var(--text-2);
+            max-width: 680px;
+            line-height: 1.55;
+        }
+
+        .cmp-tldr {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 1.4rem 1.6rem;
+            border: 1px solid var(--outline);
+            border-radius: var(--radius);
+            background: var(--surface);
+        }
+        .cmp-tldr h2 {
+            font-size: 0.78rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 0.6rem;
+            font-weight: 600;
+        }
+        .cmp-tldr p { color: var(--text-2); }
+
+        .cmp-side {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            max-width: 860px;
+            margin: 2rem auto 0;
+        }
+        @media (max-width: 720px) {
+            .cmp-side { grid-template-columns: 1fr; }
+        }
+        .cmp-side .cell {
+            padding: 1.2rem 1.4rem;
+            border: 1px solid var(--outline);
+            border-radius: var(--radius);
+            background: var(--surface);
+        }
+        .cmp-side .cell h3 {
+            font-family: var(--font-display);
+            font-size: 1.15rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.3rem;
+        }
+        .cmp-side .cell .tag {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 0.8rem;
+        }
+        .cmp-side .cell dl { margin: 0; }
+        .cmp-side .cell dt {
+            font-size: 0.72rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-top: 0.7rem;
+        }
+        .cmp-side .cell dd {
+            font-size: 0.95rem;
+            color: var(--text-2);
+            margin: 0.2rem 0 0;
+            line-height: 1.5;
+        }
+
+        .cmp-angles {
+            max-width: 860px;
+            margin: 4rem auto 0;
+        }
+        .cmp-angles h2 {
+            font-family: var(--font-display);
+            font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+            font-weight: 800;
+            letter-spacing: -0.025em;
+            margin-bottom: 2rem;
+        }
+        .cmp-angles .angle + .angle { margin-top: 2rem; }
+        .cmp-angles .angle h3 {
+            font-family: var(--font-display);
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.5rem;
+        }
+        .cmp-angles .angle p { color: var(--text-2); line-height: 1.65; font-size: 1rem; }
+
+        .cmp-fit {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            max-width: 860px;
+            margin: 4rem auto 0;
+        }
+        @media (max-width: 720px) {
+            .cmp-fit { grid-template-columns: 1fr; }
+        }
+        .cmp-fit .cell {
+            padding: 1.2rem 1.4rem;
+            border: 1px solid var(--outline);
+            border-radius: var(--radius);
+        }
+        .cmp-fit .cell h3 {
+            font-family: var(--font-display);
+            font-size: 1.05rem;
+            font-weight: 700;
+            margin-bottom: 0.6rem;
+        }
+        .cmp-fit .cell p { color: var(--text-2); font-size: 0.95rem; line-height: 1.55; }
+
+        .cmp-cta {
+            max-width: 860px;
+            margin: 4rem auto 0;
+            padding: 2.4rem 2rem;
+            text-align: center;
+            border: 1px solid var(--outline);
+            border-radius: var(--radius-lg);
+            background: var(--surface);
+        }
+        .cmp-cta h2 {
+            font-family: var(--font-display);
+            font-size: clamp(1.5rem, 3.5vw, 2rem);
+            font-weight: 800;
+            letter-spacing: -0.025em;
+            margin-bottom: 0.8rem;
+        }
+        .cmp-cta p { color: var(--muted); margin-bottom: 1.6rem; }
+        .cmp-cta .cta {
+            display: inline-block;
+            padding: 0.8rem 1.6rem;
+            background: var(--text);
+            color: var(--bg);
+            border-radius: var(--radius-pill);
+            font-weight: 600;
+            font-family: var(--font-display);
+        }
+        .cmp-cta .secondary {
+            display: inline-block;
+            margin-left: 0.8rem;
+            color: var(--text-2);
+            border-bottom: 1px solid var(--outline);
+            padding-bottom: 1px;
+            font-size: 0.92rem;
+        }
+{% endblock %}
+
+{% block content %}
+<nav class="cmp-crumbs">
+    <a href="/alternatives">Alternatives</a> &rarr; Markland vs {{ competitor.name }}
+</nav>
+
+<section class="cmp-hero">
+    <h1>Markland vs {{ competitor.name }}<span class="period-red">.</span></h1>
+    <p class="lede">{{ competitor.one_liner }} Markland is the MCP-native shared surface for agents and humans as equal editors — here is how they compare.</p>
+</section>
+
+<section class="cmp-tldr">
+    <h2>TL;DR</h2>
+    <p>{{ competitor.angles[0][1] }}</p>
+</section>
+
+<section class="cmp-side">
+    <div class="cell">
+        <div class="tag">Markland</div>
+        <h3>{{ markland.tagline }}</h3>
+        <dl>
+            <dt>Sharing unit</dt><dd>{{ markland.sharing_unit }}</dd>
+            <dt>Agent access</dt><dd>{{ markland.agent_access }}</dd>
+        </dl>
+    </div>
+    <div class="cell">
+        <div class="tag">{{ competitor.name }}</div>
+        <h3>{{ competitor.tagline }}</h3>
+        <dl>
+            <dt>Sharing unit</dt><dd>{{ competitor.sharing_unit }}</dd>
+            <dt>Agent access</dt><dd>{{ competitor.agent_access }}</dd>
+        </dl>
+    </div>
+</section>
+
+<section class="cmp-angles">
+    <h2>Where they actually differ</h2>
+    {% for heading, body in competitor.angles %}
+    <div class="angle">
+        <h3>{{ heading }}</h3>
+        <p>{{ body }}</p>
+    </div>
+    {% endfor %}
+</section>
+
+<section class="cmp-fit">
+    <div class="cell">
+        <h3>Pick {{ competitor.name }} when</h3>
+        <p>{{ competitor.best_for }}</p>
+    </div>
+    <div class="cell">
+        <h3>Pick Markland when</h3>
+        <p>{{ markland.best_for }}</p>
+    </div>
+</section>
+
+<section class="cmp-cta">
+    <h2>Let your agent publish directly.</h2>
+    <p>Sign up, wire the MCP server into Claude Code, and skip the copy-paste.</p>
+    <a href="/" class="cta">Join the waitlist</a>
+    <a href="/alternatives" class="secondary">See all alternatives</a>
+</section>
+{% endblock %}
