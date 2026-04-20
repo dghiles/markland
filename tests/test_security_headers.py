@@ -7,6 +7,22 @@ from markland.db import init_db, insert_document
 from markland.web.app import create_app
 
 
+def _assert_security_headers(h):
+    """Assert all six security headers are present AND load-bearing."""
+    assert h.get("strict-transport-security", "").startswith("max-age=")
+    csp = h.get("content-security-policy", "")
+    assert "default-src 'self'" in csp
+    assert "frame-ancestors 'none'" in csp
+    assert "base-uri 'self'" in csp
+    assert "form-action 'self'" in csp
+    assert h.get("x-content-type-options") == "nosniff"
+    assert h.get("x-frame-options") == "DENY"
+    assert h.get("referrer-policy") == "strict-origin-when-cross-origin"
+    perm = h.get("permissions-policy", "")
+    assert "camera=()" in perm
+    assert "geolocation=()" in perm
+
+
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("MARKLAND_RATE_LIMIT_ANON_PER_MIN", "1000")
@@ -19,13 +35,7 @@ def client(tmp_path, monkeypatch):
 @pytest.mark.parametrize("path", ["/", "/quickstart", "/explore", "/robots.txt", "/sitemap.xml"])
 def test_security_headers_present(client, path):
     r = client.get(path)
-    h = r.headers
-    assert h.get("strict-transport-security", "").startswith("max-age=")
-    assert "content-security-policy" in h
-    assert h.get("x-content-type-options") == "nosniff"
-    assert h.get("x-frame-options") == "DENY"
-    assert h.get("referrer-policy") == "strict-origin-when-cross-origin"
-    assert "permissions-policy" in h
+    _assert_security_headers(r.headers)
 
 
 def test_marketing_paths_allow_indexing(client):
@@ -39,13 +49,14 @@ def test_marketing_paths_allow_indexing(client):
     "path,expected_status",
     [
         ("/health", 200),
-        ("/settings", 401),
+        ("/settings", 404),
         ("/dashboard", 401),
-        ("/inbox", 401),
+        ("/inbox", 404),
     ],
 )
 def test_noindex_on_private_paths(client, path, expected_status):
     r = client.get(path, follow_redirects=False)
+    assert r.status_code == expected_status
     assert "noindex" in r.headers.get("x-robots-tag", "").lower()
 
 
@@ -61,8 +72,4 @@ def test_security_headers_on_rate_limit_429(tmp_path, monkeypatch):
     # Second request in the same minute should 429.
     r = c.get("/")
     assert r.status_code == 429
-    h = r.headers
-    assert h.get("strict-transport-security", "").startswith("max-age=")
-    assert "content-security-policy" in h
-    assert h.get("x-content-type-options") == "nosniff"
-    assert h.get("x-frame-options") == "DENY"
+    _assert_security_headers(r.headers)

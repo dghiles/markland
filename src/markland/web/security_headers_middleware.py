@@ -9,6 +9,8 @@ robots.txt, because 401/405 responses do not themselves prevent indexing.
 
 from __future__ import annotations
 
+import os
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
@@ -27,8 +29,12 @@ _CSP = (
     "form-action 'self'"
 )
 
-# Do not enable `preload` until the canonical domain is live and stable.
-_HSTS = "max-age=31536000; includeSubDomains"
+# Pre-canonical-domain: short HSTS max-age so we can unwind without waiting
+# a year if the *.fly.dev deployment changes. Bump to 31536000 once the
+# canonical domain is live and stable by setting MARKLAND_HSTS_MAX_AGE.
+# Do not enable `preload` until after the canonical domain swap.
+_HSTS_MAX_AGE = int(os.environ.get("MARKLAND_HSTS_MAX_AGE", "86400"))
+_HSTS = f"max-age={_HSTS_MAX_AGE}; includeSubDomains"
 
 _PERMISSIONS = "geolocation=(), camera=(), microphone=(), payment=()"
 
