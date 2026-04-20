@@ -12,6 +12,8 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("MARKLAND_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("MARKLAND_RATE_LIMIT_ANON_PER_MIN", "1000")
     conn = init_db(tmp_path / "q.db")
+    # Empty base_url forces _public_host's request-URL fallback branch so
+    # test_quickstart_templates_setup_host asserts http://testserver/setup.
     app = create_app(conn, mount_mcp=False, base_url="")
     return TestClient(app)
 
