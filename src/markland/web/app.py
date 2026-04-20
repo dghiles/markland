@@ -225,20 +225,27 @@ def create_app(
         return Response(body, media_type="application/xml")
 
     @app.get("/quickstart", response_class=HTMLResponse)
-    def quickstart():
-        return HTMLResponse(quickstart_tpl.render())
+    def quickstart(request: Request):
+        return HTMLResponse(
+            quickstart_tpl.render(
+                request=request,
+                canonical_host=_public_host(request, base_url),
+            )
+        )
 
     @app.get("/alternatives", response_class=HTMLResponse)
-    def alternatives():
+    def alternatives(request: Request):
         return HTMLResponse(
             alternatives_tpl.render(
+                request=request,
+                canonical_host=_public_host(request, base_url),
                 competitors=COMPETITORS,
                 markland=MARKLAND,
             )
         )
 
     @app.get("/alternatives/{slug}", response_class=HTMLResponse)
-    def alternative(slug: str):
+    def alternative(slug: str, request: Request):
         competitor = get_competitor(slug)
         if competitor is None:
             return HTMLResponse(
@@ -250,6 +257,8 @@ def create_app(
             )
         return HTMLResponse(
             alternative_tpl.render(
+                request=request,
+                canonical_host=_public_host(request, base_url),
                 competitor=competitor,
                 markland=MARKLAND,
             )
@@ -275,15 +284,23 @@ def create_app(
         rows = audit_svc.list_recent(db_conn, limit=200)
         for r in rows:
             r["metadata_json"] = json.dumps(r["metadata"], sort_keys=True)
-        return HTMLResponse(admin_audit_tpl.render(rows=rows))
+        return HTMLResponse(
+            admin_audit_tpl.render(
+                request=request,
+                canonical_host=_public_host(request, base_url),
+                rows=rows,
+            )
+        )
 
     @app.get("/", response_class=HTMLResponse)
-    def landing(signup: str | None = None):
+    def landing(request: Request, signup: str | None = None):
         docs = list_featured_and_recent_public(db_conn, limit=4)
         cards = [_doc_to_card(d) for d in docs]
         signup_state = signup if signup in ("ok", "invalid") else None
         return HTMLResponse(
             landing_tpl.render(
+                request=request,
+                canonical_host=_public_host(request, base_url),
                 docs=cards,
                 mcp_config_json=mcp_snippet_json,
                 signup=signup_state,
@@ -314,6 +331,8 @@ def create_app(
                 cards.append(_doc_to_card(doc))
             return HTMLResponse(
                 explore_tpl.render(
+                    request=request,
+                    canonical_host=_public_host(request, base_url),
                     docs=cards,
                     query=query,
                     total=len(cards),
@@ -327,6 +346,8 @@ def create_app(
         cards = [_doc_to_card(d) for d in docs]
         return HTMLResponse(
             explore_tpl.render(
+                request=request,
+                canonical_host=_public_host(request, base_url),
                 docs=cards,
                 query=query,
                 total=len(total_docs),
@@ -407,6 +428,8 @@ def create_app(
                     forked_from_visible = grant_row is not None
         content_html = render_markdown(doc.content)
         html = document_tpl.render(
+            request=request,
+            canonical_host=_public_host(request, base_url),
             title=doc.title,
             content_html=content_html,
             created_at=doc.created_at,

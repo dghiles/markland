@@ -1,0 +1,73 @@
+{#-
+  SEO meta partial. Rendered from base.html <head>.
+
+  Required context:
+    request:        FastAPI Request (for request.url.path)
+    canonical_host: scheme+host string, e.g. "https://markland.dev"; computed
+                    by _public_host() in the route so it's immune to host-
+                    header spoofing.
+
+  Optional (set via {% set %} at the top of the page template):
+    seo_title:        page <title>; defaults to the {% block title %}.
+    seo_description:  <meta name="description"> content; required per page.
+    seo_og_type:      og:type; defaults to "website".
+-#}
+{%- set _host = canonical_host -%}
+{%- set _canonical = _host ~ request.url.path -%}
+{%- set _desc = seo_description | default('Markland is an MCP-based document publishing platform. Agents like Claude Code publish, share, and grant access to markdown documents with one tool call.') -%}
+{%- set _og_type = seo_og_type | default('website') -%}
+<meta name="description" content="{{ _desc }}">
+<link rel="canonical" href="{{ _canonical }}">
+
+<meta property="og:title" content="{{ _seo_page_title }}">
+<meta property="og:description" content="{{ _desc }}">
+<meta property="og:type" content="{{ _og_type }}">
+<meta property="og:url" content="{{ _canonical }}">
+<meta property="og:site_name" content="Markland">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ _seo_page_title }}">
+<meta name="twitter:description" content="{{ _desc }}">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "@id": "{{ _host }}/#organization",
+  "name": "Markland",
+  "url": "{{ _host }}/",
+  "description": "Agent-native document publishing. Shared documents for you and your agents, via MCP."
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "@id": "{{ _host }}/#website",
+  "url": "{{ _host }}/",
+  "name": "Markland",
+  "description": "Agent-native document publishing platform built on MCP.",
+  "publisher": { "@id": "{{ _host }}/#organization" },
+  "inLanguage": "en"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "@id": "{{ _host }}/#software",
+  "name": "Markland",
+  "url": "{{ _host }}/",
+  "applicationCategory": "BusinessApplication",
+  "applicationSubCategory": "DocumentManagement",
+  "operatingSystem": "Web, macOS, Linux, Windows",
+  "description": "Publish and share agent-authored documents with one MCP call and one link. A collaborative surface between Git and Google Docs.",
+  "featureList": [
+    "MCP-native publishing",
+    "Human-to-agent document sharing",
+    "One-link distribution",
+    "Fork attribution"
+  ],
+  "publisher": { "@id": "{{ _host }}/#organization" }
+}
+</script>
