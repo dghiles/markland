@@ -1,0 +1,72 @@
+"""Unit tests for pure SEO helpers in markland.web.seo."""
+
+from markland.web.seo import (
+    NOINDEX_PATH_PREFIXES,
+    ROBOTS_TXT,
+    build_sitemap_xml,
+    should_noindex,
+)
+
+
+def test_should_noindex_blocks_api_and_auth_paths():
+    assert should_noindex("/api/tokens")
+    assert should_noindex("/mcp/")
+    assert should_noindex("/mcp/anything")
+    assert should_noindex("/resume")
+    assert should_noindex("/login")
+    assert should_noindex("/verify")
+    assert should_noindex("/setup")
+    assert should_noindex("/device")
+    assert should_noindex("/device/done")
+    assert should_noindex("/settings")
+    assert should_noindex("/settings/tokens")
+    assert should_noindex("/dashboard")
+    assert should_noindex("/inbox")
+    assert should_noindex("/invite/abc")
+    assert should_noindex("/admin/audit")
+    assert should_noindex("/health")
+
+
+def test_should_noindex_allows_marketing_paths():
+    assert not should_noindex("/")
+    assert not should_noindex("/quickstart")
+    assert not should_noindex("/explore")
+    assert not should_noindex("/alternatives")
+    assert not should_noindex("/alternatives/notion")
+    assert not should_noindex("/d/abc123token")
+    assert not should_noindex("/about")
+    assert not should_noindex("/security")
+
+
+def test_robots_txt_references_sitemap_and_core_disallows():
+    assert "Sitemap:" in ROBOTS_TXT
+    assert "Disallow: /api/" in ROBOTS_TXT
+    assert "Disallow: /mcp/" in ROBOTS_TXT
+    assert "Disallow: /settings" in ROBOTS_TXT
+    # Must allow the marketing prefixes (no explicit disallow on root)
+    assert "User-agent: *" in ROBOTS_TXT
+
+
+def test_build_sitemap_xml_contains_all_urls():
+    xml = build_sitemap_xml(
+        base_url="https://example.test",
+        urls=["/", "/quickstart", "/alternatives/notion"],
+        lastmod="2026-04-20",
+    )
+    assert xml.startswith('<?xml version="1.0" encoding="UTF-8"?>')
+    assert "<urlset" in xml
+    assert "<loc>https://example.test/</loc>" in xml
+    assert "<loc>https://example.test/quickstart</loc>" in xml
+    assert "<loc>https://example.test/alternatives/notion</loc>" in xml
+    assert xml.count("<lastmod>2026-04-20</lastmod>") == 3
+
+
+def test_build_sitemap_xml_escapes_base_url_trailing_slash():
+    xml = build_sitemap_xml(
+        base_url="https://example.test/",  # trailing slash
+        urls=["/quickstart"],
+        lastmod="2026-04-20",
+    )
+    # No double-slash in the URL
+    assert "https://example.test//quickstart" not in xml
+    assert "<loc>https://example.test/quickstart</loc>" in xml
