@@ -138,6 +138,9 @@ def build_auth_router(
         user = upsert_user_by_email(db_conn, email)
         cookie = issue_session(user.id, secret=session_secret)
         target = safe_return_to(return_to)
+        pending = request.cookies.get("markland_pending_intent", "")
+        if pending:
+            target = "/resume"
         if target == "/":
             resp = HTMLResponse(verify_sent_tpl.render())
         else:
