@@ -78,3 +78,28 @@ def test_homepage_includes_softwareapplication_jsonld(client):
     assert '"@type": "SoftwareApplication"' in text
     assert '"@type": "Organization"' in text
     assert '"@type": "WebSite"' in text
+
+
+def test_homepage_title_includes_mcp_and_claude_code(client):
+    r = client.get("/")
+    assert "MCP" in r.text.split("<title>")[1].split("</title>")[0]
+    assert ("Claude Code" in r.text or "AI agents" in r.text)
+
+
+def test_homepage_has_specific_meta_description(client):
+    r = client.get("/")
+    text = r.text
+    start = text.index('<meta name="description"')
+    end = text.index(">", start)
+    tag = text[start:end]
+    assert "MCP" in tag
+    assert "Claude Code" in tag
+
+
+def test_alternatives_description_mentions_comparison(client):
+    r = client.get("/alternatives")
+    text = r.text
+    start = text.index('<meta name="description"')
+    end = text.index(">", start)
+    tag = text[start:end]
+    assert "Markland" in tag
