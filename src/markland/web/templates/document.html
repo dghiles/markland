@@ -232,6 +232,16 @@
                 <a href="/">Markland</a>
             </span>
             <span>Published {{ created_at[:10] }}</span>
+            {% if forked_from %}
+            <span class="forked-from" style="font-family: var(--font-display); font-size: 0.78rem; color: var(--muted);">
+              Forked from
+              {% if forked_from_visible %}
+                <a href="/d/{{ forked_from.share_token }}" style="color: var(--text); text-decoration: underline; text-underline-offset: 2px;">{{ forked_from.title }}</a>
+              {% else %}
+                {{ forked_from.title }}
+              {% endif %}
+            </span>
+            {% endif %}
         </div>
         {% if is_owner %}
           {% include "_share_dialog.html" %}
