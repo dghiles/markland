@@ -102,4 +102,6 @@ def test_alternatives_description_mentions_comparison(client):
     start = text.index('<meta name="description"')
     end = text.index(">", start)
     tag = text[start:end]
-    assert "Markland" in tag
+    # Substring from the per-page copy; not present in the partial's fallback.
+    assert "Google Docs" in tag
+    assert "Markshare" in tag
