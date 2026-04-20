@@ -118,4 +118,55 @@ def build_router(
         toggle_bookmark(conn, user_id=user_id, doc_id=doc.id, bookmarked=False)
         return JSONResponse({"bookmarked": False})
 
+    @r.get("/resume")
+    def resume(request: Request):
+        user_id = _current_user_id(request, session_secret=session_secret)
+        if user_id is None:
+            return RedirectResponse(
+                url=f"/login?next={quote('/resume', safe='')}",
+                status_code=303,
+            )
+
+        from markland.service.pending_intent import (
+            InvalidPendingIntent,
+            read_pending_intent,
+        )
+
+        cookie = request.cookies.get(PENDING_INTENT_COOKIE_NAME, "")
+        if not cookie:
+            return RedirectResponse("/dashboard", status_code=303)
+
+        try:
+            intent = read_pending_intent(cookie, secret=session_secret)
+        except InvalidPendingIntent:
+            resp = RedirectResponse("/dashboard", status_code=303)
+            resp.delete_cookie(PENDING_INTENT_COOKIE_NAME, path="/")
+            return resp
+
+        doc = get_document_by_token(conn, intent.share_token)
+        if doc is None:
+            resp = RedirectResponse("/dashboard", status_code=303)
+            resp.delete_cookie(PENDING_INTENT_COOKIE_NAME, path="/")
+            return resp
+
+        target: str
+        if intent.action == "fork":
+            try:
+                new_doc = fork_document(conn, source=doc, new_owner_id=user_id)
+                target = f"/d/{new_doc.share_token}"
+            except ValueError:
+                target = f"/d/{doc.share_token}"
+            except PermissionError:
+                target = "/dashboard"
+        else:  # bookmark
+            if user_can_view(conn, doc=doc, user_id=user_id):
+                toggle_bookmark(
+                    conn, user_id=user_id, doc_id=doc.id, bookmarked=True
+                )
+            target = f"/d/{doc.share_token}"
+
+        resp = RedirectResponse(target, status_code=303)
+        resp.delete_cookie(PENDING_INTENT_COOKIE_NAME, path="/")
+        return resp
+
     return r
