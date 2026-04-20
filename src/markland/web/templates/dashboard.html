@@ -60,7 +60,16 @@
       document.querySelectorAll('[data-remove-bookmark]').forEach(function (btn) {
         btn.addEventListener('click', function () {
           fetch(btn.getAttribute('data-remove-bookmark'), {method: 'DELETE'})
-            .then(function () { window.location.reload(); });
+            .then(function (r) {
+              if (r.ok) {
+                window.location.reload();
+              } else {
+                alert('Could not remove bookmark (status ' + r.status + '). Try reloading the page.');
+              }
+            })
+            .catch(function () {
+              alert('Could not remove bookmark. Check your connection and try again.');
+            });
         });
       });
     })();
