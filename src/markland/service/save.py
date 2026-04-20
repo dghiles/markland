@@ -8,7 +8,7 @@ from markland import db
 from markland.models import Document
 
 
-def _user_can_view(
+def user_can_view(
     conn: sqlite3.Connection, *, doc: Document, user_id: str
 ) -> bool:
     if doc.is_public:
@@ -36,7 +36,7 @@ def fork_document(
     """
     if source.owner_id == new_owner_id:
         raise ValueError("cannot_fork_own_doc")
-    if not _user_can_view(conn, doc=source, user_id=new_owner_id):
+    if not user_can_view(conn, doc=source, user_id=new_owner_id):
         raise PermissionError("source_not_viewable")
 
     new_id = Document.generate_id()

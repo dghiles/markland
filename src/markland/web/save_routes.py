@@ -14,7 +14,7 @@ from markland.service.pending_intent import (
     PENDING_INTENT_MAX_AGE_SECONDS,
     issue_pending_intent,
 )
-from markland.service.save import fork_document, toggle_bookmark, _user_can_view
+from markland.service.save import fork_document, toggle_bookmark, user_can_view
 from markland.service.sessions import SESSION_COOKIE_NAME, InvalidSession, read_session
 
 
@@ -99,7 +99,7 @@ def build_router(
         if user_id is None:
             return _start_login_with_intent("bookmark", share_token)
 
-        if not _user_can_view(conn, doc=doc, user_id=user_id):
+        if not user_can_view(conn, doc=doc, user_id=user_id):
             raise HTTPException(403, "source_not_viewable")
 
         toggle_bookmark(conn, user_id=user_id, doc_id=doc.id, bookmarked=True)
