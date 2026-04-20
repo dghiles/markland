@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
-from urllib.parse import quote, unquote
+from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -64,14 +64,10 @@ def build_router(
         cookie_raw = issue_pending_intent(
             secret=session_secret, action=action, share_token=share_token
         )
-        # URL-encode the cookie value so it doesn't contain characters (spaces,
-        # quotes, braces) that cause HTTP cookie jars to RFC-quote the value,
-        # which would corrupt the itsdangerous signature on read-back.
-        cookie_encoded = quote(cookie_raw, safe="")
         resp = RedirectResponse(
             url=f"/login?next={quote('/resume', safe='')}", status_code=303
         )
-        _set_pending_cookie(resp, cookie_encoded, secure=secure_cookie)
+        _set_pending_cookie(resp, cookie_raw, secure=secure_cookie)
         return resp
 
     @r.post("/d/{share_token}/fork")
