@@ -328,6 +328,25 @@ def create_app(
             }
             for a in actives
         ]
+        forked_from = None
+        forked_from_visible = False
+        if doc.forked_from_doc_id:
+            from markland.db import get_document
+
+            parent = get_document(db_conn, doc.forked_from_doc_id)
+            if parent is not None:
+                forked_from = parent
+                # Visible if public, or owned by viewer, or viewer has a grant.
+                if parent.is_public:
+                    forked_from_visible = True
+                elif principal_user_id and parent.owner_id == principal_user_id:
+                    forked_from_visible = True
+                elif principal_user_id:
+                    grant_row = db_conn.execute(
+                        "SELECT 1 FROM grants WHERE doc_id = ? AND principal_id = ?",
+                        (parent.id, principal_user_id),
+                    ).fetchone()
+                    forked_from_visible = grant_row is not None
         content_html = render_markdown(doc.content)
         html = document_tpl.render(
             title=doc.title,
@@ -338,6 +357,8 @@ def create_app(
             doc_id=doc.id,
             share_token=doc.share_token,
             active_principals=active_principals,
+            forked_from=forked_from,
+            forked_from_visible=forked_from_visible,
         )
         return HTMLResponse(html)
 
