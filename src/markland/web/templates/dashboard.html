@@ -43,5 +43,28 @@
     {% else %}
       <p class="empty">Nothing here yet. Ask a collaborator to share a doc with you.</p>
     {% endif %}
+
+    {% if bookmarks %}
+    <h2>Saved</h2>
+    <ul>
+      {% for b in bookmarks %}
+        <li>
+          <a href="/d/{{ b.share_token }}">{{ b.title }}</a>
+          <span class="meta">· from {{ b.owner_display }} · updated {{ b.updated_at }}</span>
+          <button type="button" data-remove-bookmark="/d/{{ b.share_token }}/bookmark">Remove</button>
+        </li>
+      {% endfor %}
+    </ul>
+    <script>
+    (function () {
+      document.querySelectorAll('[data-remove-bookmark]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          fetch(btn.getAttribute('data-remove-bookmark'), {method: 'DELETE'})
+            .then(function () { window.location.reload(); });
+        });
+      });
+    })();
+    </script>
+    {% endif %}
   </body>
 </html>
