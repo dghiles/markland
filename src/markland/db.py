@@ -35,7 +35,8 @@ def init_db(db_path: Path) -> sqlite3.Connection:
             is_public INTEGER NOT NULL DEFAULT 0,
             is_featured INTEGER NOT NULL DEFAULT 0,
             owner_id TEXT,
-            version INTEGER NOT NULL DEFAULT 1
+            version INTEGER NOT NULL DEFAULT 1,
+            forked_from_doc_id TEXT REFERENCES documents(id) ON DELETE SET NULL
         )
     """)
     # Migration for older databases that don't yet have the new columns
@@ -43,6 +44,7 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     _add_column_if_missing(conn, "documents", "is_featured", "INTEGER NOT NULL DEFAULT 0")
     _add_column_if_missing(conn, "documents", "owner_id", "TEXT")
     _add_column_if_missing(conn, "documents", "version", "INTEGER NOT NULL DEFAULT 1")
+    _add_column_if_missing(conn, "documents", "forked_from_doc_id", "TEXT")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS revisions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -70,6 +72,18 @@ def init_db(db_path: Path) -> sqlite3.Connection:
             PRIMARY KEY (doc_id, principal_id)
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bookmarks (
+            user_id    TEXT NOT NULL,
+            doc_id     TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            PRIMARY KEY (user_id, doc_id),
+            FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
+        )
+    """)
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_bookmarks_user ON bookmarks(user_id)"
+    )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_share_token ON documents(share_token)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_public ON documents(is_public)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_featured ON documents(is_featured)")
@@ -250,12 +264,13 @@ def _row_to_doc(row: tuple) -> Document:
         is_featured=bool(row[7]),
         owner_id=row[8],
         version=row[9],
+        forked_from_doc_id=row[10],
     )
 
 
 _DOC_COLUMNS = (
     "id, title, content, share_token, created_at, updated_at, "
-    "is_public, is_featured, owner_id, version"
+    "is_public, is_featured, owner_id, version, forked_from_doc_id"
 )
 
 
@@ -267,14 +282,15 @@ def insert_document(
     share_token: str,
     is_public: bool = False,
     owner_id: str | None = None,
+    forked_from_doc_id: str | None = None,
 ) -> str:
     now = Document.now()
     conn.execute(
         f"""
         INSERT INTO documents ({_DOC_COLUMNS})
-        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 1)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 1, ?)
         """,
-        (doc_id, title, content, share_token, now, now, 1 if is_public else 0, owner_id),
+        (doc_id, title, content, share_token, now, now, 1 if is_public else 0, owner_id, forked_from_doc_id),
     )
     conn.commit()
     return doc_id

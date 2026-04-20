@@ -17,6 +17,7 @@ class Document:
     is_featured: bool = False
     owner_id: str | None = None
     version: int = 1
+    forked_from_doc_id: str | None = None
 
     @staticmethod
     def generate_id() -> str:
