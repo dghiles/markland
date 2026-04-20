@@ -1,58 +1,169 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Quickstart &mdash; Markland</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #111; }
-    h1 { font-size: 2rem; margin-bottom: 0.25rem; }
-    .sub { color: #555; margin-bottom: 2rem; }
-    ol { padding-left: 1.2rem; }
-    ol > li { margin-bottom: 1.5rem; }
-    code, pre { font-family: "SF Mono", Menlo, monospace; }
-    pre { background: #f5f5f5; padding: 0.8rem 1rem; border-radius: 6px; overflow-x: auto; }
-    a { color: #0b5bd3; }
-    .footer { margin-top: 3rem; color: #888; font-size: 0.9rem; }
-  </style>
-</head>
-<body>
+{% extends "base.html" %}
+{% set seo_description = "Wire Markland's MCP server into Claude Code in five steps. Publish your first shared markdown doc from your agent in under two minutes." %}
+
+{% block title %}Markland Quickstart — Publish Docs from Claude Code via MCP{% endblock %}
+
+{% block nav_docs %}active{% endblock %}
+
+{% block head_extra %}
+        .qs {
+            max-width: 780px;
+            margin: 0 auto;
+            padding: 3rem 1rem;
+        }
+        .qs h1 {
+            font-family: var(--font-display);
+            font-size: clamp(2rem, 5vw, 3.2rem);
+            letter-spacing: -0.03em;
+            line-height: 1.05;
+            margin-bottom: 0.4rem;
+        }
+        .qs .sub {
+            color: var(--muted);
+            margin-bottom: 2.6rem;
+            font-size: 1.05rem;
+        }
+        .qs h2 {
+            font-family: var(--font-display);
+            font-size: 1.35rem;
+            letter-spacing: -0.02em;
+            margin-top: 2.2rem;
+            margin-bottom: 0.6rem;
+        }
+        .qs p { margin-bottom: 1rem; color: var(--text-2); }
+        .qs ul, .qs ol { padding-left: 1.3rem; margin-bottom: 1rem; color: var(--text-2); }
+        .qs code {
+            font-family: var(--font-mono);
+            background: var(--surface-2);
+            border: 1px solid var(--outline-hairline);
+            padding: 0.12em 0.4em;
+            border-radius: 6px;
+            font-size: 0.92em;
+        }
+        .qs pre {
+            font-family: var(--font-mono);
+            background: var(--surface-2);
+            border: 1px solid var(--outline-hairline);
+            padding: 1rem 1.1rem;
+            border-radius: var(--radius);
+            overflow-x: auto;
+            margin-bottom: 1rem;
+            font-size: 0.88rem;
+        }
+        .qs blockquote {
+            border-left: 2px solid var(--outline);
+            padding: 0.3rem 0 0.3rem 1rem;
+            color: var(--text);
+            margin: 0.8rem 0 1rem;
+            font-style: italic;
+        }
+{% endblock %}
+
+{% block content %}
+<article class="qs">
   <h1>Markland Quickstart</h1>
-  <p class="sub">Publish a markdown doc with your agent in five steps.</p>
+  <p class="sub">Publish a markdown doc with your agent in five steps. Under two minutes, start to share link.</p>
 
-  <ol>
-    <li>
-      <strong>Sign up.</strong> Head to <a href="/">markland.dev</a>, enter your email,
-      click the magic-link you receive, and you're in.
-    </li>
-
-    <li>
-      <strong>Paste <code>/setup</code> into Claude Code.</strong> In Claude Code, run:
-      <pre>claude mcp add markland https://markland.dev/setup</pre>
-      Claude Code will walk you through authorizing a token and wiring up the MCP server.
-    </li>
-
-    <li>
-      <strong>Publish a doc.</strong> Ask Claude:
-      <blockquote>Publish a markdown doc titled "Hello Markland" with some notes about my project.</blockquote>
-      Your agent calls <code>markland_publish</code>. You get back a share link.
-    </li>
-
-    <li>
-      <strong>Share it.</strong> Ask Claude:
-      <blockquote>Grant view access on that doc to friend@example.com.</blockquote>
-      Your agent calls <code>markland_grant</code>. Your friend gets an email.
-    </li>
-
-    <li>
-      <strong>View the doc.</strong> Open the share link in a browser. You'll see the
-      rendered markdown. Your friend signs in and sees it under "Mine + Shared" on
-      <a href="/explore?view=mine">/explore</a>.
-    </li>
-  </ol>
-
-  <p class="footer">
-    Stuck? Check the <a href="/">landing page</a> or the README on GitHub.
+  <p>
+    Markland is an <strong>MCP-based document publishing platform</strong>. Your AI agent calls a tool, a doc goes up,
+    a share link comes back. This quickstart takes you from zero to your first shared document using
+    <a href="https://docs.anthropic.com/claude/docs/claude-code">Claude Code</a>. The same steps work with any other
+    MCP-compatible client.
   </p>
-</body>
-</html>
+
+  <h2>Before you start</h2>
+  <p>You'll need:</p>
+  <ul>
+    <li>A terminal with <code>claude</code> (the Claude Code CLI) installed and signed in.</li>
+    <li>An email address you can receive a magic link on.</li>
+    <li>About two minutes.</li>
+  </ul>
+  <p>
+    No credit card. No API keys to copy. Markland issues you a scoped bearer token the first time you connect Claude
+    Code, and the CLI stores it for you.
+  </p>
+
+  <h2>1. Sign up</h2>
+  <p>
+    Open the Markland landing page, enter your email, and click the magic link that lands in your inbox. That's the whole
+    signup flow &mdash; no password to set, no profile to fill out.
+  </p>
+  <p>
+    Once you're signed in you'll see the <a href="/explore">Explore</a> page. Keep that tab open; you'll come back to it
+    in step 5 to see your doc.
+  </p>
+
+  <h2>2. Wire up the MCP server</h2>
+  <p>In a terminal, run:</p>
+  <pre>claude mcp add markland {{ canonical_host }}/setup</pre>
+  <p>
+    Claude Code will prompt you to open a browser, authorize a token, and then store the token in your local
+    Claude Code config. When you're done, <code>claude mcp list</code> should show <code>markland</code> in the list.
+  </p>
+  <p>
+    Under the hood Markland uses the
+    <a href="https://modelcontextprotocol.io/">Model Context Protocol</a> &mdash; the tool surface your agent actually
+    calls. There is no REST SDK to learn; the tool names are the API.
+  </p>
+
+  <h2>3. Publish your first doc</h2>
+  <p>Ask Claude:</p>
+  <blockquote>Publish a markdown doc titled &ldquo;Hello Markland&rdquo; with some notes about my project.</blockquote>
+  <p>
+    Your agent calls the <code>markland_publish</code> tool. You'll get back a share URL that looks like
+    <code>/d/&lt;share-token&gt;</code>. The doc belongs to you, is private by default, and only you (and any agents you
+    authorize on your behalf) can read it.
+  </p>
+  <p>
+    You can ask Claude to publish any markdown &mdash; a spec, a plan, a research note, a <code>CLAUDE.md</code> file, a
+    daily standup. Markland isn't opinionated about shape, only about being markdown.
+  </p>
+
+  <h2>4. Share it</h2>
+  <p>Now grant access to a teammate:</p>
+  <blockquote>Grant view access on that doc to friend@example.com.</blockquote>
+  <p>
+    Your agent calls <code>markland_grant</code>. Your friend receives an email with a link. If they're already signed in
+    to Markland they see the doc right away; if not, they click the magic link in the invite email and are dropped onto
+    the doc after signing in.
+  </p>
+  <p>
+    Grants are per-doc. You can grant view, comment, or edit. You can also grant to another agent by its agent ID, so an
+    agent on a teammate's laptop can read and append to docs on yours.
+  </p>
+
+  <h2>5. View the doc</h2>
+  <p>
+    Open the share link in your browser. You'll see the rendered markdown. Head back to
+    <a href="/explore?view=mine">/explore</a> and you'll see the doc listed under <strong>Mine + Shared</strong>.
+  </p>
+
+  <h2>Troubleshooting</h2>
+  <ul>
+    <li>
+      <strong><code>claude mcp list</code> doesn't show markland.</strong>
+      Run <code>claude mcp add</code> again &mdash; the setup endpoint is idempotent and safe to re-run.
+    </li>
+    <li>
+      <strong>The agent says it doesn't know about <code>markland_publish</code>.</strong>
+      Restart Claude Code. New MCP servers are only picked up at session start.
+    </li>
+    <li>
+      <strong>The share link returns 404.</strong>
+      The token is case-sensitive and must include every character. Paste the whole thing rather than retyping.
+    </li>
+    <li>
+      <strong>I want to revoke a grant.</strong>
+      Ask Claude: <em>&ldquo;Revoke access for friend@example.com on that doc.&rdquo;</em>
+      The agent calls <code>markland_revoke</code>.
+    </li>
+  </ul>
+
+  <h2>What's next</h2>
+  <p>
+    Browse <a href="/explore">public docs</a> to see how other people are using Markland. Read the
+    <a href="/alternatives">alternatives</a> page if you're weighing this against Git, Notion, Google Docs, or HackMD.
+    Stuck on anything the troubleshooting list doesn't cover? Reply to the signup email &mdash; a real human reads it.
+  </p>
+</article>
+{% endblock %}
