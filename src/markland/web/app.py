@@ -4,7 +4,7 @@ import contextlib
 import json
 import re
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
@@ -61,6 +61,19 @@ def _doc_to_card(doc) -> dict:
         "is_featured": doc.is_featured,
         "excerpt": make_excerpt(doc.content),
     }
+
+
+def _public_host(request: Request, base_url: str) -> str:
+    """Return the canonical ``scheme://host`` for building public URLs.
+
+    Prefers ``base_url`` when configured (immune to Host-header spoofing); else
+    falls back to the request URL, honoring ``x-forwarded-proto`` so reverse-
+    proxied HTTPS traffic yields the right scheme.
+    """
+    if base_url:
+        return base_url.rstrip("/")
+    scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+    return f"{scheme}://{request.url.netloc}"
 
 
 def create_app(
@@ -199,23 +212,15 @@ def create_app(
 
     @app.get("/robots.txt", response_class=PlainTextResponse)
     def robots_txt(request: Request):
-        if base_url:
-            sitemap_url = f"{base_url.rstrip('/')}/sitemap.xml"
-        else:
-            scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
-            sitemap_url = f"{scheme}://{request.url.netloc}/sitemap.xml"
+        sitemap_url = f"{_public_host(request, base_url)}/sitemap.xml"
         return PlainTextResponse(render_robots_txt(sitemap_url))
 
     @app.get("/sitemap.xml", name="sitemap_xml")
     def sitemap_xml(request: Request):
-        if base_url:
-            host = base_url.rstrip("/")
-        else:
-            scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
-            host = f"{scheme}://{request.url.netloc}"
+        host = _public_host(request, base_url)
         paths = ["/", "/quickstart", "/explore", "/alternatives"]
         paths += [f"/alternatives/{c.slug}" for c in COMPETITORS]
-        today = datetime.utcnow().date().isoformat()
+        today = datetime.now(timezone.utc).date().isoformat()
         body = build_sitemap_xml(base_url=host, urls=paths, lastmod=today)
         return Response(body, media_type="application/xml")
 
