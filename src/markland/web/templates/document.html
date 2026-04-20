@@ -185,6 +185,24 @@
             border: 1px solid var(--outline);
             border-radius: var(--radius);
         }
+        .content, .content p, .content li, .content td, .content th {
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+        .content code { overflow-wrap: anywhere; }
+
+        .content .table-scroll {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin: 1.3rem 0;
+            border: 1px solid var(--outline);
+            border-radius: var(--radius);
+        }
+        .content .table-scroll table {
+            margin: 0;
+            border: none;
+            border-radius: 0;
+        }
         .content hr {
             border: none;
             border-top: 1px solid var(--outline-hairline);
