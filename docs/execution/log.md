@@ -593,3 +593,45 @@ None. Plan 10 is code-complete; Markland is cleared on the code side to invite P
 4. Sentry DSN + alert wiring per `docs/runbooks/sentry-setup.md`.
 
 **Final test count: 500 passing.**
+
+## Launch-blocking gaps closed (2026-04-19)
+
+- `scripts/hosted_smoke.sh` written (Plan 1 Task 12). Post-deploy verifier uses `MARKLAND_SMOKE_TOKEN` (any user API token) per the post-Plan-2 auth model — `MARKLAND_ADMIN_TOKEN` no longer gates `/mcp`. Covers: /health, /, /mcp 401 unauth, /mcp 200 initialize, markland_whoami tool call.
+- `.env.example` updated with `LITESTREAM_REPLICA_URL`, `LITESTREAM_ACCESS_KEY_ID`, `LITESTREAM_SECRET_ACCESS_KEY`. `MARKLAND_ADMIN_TOKEN` marked legacy (still read by config.py for back-compat).
+- `docs/runbooks/first-deploy.md` updated: removed TODO block, dropped the dead admin-token secret, switched smoke step to `MARKLAND_SMOKE_TOKEN`, promoted section 11 from "optional" to required (needed to mint the smoke token).
+
+Test suite still green: 505 passed.
+
+## 2026-04-20 — First Fly.io deploy (Plan 1 Task 11 — partial)
+
+First production deploy executed pair-programming with operator. App is live at
+`https://markland.fly.dev/`; custom domain `markland.dev` is not yet owned and
+was deferred.
+
+### What ran
+
+- `flyctl launch --no-deploy --copy-config --name markland --region iad --org personal`. Fly rewrote `fly.toml` preserving `[env]`, `[http_service]`, `[[vm]]`; volume mount `source` changed from `markland_data` to `data` to match Fly's post-launch normalization.
+- `flyctl volumes create data --region iad --size 1 --yes` → `vol_rnzwen30xp2kejkr` (1 GB, encrypted, iad).
+- `MARKLAND_SESSION_SECRET` generated via `openssl rand -hex 32` and set via `flyctl secrets set --stage`.
+- `flyctl deploy --app markland` — image `registry.fly.io/markland:deployment-01KPP72Q8GWW5647TAK5HVM2BD`, 104 MB, one shared-cpu-1x / 1 GB machine `185191df264378` booted in iad. Health check `GET /health` returned 200 from first launch.
+- Second deploy after editing `MARKLAND_BASE_URL` from `https://markland.dev` to `https://markland.fly.dev` (rolling restart; same machine).
+- `curl https://markland.fly.dev/health` → `{"status":"ok"}`; landing → 200.
+
+### Detours taken and reversed
+
+- **Dedicated IPv4** allocated (`188.93.151.201`, $2/mo) in anticipation of `markland.dev`, then released once we learned the domain wasn't owned. Current IPs: shared v4 `66.241.124.200` + dedicated v6 `2a09:8280:1::107:b98d:0` (v6 free on Fly).
+- **TLS cert** for `markland.dev` was provisioned via `flyctl certs add markland.dev`, never verified (no NS delegation for the zone), and removed via `flyctl certs remove markland.dev --yes`.
+
+### Not executed this session
+
+- Resend signup + DNS verification for `markland.dev` — domain not owned; deferred until it is.
+- Cloudflare R2 bucket + API token for Litestream — deferred; `scripts/start.sh` gracefully falls back to running uvicorn without replication when `LITESTREAM_REPLICA_URL` is unset, so the current machine runs with no backups.
+- `flyctl tokens create deploy` + GitHub `FLY_API_TOKEN` secret for CI auto-deploy — deferred.
+- Magic-link sign-in, smoke-token mint, `./scripts/hosted_smoke.sh` dry-run — blocked on Resend (magic-link emails can't send). Dev-mode fallback logs the link to `flyctl logs` and can be used as a workaround.
+
+### Hosted config on file
+
+- App: `markland` (org `personal`, region `iad`).
+- Hostname in use: `markland.fly.dev`. `fly.toml` `[env].MARKLAND_BASE_URL = 'https://markland.fly.dev'`.
+- Secrets set: `MARKLAND_SESSION_SECRET`. Unset: `SENTRY_DSN`, `RESEND_API_KEY`, `LITESTREAM_*`.
+- Monthly cost: ~$5 (one shared-cpu-1x machine; no dedicated v4, no R2).
