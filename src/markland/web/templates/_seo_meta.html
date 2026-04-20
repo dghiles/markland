@@ -8,13 +8,14 @@
                     header spoofing.
 
   Optional (set via {% set %} at the top of the page template):
-    seo_title:        page <title>; defaults to the {% block title %}.
     seo_description:  <meta name="description"> content; required per page.
     seo_og_type:      og:type; defaults to "website".
 -#}
-{%- set _host = canonical_host -%}
-{%- set _canonical = _host ~ request.url.path -%}
-{%- set _desc = seo_description | default('Markland is an MCP-based document publishing platform. Agents like Claude Code publish, share, and grant access to markdown documents with one tool call.') -%}
+{%- set _canonical = canonical_host ~ request.url.path -%}
+{# Every page extending base.html MUST set {% set seo_description = "..." %} in its block.
+   The default below is deliberately short and generic so missing per-page descriptions are
+   easy to spot in View Source / search-console previews. Task 5 populates real values. #}
+{%- set _desc = seo_description | default("Markland — shared documents for you and your agents.", true) -%}
 {%- set _og_type = seo_og_type | default('website') -%}
 <meta name="description" content="{{ _desc }}">
 <link rel="canonical" href="{{ _canonical }}">
@@ -29,13 +30,17 @@
 <meta name="twitter:title" content="{{ _seo_page_title }}">
 <meta name="twitter:description" content="{{ _desc }}">
 
+{# JSON-LD blocks: ANY dynamic value MUST use | tojson — not bare {{ ... }}.
+   Jinja's HTML autoescape does NOT neutralise </script> inside script bodies,
+   and bare interpolation of user-controlled strings (doc titles, author names)
+   would allow breakout. Task 5+ will add dynamic fields here; enforce the rule. #}
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "Organization",
-  "@id": "{{ _host }}/#organization",
+  "@id": "{{ canonical_host }}/#organization",
   "name": "Markland",
-  "url": "{{ _host }}/",
+  "url": "{{ canonical_host }}/",
   "description": "Agent-native document publishing. Shared documents for you and your agents, via MCP."
 }
 </script>
@@ -43,11 +48,11 @@
 {
   "@context": "https://schema.org",
   "@type": "WebSite",
-  "@id": "{{ _host }}/#website",
-  "url": "{{ _host }}/",
+  "@id": "{{ canonical_host }}/#website",
+  "url": "{{ canonical_host }}/",
   "name": "Markland",
   "description": "Agent-native document publishing platform built on MCP.",
-  "publisher": { "@id": "{{ _host }}/#organization" },
+  "publisher": { "@id": "{{ canonical_host }}/#organization" },
   "inLanguage": "en"
 }
 </script>
@@ -55,9 +60,9 @@
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
-  "@id": "{{ _host }}/#software",
+  "@id": "{{ canonical_host }}/#software",
   "name": "Markland",
-  "url": "{{ _host }}/",
+  "url": "{{ canonical_host }}/",
   "applicationCategory": "BusinessApplication",
   "applicationSubCategory": "DocumentManagement",
   "operatingSystem": "Web, macOS, Linux, Windows",
@@ -68,6 +73,6 @@
     "One-link distribution",
     "Fork attribution"
   ],
-  "publisher": { "@id": "{{ _host }}/#organization" }
+  "publisher": { "@id": "{{ canonical_host }}/#organization" }
 }
 </script>
