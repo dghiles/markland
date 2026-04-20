@@ -11,7 +11,7 @@ def test_table_is_wrapped_in_scroll_container():
     )
     html = render_markdown(md)
     assert '<div class="table-scroll">' in html
-    assert "</div>" in html
+    assert html.count("</div>") == 1
     # Sanity: the wrapper closes before the next block. No nested table-scroll.
     assert html.count('<div class="table-scroll">') == 1
     assert html.count("<table>") == 1
