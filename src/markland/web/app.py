@@ -541,16 +541,13 @@ def create_app(
         )
         app.mount("/mcp", mcp_app)
 
-    # Rate-limit every incoming request. Starlette applies middleware in reverse
-    # of addition order, so adding this LAST means it runs FIRST on requests —
-    # actually wait: starlette wraps add_middleware top-down, so the last-added
-    # middleware wraps the outermost handler and runs first on the request. We
-    # want RateLimit OUTERMOST so Principal is computed inside if present; the
-    # middleware also does its own lazy principal resolution for tiering.
-    from markland.web.security_headers_middleware import SecurityHeadersMiddleware
-    app.add_middleware(SecurityHeadersMiddleware)
-
+    # Starlette wraps middleware such that the last-added is OUTERMOST (runs
+    # first on requests, last on responses). We want SecurityHeaders outermost
+    # so it wraps every response — including rate-limit 429 short-circuits.
     from markland.web.rate_limit_middleware import RateLimitMiddleware
     app.add_middleware(RateLimitMiddleware, db_conn=db_conn)
+
+    from markland.web.security_headers_middleware import SecurityHeadersMiddleware
+    app.add_middleware(SecurityHeadersMiddleware)
 
     return app
