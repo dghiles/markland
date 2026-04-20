@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from markland.db import (
@@ -19,7 +19,7 @@ from markland.db import (
 )
 from markland.web.competitors import COMPETITORS, MARKLAND, get_competitor
 from markland.web.renderer import make_excerpt, render_markdown
-from markland.web.seo import build_sitemap_xml, render_robots_txt
+from markland.web.seo import render_robots_txt
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -199,7 +199,11 @@ def create_app(
 
     @app.get("/robots.txt", response_class=PlainTextResponse)
     def robots_txt(request: Request):
-        sitemap_url = f"{request.url.scheme}://{request.url.netloc}/sitemap.xml"
+        if base_url:
+            sitemap_url = f"{base_url.rstrip('/')}/sitemap.xml"
+        else:
+            scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+            sitemap_url = f"{scheme}://{request.url.netloc}/sitemap.xml"
         return PlainTextResponse(render_robots_txt(sitemap_url))
 
     @app.get("/quickstart", response_class=HTMLResponse)
