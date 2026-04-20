@@ -29,6 +29,28 @@ def _build_markdown_renderer() -> MarkdownIt:
         },
     )
     md.use(tasklists_plugin)
+
+    default_table_open = md.renderer.rules.get("table_open")
+    default_table_close = md.renderer.rules.get("table_close")
+
+    def table_open(tokens, idx, options, env):
+        inner = (
+            default_table_open(tokens, idx, options, env)
+            if default_table_open
+            else "<table>\n"
+        )
+        return '<div class="table-scroll">' + inner
+
+    def table_close(tokens, idx, options, env):
+        inner = (
+            default_table_close(tokens, idx, options, env)
+            if default_table_close
+            else "</table>\n"
+        )
+        return inner + "</div>\n"
+
+    md.renderer.rules["table_open"] = table_open
+    md.renderer.rules["table_close"] = table_close
     return md
 
 
