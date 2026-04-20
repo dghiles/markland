@@ -3,7 +3,8 @@
 ## Plan 1 — Hosted Infrastructure
 
 - **Tasks 1-10: COMPLETE** (2026-04-19).
-- **Tasks 11-12: PENDING human gate** — require Fly.io login, DNS setup, Cloudflare R2 bucket creation, and Resend signup. Runbook at `docs/runbooks/first-deploy.md` will be authored as Task 11 once the operator is ready to run it; `scripts/hosted_smoke.sh` (Task 12) will be added alongside.
+- **Task 11: PARTIAL** (2026-04-20). Fly app `markland` created (org `personal`, region `iad`), 1 GB volume `data` mounted at `/data`, `MARKLAND_SESSION_SECRET` set, first machine `185191df264378` (shared-cpu-1x / 1 GB) deployed and serving `https://markland.fly.dev/` (custom domain `markland.dev` not yet owned; `MARKLAND_BASE_URL` pinned to fly.dev hostname in `fly.toml`). Still deferred: Resend signup + DNS (blocks magic-link email), R2 bucket + Litestream keys (no backups), `FLY_API_TOKEN` GitHub secret (CI auto-deploy).
+- **Task 12: CODE-COMPLETE, NOT RUN** (2026-04-19). `scripts/hosted_smoke.sh` exists; needs a valid user API token to exercise, which needs magic-link email, which needs Resend — so blocked on Task 11 completion or on using the stdlib dev fallback that logs magic-link URLs to `flyctl logs`.
 
 ## Plan 2 — Users and Tokens
 
@@ -125,8 +126,11 @@ Test suite: `uv run pytest tests/` -> **500 passed** (up from 455; +45 tests acr
 
 ### Human gates not executed
 
-- Phase 0 dogfooding walkthrough against live Fly deploy (checklist in `docs/runbooks/phase-0-checklist.md`).
+- Phase 0 dogfooding walkthrough against live Fly deploy (checklist in `docs/runbooks/phase-0-checklist.md`) — blocked on Resend so magic-link sign-in can complete.
 - Sentry DSN + alert wiring (runbook in `docs/runbooks/sentry-setup.md`).
-- Any `flyctl deploy` / Fly secrets / DNS / Resend verification work.
+- Resend signup + DNS verification once `markland.dev` is owned; then `flyctl secrets set RESEND_API_KEY=...`.
+- Cloudflare R2 bucket + S3 API token; then `flyctl secrets set LITESTREAM_*` + restart so Litestream starts backing up.
+- `flyctl tokens create deploy` + GitHub `FLY_API_TOKEN` secret for CI auto-deploy.
+- Buying / re-pointing `markland.dev` — see `docs/FOLLOW-UPS.md` for the re-allocation steps (dedicated IPv4, DNS, cert, flip `MARKLAND_BASE_URL`).
 
-All plans (1-10) are code-complete. Markland is cleared to run the Phase 0 launch-gate walkthrough on the deployed instance; if that passes, Phase 1 invites can go out.
+All plans (1-10) are code-complete and the app is live at `https://markland.fly.dev/`. Phase 1 invites can go out once Resend is wired and the Phase 0 walkthrough passes.
