@@ -4,6 +4,7 @@ from markland.web.seo import (
     NOINDEX_PATH_PREFIXES,
     ROBOTS_TXT,
     build_sitemap_xml,
+    render_robots_txt,
     should_noindex,
 )
 
@@ -70,3 +71,22 @@ def test_build_sitemap_xml_escapes_base_url_trailing_slash():
     # No double-slash in the URL
     assert "https://example.test//quickstart" not in xml
     assert "<loc>https://example.test/quickstart</loc>" in xml
+
+
+def test_render_robots_txt_substitutes_sitemap_url():
+    out = render_robots_txt("https://example.test/sitemap.xml")
+    assert "Sitemap: https://example.test/sitemap.xml" in out
+    assert "{sitemap_url}" not in out
+
+
+def test_build_sitemap_xml_is_well_formed():
+    from xml.etree import ElementTree as ET
+    xml = build_sitemap_xml(
+        base_url="https://example.test",
+        urls=["/", "/quickstart"],
+        lastmod="2026-04-20",
+    )
+    root = ET.fromstring(xml)
+    ns = {"s": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+    assert root.tag.endswith("urlset")
+    assert len(root.findall("s:url", ns)) == 2
