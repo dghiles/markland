@@ -15,19 +15,11 @@ def client(tmp_path, monkeypatch):
     return TestClient(app)
 
 
-# /quickstart is a standalone template that does not extend base.html yet; Task 7
-# rewrites it to extend base.html, at which point these xfails will flip to pass.
-_QUICKSTART_XFAIL = pytest.mark.xfail(
-    reason="quickstart.html becomes base-extending in Task 7",
-    strict=True,
-)
-
-
 @pytest.mark.parametrize(
     "path",
     [
         "/",
-        pytest.param("/quickstart", marks=_QUICKSTART_XFAIL),
+        "/quickstart",
         "/explore",
         "/alternatives",
     ],
@@ -42,7 +34,7 @@ def test_pages_have_meta_description(client, path):
     "path",
     [
         "/",
-        pytest.param("/quickstart", marks=_QUICKSTART_XFAIL),
+        "/quickstart",
         "/explore",
         "/alternatives",
     ],
@@ -58,7 +50,7 @@ def test_pages_have_canonical(client, path):
     "path",
     [
         "/",
-        pytest.param("/quickstart", marks=_QUICKSTART_XFAIL),
+        "/quickstart",
         "/alternatives",
     ],
 )
