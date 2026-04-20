@@ -72,6 +72,15 @@ def test_landing_renders_empty(client):
     assert "Nothing yet." in response.text
 
 
+def test_landing_has_geo_definitional_paragraph(client):
+    r = client.get("/")
+    text = r.text
+    # LLM-friendly definitional sentence — single declarative statement
+    # with the product category + primary use case.
+    assert "Markland is an MCP-based document publishing platform" in text
+    assert "Claude Code" in text
+
+
 def test_landing_hero_has_waitlist_form(client):
     response = client.get("/")
     assert response.status_code == 200
