@@ -235,6 +235,8 @@
         </div>
         {% if is_owner %}
           {% include "_share_dialog.html" %}
+        {% else %}
+          {% include "_save_dialog.html" %}
         {% endif %}
         {% if active_principals %}
         <div data-presence-badge style="margin:0.5rem 0 1.2rem 0; padding:0.6rem 0.9rem; border:1px solid var(--outline-hairline); border-radius:12px; background:var(--surface-2); font-family:var(--font-display); font-size:0.88rem; color:var(--text-2);">
