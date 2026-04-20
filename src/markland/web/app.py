@@ -76,6 +76,11 @@ def _public_host(request: Request, base_url: str) -> str:
     return f"{scheme}://{request.url.netloc}"
 
 
+def _seo_ctx(request: Request, base_url: str) -> dict:
+    """Context keys every base-extending template needs for the _seo_meta partial."""
+    return {"request": request, "canonical_host": _public_host(request, base_url)}
+
+
 def create_app(
     db_conn: sqlite3.Connection,
     *,
@@ -228,8 +233,7 @@ def create_app(
     def quickstart(request: Request):
         return HTMLResponse(
             quickstart_tpl.render(
-                request=request,
-                canonical_host=_public_host(request, base_url),
+                **_seo_ctx(request, base_url),
             )
         )
 
@@ -237,8 +241,7 @@ def create_app(
     def alternatives(request: Request):
         return HTMLResponse(
             alternatives_tpl.render(
-                request=request,
-                canonical_host=_public_host(request, base_url),
+                **_seo_ctx(request, base_url),
                 competitors=COMPETITORS,
                 markland=MARKLAND,
             )
@@ -257,8 +260,7 @@ def create_app(
             )
         return HTMLResponse(
             alternative_tpl.render(
-                request=request,
-                canonical_host=_public_host(request, base_url),
+                **_seo_ctx(request, base_url),
                 competitor=competitor,
                 markland=MARKLAND,
             )
@@ -286,8 +288,7 @@ def create_app(
             r["metadata_json"] = json.dumps(r["metadata"], sort_keys=True)
         return HTMLResponse(
             admin_audit_tpl.render(
-                request=request,
-                canonical_host=_public_host(request, base_url),
+                **_seo_ctx(request, base_url),
                 rows=rows,
             )
         )
@@ -299,8 +300,7 @@ def create_app(
         signup_state = signup if signup in ("ok", "invalid") else None
         return HTMLResponse(
             landing_tpl.render(
-                request=request,
-                canonical_host=_public_host(request, base_url),
+                **_seo_ctx(request, base_url),
                 docs=cards,
                 mcp_config_json=mcp_snippet_json,
                 signup=signup_state,
@@ -331,8 +331,7 @@ def create_app(
                 cards.append(_doc_to_card(doc))
             return HTMLResponse(
                 explore_tpl.render(
-                    request=request,
-                    canonical_host=_public_host(request, base_url),
+                    **_seo_ctx(request, base_url),
                     docs=cards,
                     query=query,
                     total=len(cards),
@@ -346,8 +345,7 @@ def create_app(
         cards = [_doc_to_card(d) for d in docs]
         return HTMLResponse(
             explore_tpl.render(
-                request=request,
-                canonical_host=_public_host(request, base_url),
+                **_seo_ctx(request, base_url),
                 docs=cards,
                 query=query,
                 total=len(total_docs),
@@ -428,8 +426,7 @@ def create_app(
                     forked_from_visible = grant_row is not None
         content_html = render_markdown(doc.content)
         html = document_tpl.render(
-            request=request,
-            canonical_host=_public_host(request, base_url),
+            **_seo_ctx(request, base_url),
             title=doc.title,
             content_html=content_html,
             created_at=doc.created_at,
