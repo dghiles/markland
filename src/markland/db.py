@@ -613,6 +613,69 @@ def list_grants_for_doc(
     return [_row_to_grant(row) for row in rows]
 
 
+# --- Bookmarks CRUD --------------------------------------------------------
+
+
+def upsert_bookmark(
+    conn: sqlite3.Connection,
+    *,
+    user_id: str,
+    doc_id: str,
+) -> None:
+    """Insert a bookmark. No-op if the row already exists."""
+    conn.execute(
+        """
+        INSERT INTO bookmarks (user_id, doc_id, created_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(user_id, doc_id) DO NOTHING
+        """,
+        (user_id, doc_id, Document.now()),
+    )
+    conn.commit()
+
+
+def remove_bookmark(
+    conn: sqlite3.Connection,
+    *,
+    user_id: str,
+    doc_id: str,
+) -> bool:
+    """Remove a bookmark. Returns True iff a row was deleted."""
+    cursor = conn.execute(
+        "DELETE FROM bookmarks WHERE user_id = ? AND doc_id = ?",
+        (user_id, doc_id),
+    )
+    conn.commit()
+    return cursor.rowcount > 0
+
+
+def list_bookmarks_for_user(
+    conn: sqlite3.Connection,
+    *,
+    user_id: str,
+) -> list[Document]:
+    """Return docs the user has bookmarked AND can still view (public or granted)."""
+    d_prefixed = ", ".join("d." + c for c in _DOC_COLUMNS.split(", "))
+    rows = conn.execute(
+        f"""
+        SELECT {d_prefixed}
+        FROM documents d
+        JOIN bookmarks b ON b.doc_id = d.id
+        WHERE b.user_id = ?
+          AND (
+              d.is_public = 1
+              OR EXISTS (
+                  SELECT 1 FROM grants g
+                  WHERE g.doc_id = d.id AND g.principal_id = ?
+              )
+          )
+        ORDER BY b.created_at DESC
+        """,
+        (user_id, user_id),
+    ).fetchall()
+    return [_row_to_doc(row) for row in rows]
+
+
 # --- Revisions (Plan 8) -------------------------------------------------
 
 
