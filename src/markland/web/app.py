@@ -367,6 +367,15 @@ def create_app(
     from markland.web.dashboard import build_router as build_dashboard_router
     app.include_router(build_dashboard_router(conn=db_conn))
 
+    from markland.web.save_routes import build_router as build_save_router
+    app.include_router(
+        build_save_router(
+            conn=db_conn,
+            session_secret=session_secret,
+            base_url=base_url,
+        )
+    )
+
     from markland.web.settings import router as settings_router
     app.include_router(settings_router)
 
