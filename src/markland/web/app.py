@@ -207,6 +207,10 @@ def create_app(
     admin_audit_tpl = env.get_template("admin_audit.html")
     alternatives_tpl = env.get_template("alternatives.html")
     alternative_tpl = env.get_template("alternative.html")
+    about_tpl = env.get_template("about.html")
+    security_tpl = env.get_template("security.html")
+    privacy_tpl = env.get_template("privacy.html")
+    terms_tpl = env.get_template("terms.html")
 
     mcp_snippet = _load_mcp_snippet()
     mcp_snippet_json = json.dumps(mcp_snippet)
@@ -223,7 +227,16 @@ def create_app(
     @app.get("/sitemap.xml", name="sitemap_xml")
     def sitemap_xml(request: Request):
         host = _public_host(request, base_url)
-        paths = ["/", "/quickstart", "/explore", "/alternatives"]
+        paths = [
+            "/",
+            "/quickstart",
+            "/explore",
+            "/alternatives",
+            "/about",
+            "/security",
+            "/privacy",
+            "/terms",
+        ]
         paths += [f"/alternatives/{c.slug}" for c in COMPETITORS]
         today = datetime.now(timezone.utc).date().isoformat()
         body = build_sitemap_xml(base_url=host, urls=paths, lastmod=today)
@@ -265,6 +278,22 @@ def create_app(
                 markland=MARKLAND,
             )
         )
+
+    @app.get("/about", response_class=HTMLResponse)
+    def about(request: Request):
+        return HTMLResponse(about_tpl.render(**_seo_ctx(request, base_url)))
+
+    @app.get("/security", response_class=HTMLResponse)
+    def security(request: Request):
+        return HTMLResponse(security_tpl.render(**_seo_ctx(request, base_url)))
+
+    @app.get("/privacy", response_class=HTMLResponse)
+    def privacy(request: Request):
+        return HTMLResponse(privacy_tpl.render(**_seo_ctx(request, base_url)))
+
+    @app.get("/terms", response_class=HTMLResponse)
+    def terms(request: Request):
+        return HTMLResponse(terms_tpl.render(**_seo_ctx(request, base_url)))
 
     @app.get("/admin/audit", response_class=HTMLResponse)
     def admin_audit(request: Request):
