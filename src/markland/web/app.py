@@ -547,6 +547,9 @@ def create_app(
     # middleware wraps the outermost handler and runs first on the request. We
     # want RateLimit OUTERMOST so Principal is computed inside if present; the
     # middleware also does its own lazy principal resolution for tiering.
+    from markland.web.security_headers_middleware import SecurityHeadersMiddleware
+    app.add_middleware(SecurityHeadersMiddleware)
+
     from markland.web.rate_limit_middleware import RateLimitMiddleware
     app.add_middleware(RateLimitMiddleware, db_conn=db_conn)
 
