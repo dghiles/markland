@@ -11,13 +11,9 @@ from xml.sax.saxutils import escape
 # Path prefixes that must never be indexed. Match both exact paths and
 # children (e.g. "/settings" and "/settings/tokens").
 NOINDEX_PATH_PREFIXES: tuple[str, ...] = (
-    "/api/",
     "/api",
-    "/mcp/",
     "/mcp",
-    "/admin/",
     "/admin",
-    "/settings/",
     "/settings",
     "/dashboard",
     "/inbox",
@@ -26,8 +22,7 @@ NOINDEX_PATH_PREFIXES: tuple[str, ...] = (
     "/verify",
     "/setup",
     "/device",
-    "/device/",
-    "/invite/",
+    "/invite",
     "/health",
 )
 
@@ -35,10 +30,7 @@ NOINDEX_PATH_PREFIXES: tuple[str, ...] = (
 def should_noindex(path: str) -> bool:
     """Return True if this URL path should carry ``X-Robots-Tag: noindex``."""
     for prefix in NOINDEX_PATH_PREFIXES:
-        if prefix.endswith("/"):
-            if path.startswith(prefix):
-                return True
-        elif path == prefix or path.startswith(prefix + "/"):
+        if path == prefix or path.startswith(prefix + "/"):
             return True
     return False
 
@@ -98,8 +90,9 @@ def build_sitemap_xml(
         if not path.startswith("/"):
             raise ValueError(f"sitemap path must start with '/': {path!r}")
         loc = escape(f"{base}{path}")
+        mod = escape(lastmod)
         lines.append(
-            f"  <url><loc>{loc}</loc><lastmod>{lastmod}</lastmod></url>"
+            f"  <url><loc>{loc}</loc><lastmod>{mod}</lastmod></url>"
         )
     lines.append("</urlset>")
     return "\n".join(lines) + "\n"
