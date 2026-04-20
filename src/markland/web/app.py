@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from markland.db import (
@@ -19,7 +19,7 @@ from markland.db import (
 )
 from markland.web.competitors import COMPETITORS, MARKLAND, get_competitor
 from markland.web.renderer import make_excerpt, render_markdown
-from markland.web.seo import render_robots_txt
+from markland.web.seo import build_sitemap_xml, render_robots_txt
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -205,6 +205,19 @@ def create_app(
             scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
             sitemap_url = f"{scheme}://{request.url.netloc}/sitemap.xml"
         return PlainTextResponse(render_robots_txt(sitemap_url))
+
+    @app.get("/sitemap.xml", name="sitemap_xml")
+    def sitemap_xml(request: Request):
+        if base_url:
+            host = base_url.rstrip("/")
+        else:
+            scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+            host = f"{scheme}://{request.url.netloc}"
+        paths = ["/", "/quickstart", "/explore", "/alternatives"]
+        paths += [f"/alternatives/{c.slug}" for c in COMPETITORS]
+        today = datetime.utcnow().date().isoformat()
+        body = build_sitemap_xml(base_url=host, urls=paths, lastmod=today)
+        return Response(body, media_type="application/xml")
 
     @app.get("/quickstart", response_class=HTMLResponse)
     def quickstart():

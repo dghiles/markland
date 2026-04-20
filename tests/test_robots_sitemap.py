@@ -57,3 +57,33 @@ def test_robots_txt_honors_forwarded_proto(tmp_path, monkeypatch):
     c = TestClient(app)
     r = c.get("/robots.txt", headers={"x-forwarded-proto": "https"})
     assert "Sitemap: https://testserver/sitemap.xml" in r.text
+
+
+def test_sitemap_xml_returns_200_xml(client):
+    r = client.get("/sitemap.xml")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("application/xml")
+
+
+def test_sitemap_contains_core_marketing_urls(client):
+    r = client.get("/sitemap.xml")
+    body = r.text
+    assert '<?xml version="1.0" encoding="UTF-8"?>' in body
+    assert "<loc>http://testserver/</loc>" in body
+    assert "<loc>http://testserver/quickstart</loc>" in body
+    assert "<loc>http://testserver/explore</loc>" in body
+    assert "<loc>http://testserver/alternatives</loc>" in body
+
+
+def test_sitemap_contains_every_competitor_slug(client):
+    r = client.get("/sitemap.xml")
+    body = r.text
+    for competitor in COMPETITORS:
+        assert f"<loc>http://testserver/alternatives/{competitor.slug}</loc>" in body
+
+
+def test_sitemap_excludes_auth_and_api_paths(client):
+    r = client.get("/sitemap.xml")
+    body = r.text
+    for forbidden in ("/settings", "/dashboard", "/api/", "/mcp/", "/login", "/resume", "/health"):
+        assert forbidden not in body
