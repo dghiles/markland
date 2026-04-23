@@ -35,22 +35,16 @@ def should_noindex(path: str) -> bool:
     return False
 
 
-ROBOTS_TXT = """\
+# Generated from NOINDEX_PATH_PREFIXES so robots.txt and the X-Robots-Tag
+# middleware can never drift. A bare-prefix Disallow (no trailing slash)
+# matches both the exact path and its children per standard robots.txt
+# prefix semantics, which mirrors should_noindex() above.
+_DISALLOW_LINES = "\n".join(f"Disallow: {p}" for p in NOINDEX_PATH_PREFIXES)
+
+ROBOTS_TXT = f"""\
 User-agent: *
 Allow: /
-Disallow: /api/
-Disallow: /mcp/
-Disallow: /admin/
-Disallow: /settings
-Disallow: /dashboard
-Disallow: /inbox
-Disallow: /resume
-Disallow: /login
-Disallow: /verify
-Disallow: /setup
-Disallow: /device
-Disallow: /invite/
-Disallow: /health
+{_DISALLOW_LINES}
 
 # Block AI training crawlers; real search engines (Googlebot, Bingbot) fall
 # through to the wildcard rule above.
@@ -60,7 +54,7 @@ Disallow: /
 User-agent: CCBot
 Disallow: /
 
-Sitemap: {sitemap_url}
+Sitemap: {{sitemap_url}}
 """
 
 

@@ -19,28 +19,40 @@
 {%- set _og_type = seo_og_type | default('website') -%}
 <meta name="description" content="{{ _desc }}">
 <link rel="canonical" href="{{ _canonical }}">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico" sizes="any">
 
 <meta property="og:title" content="{{ _seo_page_title }}">
 <meta property="og:description" content="{{ _desc }}">
 <meta property="og:type" content="{{ _og_type }}">
 <meta property="og:url" content="{{ _canonical }}">
 <meta property="og:site_name" content="Markland">
+<meta property="og:image" content="{{ canonical_host }}/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
 
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{{ _seo_page_title }}">
 <meta name="twitter:description" content="{{ _desc }}">
+<meta name="twitter:image" content="{{ canonical_host }}/og.png">
 
-{# JSON-LD blocks: ANY dynamic value MUST use | tojson — not bare {{ ... }}.
-   Jinja's HTML autoescape does NOT neutralise </script> inside script bodies,
-   and bare interpolation of user-controlled strings (doc titles, author names)
-   would allow breakout. Task 5+ will add dynamic fields here; enforce the rule. #}
+{# JSON-LD blocks: ANY dynamic value MUST be emitted via | tojson — never bare
+   {{ ... }}. Jinja's HTML autoescape does NOT neutralise </script> inside
+   script bodies, and bare interpolation of user-controlled strings (doc
+   titles, author names) would allow breakout. canonical_host is trusted
+   today (computed by _public_host()) but we still route it through tojson
+   so the rule is uniform for anyone adding dynamic fields later. #}
+{%- set _org_id = canonical_host ~ "/#organization" -%}
+{%- set _site_id = canonical_host ~ "/#website" -%}
+{%- set _sw_id = canonical_host ~ "/#software" -%}
+{%- set _home = canonical_host ~ "/" -%}
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "Organization",
-  "@id": "{{ canonical_host }}/#organization",
+  "@id": {{ _org_id | tojson }},
   "name": "Markland",
-  "url": "{{ canonical_host }}/",
+  "url": {{ _home | tojson }},
   "description": "Agent-native document publishing. Shared documents for you and your agents, via MCP."
 }
 </script>
@@ -48,11 +60,11 @@
 {
   "@context": "https://schema.org",
   "@type": "WebSite",
-  "@id": "{{ canonical_host }}/#website",
-  "url": "{{ canonical_host }}/",
+  "@id": {{ _site_id | tojson }},
+  "url": {{ _home | tojson }},
   "name": "Markland",
   "description": "Agent-native document publishing platform built on MCP.",
-  "publisher": { "@id": "{{ canonical_host }}/#organization" },
+  "publisher": { "@id": {{ _org_id | tojson }} },
   "inLanguage": "en"
 }
 </script>
@@ -60,9 +72,9 @@
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
-  "@id": "{{ canonical_host }}/#software",
+  "@id": {{ _sw_id | tojson }},
   "name": "Markland",
-  "url": "{{ canonical_host }}/",
+  "url": {{ _home | tojson }},
   "applicationCategory": "BusinessApplication",
   "applicationSubCategory": "DocumentManagement",
   "operatingSystem": "Web, macOS, Linux, Windows",
@@ -73,6 +85,6 @@
     "One-link distribution",
     "Fork attribution"
   ],
-  "publisher": { "@id": "{{ canonical_host }}/#organization" }
+  "publisher": { "@id": {{ _org_id | tojson }} }
 }
 </script>
