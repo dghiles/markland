@@ -51,5 +51,5 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         )
         response.headers.setdefault("permissions-policy", _PERMISSIONS)
         if should_noindex(request.url.path):
-            response.headers["x-robots-tag"] = "noindex, nofollow"
+            response.headers.setdefault("x-robots-tag", "noindex, nofollow")
         return response

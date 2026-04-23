@@ -26,8 +26,8 @@ def test_robots_txt_content(client):
     r = client.get("/robots.txt")
     body = r.text
     assert "User-agent: *" in body
-    assert "Disallow: /api/" in body
-    assert "Disallow: /mcp/" in body
+    assert "Disallow: /api" in body
+    assert "Disallow: /mcp" in body
     assert "Sitemap:" in body
     assert "/sitemap.xml" in body
     # Sitemap URL must use the actual request host, not a hardcoded domain.

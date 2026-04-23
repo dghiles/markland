@@ -28,6 +28,7 @@ def _valid_email(email: str) -> bool:
     return 3 <= len(email) <= 254 and bool(_EMAIL_RE.match(email))
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
+_ASSETS_DIR = Path(__file__).parent / "assets"
 _SCRIPTS_DIR = Path(__file__).parent.parent.parent.parent / "scripts"
 
 
@@ -219,6 +220,22 @@ def create_app(
     def health():
         return JSONResponse({"status": "ok"})
 
+    _FAVICON_BYTES = (_ASSETS_DIR / "favicon.svg").read_bytes()
+    _OG_IMAGE_BYTES = (_ASSETS_DIR / "og.png").read_bytes()
+    _ASSET_CACHE = {"Cache-Control": "public, max-age=86400"}
+
+    @app.get("/favicon.svg")
+    def favicon_svg():
+        return Response(content=_FAVICON_BYTES, media_type="image/svg+xml", headers=_ASSET_CACHE)
+
+    @app.get("/favicon.ico")
+    def favicon_ico():
+        return Response(content=_FAVICON_BYTES, media_type="image/svg+xml", headers=_ASSET_CACHE)
+
+    @app.get("/og.png")
+    def og_image():
+        return Response(content=_OG_IMAGE_BYTES, media_type="image/png", headers=_ASSET_CACHE)
+
     @app.get("/robots.txt", response_class=PlainTextResponse)
     def robots_txt(request: Request):
         sitemap_url = f"{_public_host(request, base_url)}/sitemap.xml"
@@ -315,12 +332,7 @@ def create_app(
         rows = audit_svc.list_recent(db_conn, limit=200)
         for r in rows:
             r["metadata_json"] = json.dumps(r["metadata"], sort_keys=True)
-        return HTMLResponse(
-            admin_audit_tpl.render(
-                **_seo_ctx(request, base_url),
-                rows=rows,
-            )
-        )
+        return HTMLResponse(admin_audit_tpl.render(rows=rows))
 
     @app.get("/", response_class=HTMLResponse)
     def landing(request: Request, signup: str | None = None):

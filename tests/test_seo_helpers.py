@@ -41,11 +41,13 @@ def test_should_noindex_allows_marketing_paths():
 
 def test_robots_txt_references_sitemap_and_core_disallows():
     assert "Sitemap:" in ROBOTS_TXT
-    assert "Disallow: /api/" in ROBOTS_TXT
-    assert "Disallow: /mcp/" in ROBOTS_TXT
-    assert "Disallow: /settings" in ROBOTS_TXT
+    # Disallow lines are generated from NOINDEX_PATH_PREFIXES — every
+    # noindex prefix must show up as its own bare-prefix Disallow entry.
+    for prefix in NOINDEX_PATH_PREFIXES:
+        assert f"Disallow: {prefix}\n" in ROBOTS_TXT
     # Must allow the marketing prefixes (no explicit disallow on root)
     assert "User-agent: *" in ROBOTS_TXT
+    assert "Allow: /\n" in ROBOTS_TXT
 
 
 def test_build_sitemap_xml_contains_all_urls():
