@@ -312,6 +312,53 @@ def create_app(
     def terms(request: Request):
         return HTMLResponse(terms_tpl.render(**_seo_ctx(request, base_url)))
 
+    @app.get("/admin/waitlist")
+    def admin_waitlist(request: Request, limit: int = 50):
+        from markland.service.auth import resolve_token
+
+        header = request.headers.get("authorization", "")
+        if not header.lower().startswith("bearer "):
+            return JSONResponse({"error": "unauthenticated"}, status_code=401)
+        plaintext = header[7:].strip()
+        principal = resolve_token(db_conn, plaintext)
+        if principal is None:
+            return JSONResponse({"error": "unauthenticated"}, status_code=401)
+        if not principal.is_admin:
+            return JSONResponse({"error": "forbidden"}, status_code=403)
+
+        capped = max(1, min(limit, 500))
+        total = db_conn.execute("SELECT COUNT(*) FROM waitlist").fetchone()[0]
+        by_day = [
+            {"day": row[0], "count": row[1]}
+            for row in db_conn.execute(
+                "SELECT substr(created_at, 1, 10) AS day, COUNT(*) "
+                "FROM waitlist GROUP BY day ORDER BY day DESC"
+            ).fetchall()
+        ]
+        by_source = [
+            {"source": row[0], "count": row[1]}
+            for row in db_conn.execute(
+                "SELECT source, COUNT(*) FROM waitlist "
+                "GROUP BY source ORDER BY COUNT(*) DESC"
+            ).fetchall()
+        ]
+        recent = [
+            {"email": row[0], "created_at": row[1], "source": row[2]}
+            for row in db_conn.execute(
+                "SELECT email, created_at, source FROM waitlist "
+                "ORDER BY created_at DESC LIMIT ?",
+                (capped,),
+            ).fetchall()
+        ]
+        return JSONResponse(
+            {
+                "total": total,
+                "by_day": by_day,
+                "by_source": by_source,
+                "recent": recent,
+            }
+        )
+
     @app.get("/admin/audit", response_class=HTMLResponse)
     def admin_audit(request: Request):
         # Resolve bearer token here because PrincipalMiddleware only gates /mcp.
