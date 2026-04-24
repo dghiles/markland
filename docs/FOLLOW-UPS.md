@@ -123,6 +123,13 @@ post-launch sprint should pick up.
   `docs/runbooks/first-deploy.md` §3 and §7.
 - **CI auto-deploy.** `flyctl tokens create deploy` → add as `FLY_API_TOKEN`
   GitHub secret; `.github/workflows/deploy.yml` does the rest.
+- **Submit `/sitemap.xml` to Google Search Console** — deferred until the
+  canonical domain is live. Submitting under `markland.fly.dev` now would
+  burn the property on a host we plan to abandon, and Search Console does
+  not migrate indexed URLs cleanly across properties. After the
+  `markland.dev` cutover (see first item of this section), verify
+  `https://markland.dev/sitemap.xml` loads, then add the domain property in
+  GSC, verify via DNS TXT, and submit the sitemap there.
 
 ## Docs
 
