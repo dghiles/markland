@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Check your email — Markland</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 32rem; margin: 4rem auto; padding: 0 1.5rem; line-height: 1.5; }
+    h1 { font-size: 1.4rem; }
+    .email { font-weight: 600; }
+    .note { color: #555; font-size: 0.9rem; margin-top: 1.5rem; }
+  </style>
+</head>
+<body>
+  <h1>Check your email</h1>
+  <p>We just sent a sign-in link to <span class="email">{{ email }}</span>.</p>
+  <p>Open it on this device to finish signing in{% if return_to %} and pick up where you left off{% endif %}.</p>
+  <p class="note">The link expires shortly. If it doesn't arrive in a minute, check your spam folder, or <a href="/login{% if return_to %}?next={{ return_to }}{% endif %}">request a new one</a>.</p>
+</body>
+</html>
