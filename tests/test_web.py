@@ -379,3 +379,19 @@ def test_alternative_page_renders_github(client):
 def test_alternative_page_unknown_slug_returns_404(client):
     r = client.get("/alternatives/bogus")
     assert r.status_code == 404
+
+
+def test_alternative_page_has_hero_waitlist_form(client):
+    """Audit 2026-04-24 H4: per-competitor pages need a waitlist CTA above
+    the fold. Visual audit measured the previous CTA at y=1962 desktop /
+    y=3206 mobile — the biggest conversion leak in the audit. Form must
+    sit inside the hero <section> and tag its source per-competitor."""
+    r = client.get("/alternatives/notion")
+    text = r.text
+    hero_start = text.index('<section class="cmp-hero">')
+    hero_end = text.index("</section>", hero_start)
+    hero = text[hero_start:hero_end]
+    assert 'action="/api/waitlist"' in hero
+    assert 'name="email"' in hero
+    assert 'value="alt-notion"' in hero  # source tagged per-slug
+    assert "Join the waitlist" in hero

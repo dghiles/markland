@@ -199,6 +199,46 @@
             padding-bottom: 1px;
             font-size: 0.92rem;
         }
+
+        /* Hero waitlist form — kept compact so the H1 + lede + form
+           all sit inside one viewport on desktop and mobile. */
+        .cmp-hero-cta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+            align-items: center;
+            margin-top: 1.6rem;
+            max-width: 520px;
+        }
+        .cmp-hero-cta input[type="email"] {
+            flex: 1 1 240px;
+            padding: 0.75rem 1rem;
+            background: var(--surface);
+            border: 1.5px solid var(--outline);
+            border-radius: var(--radius-pill);
+            font-family: var(--font-display);
+            font-size: 0.95rem;
+            color: var(--text);
+        }
+        .cmp-hero-cta input[type="email"]::placeholder { color: var(--muted); }
+        .cmp-hero-cta input[type="email"]:focus {
+            outline: none;
+            border-color: var(--text);
+        }
+        .cmp-hero-cta button {
+            padding: 0.75rem 1.4rem;
+            background: var(--text);
+            color: var(--bg);
+            border: 1.5px solid var(--text);
+            border-radius: var(--radius-pill);
+            font-family: var(--font-display);
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: transform 0.18s ease;
+        }
+        .cmp-hero-cta button:hover { transform: translateY(-1px); }
 {% endblock %}
 
 {% block content %}
@@ -209,6 +249,11 @@
 <section class="cmp-hero">
     <h1>Markland vs {{ competitor.name }}<span class="period-red">.</span></h1>
     <p class="lede">{{ competitor.one_liner }} Markland is the MCP-native shared surface for agents and humans as equal editors — here is how they compare.</p>
+    <form class="cmp-hero-cta" method="post" action="/api/waitlist">
+        <input type="email" name="email" required placeholder="you@company.com" aria-label="Email address">
+        <input type="hidden" name="source" value="alt-{{ competitor.slug }}">
+        <button type="submit">Join the waitlist</button>
+    </form>
 </section>
 
 <section class="cmp-tldr">
