@@ -85,4 +85,19 @@ if __name__ == "__main__":
         bool(config.session_secret),
         bool(config.resend_api_key),
     )
-    uvicorn.run(app, host=host, port=config.web_port, log_level="info")
+    # Fly's proxy terminates TLS and forwards over HTTP. Without
+    # proxy_headers=True / forwarded_allow_ips, Starlette builds redirect
+    # URLs from the inner http scheme -- bearer tokens on those redirects
+    # would travel cleartext. Trust the X-Forwarded-* headers so redirects
+    # preserve https. forwarded_allow_ips="*" is safe here because Fly's
+    # edge is the only proxy in front of the app: any traffic that reaches
+    # us has already passed Fly's edge, so we can trust the forwarded
+    # headers from any source IP we see.
+    uvicorn.run(
+        app,
+        host=host,
+        port=config.web_port,
+        log_level="info",
+        proxy_headers=True,
+        forwarded_allow_ips="*",
+    )
