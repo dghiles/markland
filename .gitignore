@@ -62,3 +62,13 @@ desktop.ini
 
 # Litestream
 litestream-data/
+
+# Playwright MCP cache
+.playwright-mcp/
+
+# Stray dev screenshots
+mobile-*.png
+desktop-*.png
+
+# Accidental SQLite Connection-string filenames
+<sqlite3.Connection*
