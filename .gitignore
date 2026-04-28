@@ -52,6 +52,9 @@ coverage.xml
 .claude/
 .superpowers/
 
+# Git worktrees
+.worktrees/
+
 # OS
 .DS_Store
 Thumbs.db
