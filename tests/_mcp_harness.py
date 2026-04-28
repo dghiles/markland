@@ -25,7 +25,7 @@ class Caller:
 
     principal: Principal | None
     token: str | None
-    _harness: "MCPHarness"
+    _harness: "MCPHarness" = field(repr=False)
 
     @property
     def principal_id(self) -> str | None:
@@ -71,7 +71,8 @@ class MCPHarness:
         is_admin: bool = False,
         fresh: bool = False,
     ) -> Caller:
-        cached = self._user_cache.get(email)
+        key = email.lower()
+        cached = self._user_cache.get(key)
         if cached is not None and not fresh:
             return cached
 
@@ -99,11 +100,11 @@ class MCPHarness:
             principal_type="user",
             display_name=None,
             is_admin=is_admin,
-            user_id=user_id,
+            user_id=None,
         )
         caller = Caller(principal=principal, token=plaintext, _harness=self)
         if not fresh:
-            self._user_cache[email] = caller
+            self._user_cache[key] = caller
         return caller
 
     def as_admin(self) -> Caller:
