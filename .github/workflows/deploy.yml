@@ -1,8 +1,18 @@
 name: Deploy to Fly
 
+# DISABLED: `flyctl deploy` currently creates an orphan machine + volume on
+# every run instead of updating the existing machine in place — see
+# docs/FOLLOW-UPS.md ("Fly launch-group registration"). Until that's
+# resolved, deploys are operator-driven via `flyctl machine update`.
+#
+# The workflow is left here (a) as a build-the-image side effect — pushing
+# a deployment-tagged image to registry.fly.io that an operator can then
+# point a machine at — and (b) so the bug stays visible.
+#
+# Re-enable by restoring the `push:` trigger below once the launch-group
+# bug is fixed and a single fresh deploy is verified to update in place.
+
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
