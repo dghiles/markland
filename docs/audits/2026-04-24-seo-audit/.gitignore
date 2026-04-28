@@ -1,0 +1,5 @@
+# Reproducible artifacts — skip from git to keep repo lean.
+# Run `python3 ~/.claude/skills/seo/scripts/fetch_page.py <url>` to regenerate
+# HTML snapshots and Playwright for screenshots.
+*.html
+screenshots/

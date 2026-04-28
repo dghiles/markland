@@ -1,0 +1,101 @@
+{
+  "home_desktop": {
+    "h1_text": "Shared documents.For you and your agents.",
+    "h1_top": 271.984375,
+    "h1_bottom": 438.390625,
+    "cta_text": "Get started",
+    "cta_top": 647.640625,
+    "cta_href": null,
+    "innerHeight": 900,
+    "shifts": [
+      {
+        "value": 0.0017735938973551097,
+        "t": 594.5999999046326
+      }
+    ],
+    "fontShiftCLS": 0.0017735938973551097,
+    "scrollWidth": 1440,
+    "hScroll": false,
+    "totalHeight": 3742
+  },
+  "home_mobile": {
+    "h1_text": "Shared documents.For you and your agents.",
+    "h1_top": 239.984375,
+    "h1_bottom": 406.359375,
+    "cta_text": "Get started",
+    "cta_top": 744.1875,
+    "cta_href": null,
+    "innerHeight": 812,
+    "shifts": [],
+    "fontShiftCLS": 0,
+    "scrollWidth": 375,
+    "hScroll": false,
+    "totalHeight": 5437
+  },
+  "quickstart_desktop": {
+    "h1_text": "Markland Quickstart",
+    "h1_top": 169.8125,
+    "h1_bottom": 223.5625,
+    "cta_text": null,
+    "cta_top": null,
+    "cta_href": null,
+    "innerHeight": 900,
+    "shifts": [
+      {
+        "value": 0.04008570457845721,
+        "t": 483.2000000476837
+      }
+    ],
+    "fontShiftCLS": 0.04008570457845721,
+    "scrollWidth": 1440,
+    "hScroll": false,
+    "totalHeight": 2593
+  },
+  "quickstart_mobile": {
+    "h1_text": "Markland Quickstart",
+    "h1_top": 169.8125,
+    "h1_bottom": 203.40625,
+    "cta_text": null,
+    "cta_top": null,
+    "cta_href": null,
+    "innerHeight": 812,
+    "shifts": [],
+    "fontShiftCLS": 0,
+    "scrollWidth": 375,
+    "hScroll": false,
+    "totalHeight": 3937
+  },
+  "alt-google-docs_desktop": {
+    "h1_text": "Markland vs Google Docs.",
+    "h1_top": 200.34375,
+    "h1_bottom": 260.8125,
+    "cta_text": "Join the waitlist",
+    "cta_top": 1961.59375,
+    "cta_href": "/",
+    "innerHeight": 900,
+    "shifts": [
+      {
+        "value": 0.0019484924316406247,
+        "t": 509.7000000476837
+      }
+    ],
+    "fontShiftCLS": 0.0019484924316406247,
+    "scrollWidth": 1440,
+    "hScroll": false,
+    "totalHeight": 2274
+  },
+  "alt-google-docs_mobile": {
+    "h1_text": "Markland vs Google Docs.",
+    "h1_top": 200.34375,
+    "h1_bottom": 274.25,
+    "cta_text": "Join the waitlist",
+    "cta_top": 3206.375,
+    "cta_href": "/",
+    "innerHeight": 812,
+    "shifts": [],
+    "fontShiftCLS": 0,
+    "scrollWidth": 375,
+    "hScroll": false,
+    "totalHeight": 3592
+  }
+}
