@@ -17,6 +17,7 @@ Design notes:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import random
 from dataclasses import dataclass
@@ -28,6 +29,64 @@ logger = logging.getLogger("markland.email_dispatcher")
 
 # Attempts after initial: 1s, 3s, 10s, then drop. Total 4 attempts including initial.
 DEFAULT_RETRY_DELAYS: tuple[float, ...] = (1.0, 3.0, 10.0)
+
+# Permanent-failure signatures from Resend. Anything matching here drops
+# on attempt 1 instead of burning the retry budget. Refine as we collect
+# more rejection shapes — a single helper, message-based, intentionally simple.
+_PERMANENT_SIGNATURES: tuple[str, ...] = (
+    "you can only send testing emails",  # sandbox mode
+    "validation_error",                  # 422 from Resend on bad payload
+    "invalid `to` field",                # malformed address
+)
+
+
+def _classify(exc: EmailSendError) -> str:
+    """Return 'permanent' or 'transient' for an EmailSendError.
+
+    Permanent failures should not be retried (sandbox rejection, validation).
+    Transient failures (5xx, network, rate-limit) get the full retry ladder.
+    """
+    msg = str(exc).lower()
+    for sig in _PERMANENT_SIGNATURES:
+        if sig in msg:
+            return "permanent"
+    return "transient"
+
+
+def _recipient_hash(addr: str) -> str:
+    """Stable, non-reversible 12-hex-char digest. Suitable for tag values.
+
+    Lets ops correlate "same recipient seeing repeated drops" without leaking
+    the raw address into Sentry. sha256 truncated; collisions on 12 hex chars
+    are statistically irrelevant at our volume.
+    """
+    return hashlib.sha256(addr.encode("utf-8")).hexdigest()[:12]
+
+
+def _safe_sentry_capture(
+    exc: BaseException,
+    *,
+    tags: dict[str, str],
+) -> None:
+    """Best-effort Sentry capture. No-op if sentry_sdk missing or init failed.
+
+    Mirrors run_app.py's optional-import style — we never want a Sentry
+    transport problem to take down the dispatcher worker.
+    """
+    try:
+        import sentry_sdk
+    except ImportError:
+        return
+    try:
+        with sentry_sdk.new_scope() as scope:
+            for k, v in tags.items():
+                scope.set_tag(k, v)
+            sentry_sdk.capture_exception(exc)
+    except Exception as err:
+        # Sentry transport / init issues must not poison the queue. Log at
+        # WARNING (not ERROR/exception) so Sentry's own LoggingIntegration
+        # cannot re-fire on this failure path.
+        logger.warning("sentry capture failed: %r", err)
 
 
 class _ClientProto(Protocol):
@@ -138,10 +197,57 @@ class EmailDispatcher:
                 metadata=item.metadata,
             )
         except EmailSendError as exc:
-            if item.attempt >= len(self._retry_delays):
+            failure_kind = _classify(exc)
+            if failure_kind == "permanent":
+                attempts = item.attempt + 1
+                template = (item.metadata or {}).get("template", "unknown")
+                rcpt_hash = _recipient_hash(item.to)
+                action = {
+                    "template": template,
+                    "attempts": attempts,
+                    "error_class": type(exc).__name__,
+                    "failure_kind": failure_kind,
+                    "recipient_hash": rcpt_hash,
+                }
                 logger.warning(
-                    "dropping email to %s after %d attempts: %s",
-                    item.to, item.attempt + 1, exc,
+                    "dropping email (rcpt %s) on attempt %d (permanent): %s",
+                    rcpt_hash, attempts, exc,
+                    extra={"action": action},
+                )
+                _safe_sentry_capture(
+                    exc,
+                    tags={
+                        "template": template,
+                        "attempts": str(attempts),
+                        "failure_kind": failure_kind,
+                        "recipient_hash": rcpt_hash,
+                    },
+                )
+                return
+            if item.attempt >= len(self._retry_delays):
+                attempts = item.attempt + 1
+                template = (item.metadata or {}).get("template", "unknown")
+                rcpt_hash = _recipient_hash(item.to)
+                action = {
+                    "template": template,
+                    "attempts": attempts,
+                    "error_class": type(exc).__name__,
+                    "failure_kind": failure_kind,
+                    "recipient_hash": rcpt_hash,
+                }
+                logger.warning(
+                    "dropping email (rcpt %s) after %d attempts: %s",
+                    rcpt_hash, attempts, exc,
+                    extra={"action": action},
+                )
+                _safe_sentry_capture(
+                    exc,
+                    tags={
+                        "template": template,
+                        "attempts": str(attempts),
+                        "failure_kind": failure_kind,
+                        "recipient_hash": rcpt_hash,
+                    },
                 )
                 return
             delay = self._retry_delays[item.attempt]
@@ -153,7 +259,6 @@ class EmailDispatcher:
                 item.to, item.attempt + 1, delay, exc,
             )
             item.attempt += 1
-            # Schedule a delayed re-enqueue without blocking the worker.
             asyncio.create_task(self._requeue_after(item, delay))
         except Exception as exc:
             # Unexpected error — drop, don't poison the queue.

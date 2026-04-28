@@ -36,7 +36,7 @@ client-side retry loop gone wrong, or of real multi-agent editing finding a bug.
 
 ## Alert 3 - Email send failures
 
-**Goal:** catch Resend outages early.
+**Goal:** catch Resend outages and persistent send rejections early.
 
 1. Sentry -> Alerts -> Create Alert -> "Issues".
 2. Name: `Markland email send failures`.
@@ -45,13 +45,55 @@ client-side retry loop gone wrong, or of real multi-agent editing finding a bug.
    - Threshold: "more than 3 events in 5 minutes".
 4. Action: email the operator.
 
+The `EmailDispatcher` calls `sentry_sdk.capture_exception` when it drops an
+email after exhausting its retry budget OR on first attempt when the failure
+classifies as permanent (sandbox-mode rejection, validation error). Each event
+carries these tags:
+
+- `template` - which email template (e.g. `magic_link`, `user_grant`).
+- `failure_kind` - `permanent` (won't ever succeed) or `transient` (gave up after retries).
+- `attempts` - string-encoded attempt count (e.g. `"1"` for permanent, `"4"` for exhausted).
+- `recipient_hash` - sha256-truncated recipient digest (12 hex chars). Use this
+  to correlate "same recipient seeing repeated drops" without storing PII.
+
+Filter or split the alert by `failure_kind:permanent` if you want to be paged
+*only* on misconfiguration (e.g. a never-verified Resend domain) and not on
+transient outages.
+
+### Alert 3b - Permanent email failures (recommended companion)
+
+Create a second alert filtered to `failure_kind:permanent` with threshold
+**>=1 event in 5 minutes**. A single permanent failure means a configuration
+problem (sandbox-mode Resend, unverified domain, malformed sender) that will
+keep blocking real users until ops intervenes — Alert 3's `>3 in 5 min`
+threshold is tuned for outage volume and won't catch a steady trickle of
+single-user signups against a misconfigured sender.
+
+### PII carve-out
+
+Sentry events for `EmailSendError` may contain the **workspace owner's verified
+sender address** in `exception.values[0].value` — Resend's sandbox-rejection
+text literally names the owner ("You can only send testing emails to your own
+email address (you@example.com)..."). The recipient address is hashed and never
+leaks. The owner address is already known to anyone with Sentry access (you
+gave them the DSN), so this is acceptable; calling it out so it isn't
+mistaken for a leak.
+
 ## Structured logging pairing
 
-`run_app.py` installs a JSON log formatter that injects `principal_id`, `doc_id`,
-and `action` fields whenever a caller uses `logger.info("msg", extra={...})`.
-These fields appear in Fly's log stream verbatim. To surface them in Sentry
-breadcrumbs, add `sentry_sdk.set_tag(...)` calls alongside structured log calls
-at future milestones - not needed at launch.
+`run_app.py` installs a JSON log formatter that promotes `principal_id`,
+`doc_id`, and `action` from `extra={...}` to top-level fields. The dispatcher
+emits a drop log line with `extra={"action": {...}}` containing:
+
+- `action.template`, `action.failure_kind`, `action.recipient_hash` (same shape
+  as the Sentry tags above)
+- `action.attempts` (int, not string - the JSON formatter preserves the type)
+- `action.error_class` (e.g. `EmailSendError`)
+
+Grep Fly logs by these fields rather than the message string - the message
+intentionally uses `recipient_hash`, not the raw address, to avoid leaking
+recipients into Sentry breadcrumbs (LoggingIntegration captures WARNING+ as
+breadcrumbs by default).
 
 ## What this runbook does NOT cover
 
