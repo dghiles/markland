@@ -300,6 +300,17 @@ def build_device_router(
         )
         runbook = f"""# Markland setup
 
+**For humans:** This URL is the install runbook for the Markland MCP server.
+It is meant to be read by Claude Code, not run in a terminal. To install,
+open Claude Code (CLI or web) and send this message:
+
+> Install the Markland MCP server from {host}/setup
+
+Claude Code will fetch this page, walk you through a one-time browser
+authorization, and finish the install.
+
+---
+
 You are Claude Code. A user pasted this URL to install the Markland MCP server.
 Execute the steps below end-to-end. Do not ask the user for input beyond what
 step 2 instructs.

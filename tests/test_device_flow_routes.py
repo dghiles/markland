@@ -309,3 +309,17 @@ def test_setup_runbook_install_command_is_complete(client):
     # Must use trailing-slash MCP path so the install doesn't depend on
     # following a 307 across a POST.
     assert "/mcp/" in body
+
+
+def test_setup_runbook_has_human_preamble(client):
+    r = client.get("/setup")
+    body = r.text
+    # Humans landing on /setup via curl/browser need to know this URL is
+    # meant to be pasted into a Claude Code chat, not run in a terminal.
+    assert "**For humans:**" in body
+    assert "Install the Markland MCP server from" in body
+    # The agent-facing role prompt must still appear after the preamble so
+    # an LLM consumer of the runbook still gets a clear directive.
+    assert "You are Claude Code" in body
+    # Order matters — preamble first, role prompt second.
+    assert body.index("**For humans:**") < body.index("You are Claude Code")
