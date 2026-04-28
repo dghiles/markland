@@ -41,3 +41,23 @@ def test_as_admin_convenience(mcp):
     caller = mcp.as_admin()
     assert caller.principal.is_admin is True
     assert caller.principal_id.startswith("usr_")
+
+
+def test_as_agent_seeds_owning_user_and_agent(mcp):
+    caller = mcp.as_agent(owner_email="owner@example.com", display_name="bot")
+    assert caller.principal_id.startswith("agt_")
+    assert caller.token.startswith("mk_agt_")
+    assert caller.principal.principal_type == "agent"
+    # Owner exists too.
+    row = mcp.db.execute(
+        "SELECT id FROM users WHERE lower(email) = 'owner@example.com'"
+    ).fetchone()
+    assert row is not None
+    assert caller.principal.user_id == row[0]
+
+
+def test_anon_returns_caller_with_no_principal(mcp):
+    caller = mcp.anon()
+    assert caller.principal is None
+    assert caller.principal_id is None
+    assert caller.token is None

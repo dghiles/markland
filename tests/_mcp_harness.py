@@ -42,6 +42,7 @@ class MCPHarness:
     _mcp: Any  # FastMCP instance
     _tmp_path: Path
     _user_cache: dict[str, Caller] = field(default_factory=dict)
+    _agent_cache: dict[str, Caller] = field(default_factory=dict)
 
     @classmethod
     def create(cls, tmp_path: Path, *, mode: Mode = "direct") -> "MCPHarness":
@@ -109,3 +110,50 @@ class MCPHarness:
 
     def as_admin(self) -> Caller:
         return self.as_user(email="admin@harness.test", is_admin=True)
+
+    def as_agent(
+        self,
+        *,
+        owner_email: str,
+        display_name: str = "test-agent",
+        fresh: bool = False,
+    ) -> Caller:
+        cache_key = f"{owner_email.lower()}:{display_name}"
+        cached = self._agent_cache.get(cache_key)
+        if cached is not None and not fresh:
+            return cached
+
+        # Ensure owner exists.
+        owner = self.as_user(email=owner_email)
+
+        from markland.service.agents import create_agent
+
+        agent = create_agent(
+            self.db,
+            owner_user_id=owner.principal_id,
+            display_name=display_name,
+        )
+
+        from markland.service.auth import create_agent_token
+
+        _, plaintext = create_agent_token(
+            self.db,
+            agent_id=agent.id,
+            owner_user_id=owner.principal_id,
+            label="harness",
+        )
+
+        principal = Principal(
+            principal_id=agent.id,
+            principal_type="agent",
+            display_name=display_name,
+            is_admin=False,
+            user_id=owner.principal_id,
+        )
+        caller = Caller(principal=principal, token=plaintext, _harness=self)
+        if not fresh:
+            self._agent_cache[cache_key] = caller
+        return caller
+
+    def anon(self) -> Caller:
+        return Caller(principal=None, token=None, _harness=self)
