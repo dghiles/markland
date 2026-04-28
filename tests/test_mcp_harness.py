@@ -118,3 +118,20 @@ def test_direct_call_raw_unknown_tool_raises_harness_error(mcp):
 
     with pytest.raises(MCPHarnessError, match="no such tool"):
         alice.call_raw("markland_publshhh", content="x")
+
+
+def test_call_returns_value_on_success(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    value = alice.call("markland_publish", content="# hi")
+    assert value["owner_id"] == alice.principal_id
+
+
+def test_call_raises_mcp_call_error(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    from tests._mcp_harness import MCPCallError
+
+    with pytest.raises(MCPCallError) as exc_info:
+        alice.call("markland_get", doc_id="doc_nope")
+    assert exc_info.value.response.error_code == "not_found"
+    assert exc_info.value.tool == "markland_get"
+    assert exc_info.value.kwargs == {"doc_id": "doc_nope"}

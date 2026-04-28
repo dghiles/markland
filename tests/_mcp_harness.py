@@ -40,6 +40,12 @@ class Caller:
             return _http_call(h, self, tool, kwargs)
         raise MCPHarnessError(f"unknown mode {h.mode!r}")
 
+    def call(self, tool: str, **kwargs: Any) -> Any:
+        r = self.call_raw(tool, **kwargs)
+        if not r.ok:
+            raise MCPCallError(r, tool, kwargs)
+        return r.value
+
 
 @dataclass
 class MCPHarness:
