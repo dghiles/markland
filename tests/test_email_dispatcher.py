@@ -89,6 +89,9 @@ async def test_drops_after_three_retries(caplog):
     # Four total attempts: initial + 3 retries = 4 tries, then dropped.
     assert len(client.calls) == 4
     assert any("dropping email" in r.message.lower() for r in caplog.records)
+    drop_records = [r for r in caplog.records if "dropping email" in r.message.lower()]
+    assert len(drop_records) == 1
+    assert "a@b" not in drop_records[0].message, "raw recipient must not appear in drop log message"
 
 
 @pytest.mark.asyncio
@@ -156,6 +159,9 @@ async def test_permanent_failure_drops_on_first_attempt(caplog):
 
     assert len(client.calls) == 1, f"expected 1 attempt, got {len(client.calls)}"
     assert any("dropping email" in r.message.lower() for r in caplog.records)
+    drop_records = [r for r in caplog.records if "dropping email" in r.message.lower()]
+    assert len(drop_records) == 1
+    assert "stranger@example.com" not in drop_records[0].message, "raw recipient must not appear in drop log message"
 
 
 @pytest.mark.asyncio
@@ -176,7 +182,7 @@ async def test_drop_invokes_sentry_capture(monkeypatch):
                 self.tags[k] = v
 
         @staticmethod
-        def push_scope():
+        def new_scope():
             import contextlib
 
             @contextlib.contextmanager
@@ -259,3 +265,4 @@ async def test_drop_log_carries_structured_action_fields(caplog):
     assert action["error_class"] == "EmailSendError"
     assert action["failure_kind"] == "transient"
     assert "recipient_hash" in action
+    assert "a@b" not in rec.message, "raw recipient must not appear in drop log message"

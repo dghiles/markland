@@ -78,13 +78,15 @@ def _safe_sentry_capture(
     except ImportError:
         return
     try:
-        with sentry_sdk.push_scope() as scope:
+        with sentry_sdk.new_scope() as scope:
             for k, v in tags.items():
                 scope.set_tag(k, v)
             sentry_sdk.capture_exception(exc)
-    except Exception:
-        # Sentry transport / init issues must not poison the queue.
-        logger.exception("sentry capture failed")
+    except Exception as err:
+        # Sentry transport / init issues must not poison the queue. Log at
+        # WARNING (not ERROR/exception) so Sentry's own LoggingIntegration
+        # cannot re-fire on this failure path.
+        logger.warning("sentry capture failed: %r", err)
 
 
 class _ClientProto(Protocol):
@@ -208,8 +210,8 @@ class EmailDispatcher:
                     "recipient_hash": rcpt_hash,
                 }
                 logger.warning(
-                    "dropping email to %s on attempt %d (permanent): %s",
-                    item.to, attempts, exc,
+                    "dropping email (rcpt %s) on attempt %d (permanent): %s",
+                    rcpt_hash, attempts, exc,
                     extra={"action": action},
                 )
                 _safe_sentry_capture(
@@ -234,8 +236,8 @@ class EmailDispatcher:
                     "recipient_hash": rcpt_hash,
                 }
                 logger.warning(
-                    "dropping email to %s after %d attempts: %s",
-                    item.to, attempts, exc,
+                    "dropping email (rcpt %s) after %d attempts: %s",
+                    rcpt_hash, attempts, exc,
                     extra={"action": action},
                 )
                 _safe_sentry_capture(
