@@ -356,7 +356,7 @@ Stop polling after `expires_in` seconds regardless.
 Prefer the CLI form:
 
 ```
-claude mcp add markland {host}/mcp --header "Authorization=Bearer $ACCESS_TOKEN"
+claude mcp add --transport http markland {host}/mcp/ --header "Authorization: Bearer $ACCESS_TOKEN"
 ```
 
 If `claude mcp add` is unavailable, edit `~/.mcp.json` to include:
@@ -366,7 +366,7 @@ If `claude mcp add` is unavailable, edit `~/.mcp.json` to include:
   "mcpServers": {{
     "markland": {{
       "type": "http",
-      "url": "{host}/mcp",
+      "url": "{host}/mcp/",
       "headers": {{
         "Authorization": "Bearer <paste the access_token from step 3>"
       }}

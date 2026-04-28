@@ -289,3 +289,23 @@ def test_setup_runbook_threads_invite_token(client):
 def test_setup_runbook_no_invite_param_omits_invite_body(client):
     r = client.get("/setup")
     assert "invite_token" not in r.text or '"invite_token": null' in r.text
+
+
+def test_setup_runbook_install_command_is_complete(client):
+    """The CLI command in step 4 must be runnable as-is.
+
+    Verified broken on 2026-04-24:
+    - missing --transport http → registers as stdio
+    - Authorization=Bearer (=) → CLI rejects, expects colon
+    - bare /mcp → 307 redirect not followed cleanly on POST
+    """
+    r = client.get("/setup")
+    body = r.text
+    # Must specify HTTP transport explicitly.
+    assert "--transport http" in body
+    # Must use header colon syntax, not equals.
+    assert 'Authorization: Bearer' in body
+    assert 'Authorization=Bearer' not in body
+    # Must use trailing-slash MCP path so the install doesn't depend on
+    # following a 307 across a POST.
+    assert "/mcp/" in body
