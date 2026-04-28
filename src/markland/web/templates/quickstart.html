@@ -185,11 +185,12 @@
   </p>
 
   <h2>2. Wire up the MCP server</h2>
-  <p>In a terminal, run:</p>
-  <pre>claude mcp add markland {{ canonical_host }}/setup</pre>
+  <p>Open Claude Code (CLI or web) and send this message:</p>
+  <pre>Install the Markland MCP server from {{ canonical_host }}/setup</pre>
   <p>
-    Claude Code will prompt you to open a browser, authorize a token, and then store the token in your local
-    Claude Code config. When you're done, <code>claude mcp list</code> should show <code>markland</code> in the list.
+    Claude Code fetches the runbook at that URL, walks you through a one-time browser authorization, and then
+    runs <code>claude mcp add</code> with the right transport flag and bearer token. When it's done,
+    <code>claude mcp list</code> should show <code>markland</code> in the list.
   </p>
   <p>
     Under the hood Markland uses the

@@ -47,8 +47,15 @@ def test_quickstart_uses_base_layout(client):
 
 def test_quickstart_templates_setup_host(client):
     r = client.get("/quickstart")
-    assert "claude mcp add markland http://testserver/setup" in r.text
+    # Quickstart must NOT teach the broken `claude mcp add <url>` form —
+    # claude mcp add treats a bare URL as a stdio command and fails. The
+    # runbook at /setup is consumed by Claude Code as a chat directive.
+    assert "claude mcp add markland http://testserver/setup" not in r.text
+    # Must still show the canonical host so we don't ship a stale fly.dev URL.
+    assert "http://testserver/setup" in r.text
     assert "markland.dev/setup" not in r.text
+    # Must frame it as a Claude Code chat instruction, not a terminal command.
+    assert "Claude Code" in r.text
 
 
 def test_quickstart_has_h2_step_headings(client):
