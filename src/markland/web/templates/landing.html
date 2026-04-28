@@ -408,15 +408,22 @@
             font-size: 0.88rem;
             max-width: fit-content;
         }
-        .howto .result-link-row button {
+        .howto .result-link-row button,
+        .howto .result-link-row .result-link-cta {
             all: unset;
-            cursor: default;
+            cursor: pointer;
             padding: 0.15rem 0.6rem;
             border-radius: var(--radius-pill);
             border: 1px solid var(--outline);
             color: var(--text-2);
             font-family: var(--font-display);
             font-size: 0.82rem;
+            text-decoration: none;
+            transition: color 0.15s ease, border-color 0.15s ease;
+        }
+        .howto .result-link-row .result-link-cta:hover {
+            color: var(--text);
+            border-color: var(--text-2);
         }
         .section-eyebrow.eb-green::before { background: var(--green); }
 
@@ -645,7 +652,7 @@
             <p class="result-meta">Your architecture notes &middot; 2,340 words &middot; 3m read</p>
             <div class="result-link-row">
                 <span>mkl.to/a7f2-x</span>
-                <button type="button" tabindex="-1">Copy link &rarr;</button>
+                <a href="/quickstart" class="result-link-cta">Copy link &rarr;</a>
             </div>
         </div>
     </div>
