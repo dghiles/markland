@@ -476,7 +476,7 @@ def list_for_principal_paginated(
     return [_row_to_dict(r) for r in page], next_cursor
 ```
 
-> **Implementer note:** `_row_to_dict` is whatever helper turns `sqlite3.Row` into a plain dict in your service layer. If there isn't one, just write `dict(r)`. Match the existing `list_for_principal` projection exactly so the `doc_summary` shape stays consistent.
+> **Implementer note (verified against current db.py):** `init_db()` does not set `conn.row_factory = sqlite3.Row`, so rows come back as tuples. Two paths: (a) set `conn.row_factory = sqlite3.Row` at the top of `init_db` and use `dict(row)`, which has small risk of breaking existing tuple-indexing call sites — grep for `row[0]` / `row[1]` patterns first; or (b) build a small helper that captures `cursor.description` and zips: `[dict(zip([c[0] for c in cur.description], r)) for r in rows]`. Path (b) is safer for an audit. Match the existing `list_for_principal` projection exactly so the `doc_summary` shape stays consistent.
 
 - [ ] **Step 4: Update `markland_list`**
 

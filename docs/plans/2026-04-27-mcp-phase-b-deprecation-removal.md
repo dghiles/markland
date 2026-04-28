@@ -38,16 +38,26 @@
 
 - [ ] **Step 1: Verify the plan should run**
 
-Run:
+Phase B is gated on the deprecation tag laid down at the end of plan 6 (or
+manually after axis 5 lands). Plan 6's task 8 must include a final commit:
+
 ```bash
-RELEASE_DATE=$(git log --format=%cs -- docs/plans/2026-04-27-mcp-axis-5-new-tools.md | tail -1)
+git tag -a mcp-audit-axis-5-released -m "axis-5 shipped; Phase B opens at +30d"
+git push origin mcp-audit-axis-5-released
+```
+
+Then in this plan:
+
+```bash
+TAG_DATE=$(git log -1 --format=%cs mcp-audit-axis-5-released 2>/dev/null)
 TODAY=$(date +%Y-%m-%d)
-if [ -z "$RELEASE_DATE" ]; then
-    echo "Plan 6 not yet committed; abort."
+if [ -z "$TAG_DATE" ]; then
+    echo "Tag mcp-audit-axis-5-released not found; plan 6 not finalized. ABORT."
     exit 1
 fi
-ELAPSED=$(( ($(date -j -f "%Y-%m-%d" "$TODAY" +%s) - $(date -j -f "%Y-%m-%d" "$RELEASE_DATE" +%s)) / 86400 ))
-echo "Days since axis-5 commit: $ELAPSED"
+# Linux: ELAPSED=$(( ($(date -d "$TODAY" +%s) - $(date -d "$TAG_DATE" +%s)) / 86400 ))
+ELAPSED=$(( ($(date -j -f "%Y-%m-%d" "$TODAY" +%s) - $(date -j -f "%Y-%m-%d" "$TAG_DATE" +%s)) / 86400 ))
+echo "Days since axis-5 release tag: $ELAPSED"
 if [ "$ELAPSED" -lt 30 ]; then
     echo "Less than 30 days since axis-5 release. Phase B is too early. ABORT."
     exit 1
@@ -55,7 +65,12 @@ fi
 echo "Cleared for Phase B."
 ```
 
-> **Implementer note:** macOS `date` syntax is shown. On Linux replace with `date -d`. The $30-day floor is the spec's deprecation window (§9). If you're sure plans 2-5 landed earlier than plan 6 and the user wants the window measured from a different commit, override the `RELEASE_DATE` lookup.
+> **Why a tag, not a path-based date:** The plan-doc commit timestamp can drift
+> from the implementation commit if plans get rebased, cherry-picked, or
+> committed out of order from execution. The tag is laid at the moment the
+> last axis-5 work actually lands on `main`, anchoring the window to the real
+> release. Plan 6 task 8 already updates README + ROADMAP — adding the tag
+> command there closes the loop.
 
 - [ ] **Step 2: Confirm with the user before proceeding**
 

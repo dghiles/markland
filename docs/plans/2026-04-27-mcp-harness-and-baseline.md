@@ -379,9 +379,9 @@ Append to `MCPHarness` in `tests/_mcp_harness.py`:
         # Ensure owner exists.
         owner = self.as_user(email=owner_email)
 
-        from markland.service.agents import create_user_agent
+        from markland.service.agents import create_agent
 
-        agent = create_user_agent(
+        agent = create_agent(
             self.db,
             owner_user_id=owner.principal_id,
             display_name=display_name,
@@ -411,7 +411,7 @@ Append to `MCPHarness` in `tests/_mcp_harness.py`:
         return Caller(principal=None, token=None, _harness=self)
 ```
 
-> **Note:** If `create_user_agent` or `create_agent_token` are named differently in `markland.service.agents` / `markland.service.auth`, grep for the canonical name and use that. The plan uses these names because they match Plan 4's pattern.
+> **Verified against current codebase:** `create_agent(conn, owner_user_id, display_name) -> Agent` lives at `src/markland/service/agents.py:33`. `create_agent_token(conn, *, agent_id, label) -> tuple[Token, str]` lives at `src/markland/service/auth.py:135`. If the implementer finds different names, the codebase has drifted — grep before adapting.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -836,6 +836,13 @@ def create(cls, tmp_path: Path, *, mode: Mode = "direct") -> "MCPHarness":
     )
 
     if mode == "http":
+        # Set rate-limit env vars BEFORE create_app, since the app reads
+        # them at build time. Setting after create_app has no effect.
+        import os
+        os.environ.setdefault("MARKLAND_RATE_LIMIT_USER_PER_MIN", "10000")
+        os.environ.setdefault("MARKLAND_RATE_LIMIT_AGENT_PER_MIN", "10000")
+        os.environ.setdefault("MARKLAND_RATE_LIMIT_ANON_PER_MIN", "10000")
+
         from fastapi.testclient import TestClient
         from markland.web.app import create_app
 
@@ -845,11 +852,6 @@ def create(cls, tmp_path: Path, *, mode: Mode = "direct") -> "MCPHarness":
             base_url=base_url,
             session_secret="harness-secret",
         )
-        # Bump rate limits so tests don't hit them by accident.
-        import os
-        os.environ.setdefault("MARKLAND_RATE_LIMIT_USER_PER_MIN", "10000")
-        os.environ.setdefault("MARKLAND_RATE_LIMIT_AGENT_PER_MIN", "10000")
-        os.environ.setdefault("MARKLAND_RATE_LIMIT_ANON_PER_MIN", "10000")
 
         client = TestClient(app)
         client.__enter__()  # start lifespan
@@ -976,7 +978,7 @@ def _http_initialize(harness: "MCPHarness", caller: "Caller") -> None:
         "id": 0,
         "method": "initialize",
         "params": {
-            "protocolVersion": "2025-03-26",
+            "protocolVersion": "2025-03-26",  # matches tests/test_http_mcp.py:63 — proven against current FastMCP version
             "capabilities": {},
             "clientInfo": {"name": "harness", "version": "0"},
         },

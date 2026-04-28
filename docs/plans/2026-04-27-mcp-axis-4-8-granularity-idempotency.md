@@ -216,7 +216,7 @@ def test_set_visibility_shim_marked_deprecated_in_docstring(tmp_path):
     from markland.server import build_mcp
     db = init_db(tmp_path / "t.db")
     mcp = build_mcp(db, base_url="http://x", email_client=None)
-    desc = mcp.get_tool("markland_set_visibility").description
+    desc = mcp._tool_manager.get_tool("markland_set_visibility").description
     assert "Deprecated" in desc
     assert "markland_doc_meta" in desc
 
@@ -226,7 +226,7 @@ def test_feature_shim_marked_deprecated(tmp_path):
     from markland.server import build_mcp
     db = init_db(tmp_path / "t.db")
     mcp = build_mcp(db, base_url="http://x", email_client=None)
-    desc = mcp.get_tool("markland_feature").description
+    desc = mcp._tool_manager.get_tool("markland_feature").description
     assert "Deprecated" in desc
 ```
 
@@ -440,7 +440,7 @@ def test_set_status_marked_deprecated(tmp_path):
     from markland.server import build_mcp
     db = init_db(tmp_path / "t.db")
     mcp = build_mcp(db, base_url="http://x", email_client=None)
-    desc = mcp.get_tool("markland_set_status").description
+    desc = mcp._tool_manager.get_tool("markland_set_status").description
     assert "Deprecated" in desc
     assert "markland_status" in desc
 ```
@@ -680,7 +680,7 @@ def test_every_tool_has_idempotency_section_in_docstring(tmp_path):
     db = init_db(tmp_path / "t.db")
     mcp = build_mcp(db, base_url="http://x", email_client=None)
     for name in IDEMPOTENT_TOOLS | NOT_IDEMPOTENT_TOOLS | READ_ONLY_TOOLS:
-        desc = mcp.get_tool(name).description or ""
+        desc = mcp._tool_manager.get_tool(name).description or ""
         assert "Idempotency:" in desc, f"{name} missing Idempotency: line"
 
 

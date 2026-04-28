@@ -860,6 +860,17 @@ git add README.md docs/ROADMAP.md
 git commit -m "docs: README + ROADMAP reflect 5 new MCP tools (axis 5)"
 ```
 
+- [ ] **Step 4: Lay the deprecation-window tag**
+
+Plan 7 (Phase B) measures the 30-day deprecation window from this tag, not
+from any plan-doc commit timestamp. Tag at the merge point so the window
+anchors to real release time.
+
+```bash
+git tag -a mcp-audit-axis-5-released -m "axis-5 shipped; Phase B opens at +30d"
+git push origin mcp-audit-axis-5-released
+```
+
 ---
 
 ## Task 9: Run full suite

@@ -77,7 +77,7 @@ def test_every_tool_has_args_and_returns_sections(tools):
     # Inspect the wrapped tool functions on the FastMCP instance.
     # FastMCP stores them in mcp._tools or similar — find the canonical accessor.
     for name in handlers:
-        tool_obj = mcp.get_tool(name)
+        tool_obj = mcp._tool_manager.get_tool(name)
         doc = tool_obj.description or ""
         assert "Args:" in doc, f"{name} missing Args: section"
         assert "Returns:" in doc, f"{name} missing Returns: section"
@@ -87,14 +87,14 @@ def test_every_tool_has_args_and_returns_sections(tools):
 def test_every_tool_has_one_line_summary(tools):
     handlers, mcp = tools
     for name in handlers:
-        tool_obj = mcp.get_tool(name)
+        tool_obj = mcp._tool_manager.get_tool(name)
         doc = (tool_obj.description or "").strip()
         first_line = doc.split("\n", 1)[0]
         assert len(first_line) <= 100, f"{name} summary too long: {first_line}"
         assert first_line.endswith("."), f"{name} summary not a sentence: {first_line}"
 ```
 
-> **Implementer note:** FastMCP exposes tool metadata via `mcp.list_tools()` or `mcp._tool_manager._tools`. If `mcp.get_tool(name)` doesn't exist, find the canonical accessor — `dir(mcp)` will show the path. Update the test accordingly. The point is to read each tool's `description` field as the MCP client would see it.
+> **Implementer note (verified against current FastMCP):** `mcp._tool_manager.get_tool(name)` returns a Pydantic-modeled Tool object with `.description` (str), `.parameters` (JSON schema dict with `properties`), `.name`, and `.fn` (the wrapped handler). The `_tool_manager._tools` dict maps name → Tool. `mcp.list_tools()` is async — don't use it in sync test code without `asyncio.run(...)`. The accessor used in this plan is the cleanest sync path.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -200,7 +200,7 @@ def mcp(tmp_path):
 
 
 def test_grant_uses_target_param(mcp):
-    tool = mcp.get_tool("markland_grant")
+    tool = mcp._tool_manager.get_tool("markland_grant")
     sig_params = list(tool.parameters.get("properties", {}).keys())
     assert "target" in sig_params, sig_params
     # `principal` is also accepted as deprecated alias — but not advertised in the schema.
@@ -339,7 +339,7 @@ def test_boolean_inputs_drop_is_prefix(mcp):
     forbidden_input_names = {"is_public", "is_featured", "is_single_use"}
 
     for name in mcp.markland_handlers:
-        tool = mcp.get_tool(name)
+        tool = mcp._tool_manager.get_tool(name)
         params = tool.parameters.get("properties", {})
         for pname in params:
             assert pname not in forbidden_input_names, (
@@ -382,7 +382,7 @@ from markland.server import build_mcp
 import tempfile, pathlib
 db = init_db(pathlib.Path(tempfile.mkdtemp()) / 't.db')
 mcp = build_mcp(db, base_url='http://x', email_client=None)
-print(mcp.get_tool('markland_grant').description[:600])
+print(mcp._tool_manager.get_tool('markland_grant').description[:600])
 " | grep -i deprecated`
 Expected: At least one match — the `principal` alias is documented as deprecated.
 
