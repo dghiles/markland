@@ -156,3 +156,15 @@ post-launch sprint should pick up.
   social handle. When ready to publish a real name, swap to
   `{"name":"<real name>","alternateName":"@dghiles","url":...}` and mirror
   the byline in `base.html` footer.
+
+## Post history-rewrite (2026-04-27)
+
+- **Verify `feat(landing): point Copy link CTA to /quickstart` survived the
+  rewrite** — commit was originally `d706157` on the now-defunct
+  `seo/batch-2-trust-and-conversion`. After the git-filter-repo rewrite it
+  appears on rewritten `main` as `a673bf0`. Spot-check that the diff at
+  `src/markland/web/templates/landing.html` (the `Copy link → /quickstart`
+  anchor + hover-state CSS in `.howto .result-link-row`) actually landed on
+  `origin/main` after deploy. If missing, re-apply the change — it was a
+  one-file edit replacing the inert `<button>` with `<a href="/quickstart"
+  class="result-link-cta">` plus a small CSS tweak for the new pill.
