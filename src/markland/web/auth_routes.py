@@ -54,8 +54,9 @@ def build_auth_router(
     verify_sent_tpl = env.get_template("verify_sent.html")
 
     @router.get("/login", response_class=HTMLResponse)
-    def login_page() -> HTMLResponse:
-        return HTMLResponse(login_tpl.render())
+    def login_page(next: str | None = None) -> HTMLResponse:
+        safe_next = safe_return_to(next)
+        return HTMLResponse(login_tpl.render(next=safe_next))
 
     @router.post("/api/auth/magic-link")
     async def magic_link(request: Request):

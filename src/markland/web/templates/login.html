@@ -19,6 +19,7 @@
   <form id="f">
     <label for="email">Email</label>
     <input type="email" id="email" name="email" required>
+    <input type="hidden" id="next" value="{{ next | default('/', true) }}">
     <button type="submit">Send magic link</button>
   </form>
   <div id="msg"></div>
@@ -26,13 +27,14 @@
     document.getElementById('f').addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = document.getElementById('email').value.trim();
+      const next = document.getElementById('next').value || '/';
       const msg = document.getElementById('msg');
       msg.className = '';
       msg.textContent = 'Sending...';
       const r = await fetch('/api/auth/magic-link', {
         method: 'POST',
         headers: {'content-type': 'application/json'},
-        body: JSON.stringify({email}),
+        body: JSON.stringify({email, return_to: next}),
       });
       if (r.ok) {
         msg.className = 'msg';
