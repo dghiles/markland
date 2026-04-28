@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import sqlite3
 from pathlib import Path
@@ -28,6 +29,8 @@ from markland.service.users import upsert_user_by_email
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+_logger = logging.getLogger("markland.auth")
 
 
 class _MagicLinkRequest(BaseModel):
@@ -98,8 +101,9 @@ def build_auth_router(
             )
         except Exception:
             # Best-effort: enqueue shouldn't raise; if something else blows up
-            # during URL construction, do not leak it to the caller.
-            pass
+            # during URL construction, do not leak it to the caller — but log
+            # so the failure is visible in ops.
+            _logger.exception("send_magic_link failed for %s", email)
         if is_json:
             return JSONResponse({"ok": True})
         safe_next = safe_return_to(return_to) if isinstance(return_to, str) else None

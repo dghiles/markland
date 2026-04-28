@@ -14,6 +14,6 @@
   <h1>Check your email</h1>
   <p>We just sent a sign-in link to <span class="email">{{ email }}</span>.</p>
   <p>Open it on this device to finish signing in{% if return_to %} and pick up where you left off{% endif %}.</p>
-  <p class="note">The link expires shortly. If it doesn't arrive in a minute, check your spam folder, or <a href="/login{% if return_to %}?next={{ return_to }}{% endif %}">request a new one</a>.</p>
+  <p class="note">The link expires shortly. If it doesn't arrive in a minute, check your spam folder, or <a href="/login{% if return_to %}?next={{ return_to|urlencode }}{% endif %}">request a new one</a>.</p>
 </body>
 </html>
