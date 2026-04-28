@@ -72,6 +72,56 @@ def test_homepage_includes_softwareapplication_jsonld(client):
     assert '"@type": "WebSite"' in text
 
 
+def test_softwareapplication_has_offers_field(client):
+    """SoftwareApplication.offers is required for the Software App rich result."""
+    r = client.get("/")
+    text = r.text
+    # Free product, USD, in-stock — minimal Offer satisfying Google's requirement.
+    assert '"offers"' in text
+    assert '"@type": "Offer"' in text
+    assert '"price": "0"' in text
+    assert '"priceCurrency": "USD"' in text
+
+
+def test_organization_has_logo_and_sameas(client):
+    """Organization needs logo (knowledge panel) and sameAs (entity disambiguation)."""
+    r = client.get("/")
+    text = r.text
+    assert '"logo"' in text
+    assert '"@type": "ImageObject"' in text
+    assert '"sameAs"' in text
+    assert "github.com/dghiles/markland" in text
+
+
+def test_alternative_page_emits_breadcrumblist(client):
+    """Per-competitor pages emit a BreadcrumbList for SERP breadcrumb rendering."""
+    r = client.get("/alternatives/notion")
+    text = r.text
+    assert '"@type": "BreadcrumbList"' in text
+    assert '"@type": "ListItem"' in text
+    # Three positions: Home, Alternatives, {competitor}
+    assert '"position": 1' in text
+    assert '"position": 2' in text
+    assert '"position": 3' in text
+    assert '"name": "Notion"' in text
+    assert "http://testserver/alternatives/notion" in text
+
+
+def test_alternatives_hub_competitor_names_are_h2(client):
+    """Each competitor card on the hub must use <h2> so LLMs and Google can scope passages per competitor."""
+    r = client.get("/alternatives")
+    text = r.text
+    # Every competitor name should appear inside an <h2>...</h2>; div-wrapping was the regression we just fixed.
+    for name in ("Markshare.to", "GitHub", "Google Docs", "Notion"):
+        assert f"<h2 class=\"alt-name\">Markland vs {name}</h2>" in text
+
+
+def test_homepage_h1_has_aria_label(client):
+    """Decorative H1 fragments need an aria-label for crawlers/SR users."""
+    r = client.get("/")
+    assert 'aria-label="Shared documents for you and your agents"' in r.text
+
+
 def test_homepage_title_includes_mcp_and_claude_code(client):
     r = client.get("/")
     assert "MCP" in r.text.split("<title>")[1].split("</title>")[0]

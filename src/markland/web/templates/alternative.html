@@ -3,6 +3,24 @@
 
 {% block title %}Markland vs {{ competitor.name }} &middot; Markland{% endblock %}
 
+{% block extra_jsonld %}
+{# BreadcrumbList: dynamic values must use | tojson per the contract documented in _seo_meta.html. #}
+{%- set _crumb_home = canonical_host ~ "/" -%}
+{%- set _crumb_alts = canonical_host ~ "/alternatives" -%}
+{%- set _crumb_self = canonical_host ~ "/alternatives/" ~ competitor.slug -%}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": {{ _crumb_home | tojson }} },
+    { "@type": "ListItem", "position": 2, "name": "Alternatives", "item": {{ _crumb_alts | tojson }} },
+    { "@type": "ListItem", "position": 3, "name": {{ competitor.name | tojson }}, "item": {{ _crumb_self | tojson }} }
+  ]
+}
+</script>
+{% endblock %}
+
 {% block head_extra %}
         .cmp-crumbs {
             max-width: 860px;

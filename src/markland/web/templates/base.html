@@ -6,6 +6,7 @@
     <title>{% block title %}Markland{% endblock %}</title>
     {% set _seo_page_title = self.title() %}
     {% include "_seo_meta.html" %}
+    {% block extra_jsonld %}{% endblock %}
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
