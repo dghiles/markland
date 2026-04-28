@@ -6,6 +6,7 @@ from routes, middleware, or CLI scripts.
 
 from __future__ import annotations
 
+from typing import Callable, Union
 from xml.sax.saxutils import escape
 
 # Path prefixes that must never be indexed. Match both exact paths and
@@ -67,24 +68,33 @@ def build_sitemap_xml(
     *,
     base_url: str,
     urls: list[str],
-    lastmod: str,
+    lastmod: Union[str, Callable[[str], str]],
 ) -> str:
     """Build a minimal, well-formed sitemap XML document.
 
     `base_url` is the scheme+host (e.g. ``https://example.test``). Trailing
     slash is tolerated. Each entry in ``urls`` is a root-relative path such
     as ``/quickstart`` — it must begin with ``/``.
+
+    `lastmod` may be either:
+    - a string (used for every URL — uniform timestamp), or
+    - a callable ``(path) -> str`` returning a per-path lastmod (audit
+      2026-04-24 M10 — wired to template file mtime so /quickstart and
+      /privacy carry distinct dates as soon as they diverge).
     """
     base = base_url.rstrip("/")
     lines: list[str] = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
     ]
+    resolve_lastmod: Callable[[str], str] = (
+        lastmod if callable(lastmod) else (lambda _path: lastmod)
+    )
     for path in urls:
         if not path.startswith("/"):
             raise ValueError(f"sitemap path must start with '/': {path!r}")
         loc = escape(f"{base}{path}")
-        mod = escape(lastmod)
+        mod = escape(resolve_lastmod(path))
         lines.append(
             f"  <url><loc>{loc}</loc><lastmod>{mod}</lastmod></url>"
         )

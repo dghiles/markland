@@ -5,6 +5,32 @@
 
 {% block nav_docs %}active{% endblock %}
 
+{% block extra_jsonld %}
+{# TechArticle (NOT HowTo — deprecated Sep 2023). Helps LLMs and Google
+   classify /quickstart as developer onboarding documentation, not
+   marketing copy. Static fields only — if a dynamic value lands here
+   later, route it through |tojson per the contract documented in
+   _seo_meta.html. #}
+{%- set _qs_url = canonical_host ~ "/quickstart" -%}
+{%- set _org_id = canonical_host ~ "/#organization" -%}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "Markland Quickstart — Publish Docs from Claude Code via MCP",
+  "url": {{ _qs_url | tojson }},
+  "mainEntityOfPage": {{ _qs_url | tojson }},
+  "datePublished": "2026-04-22",
+  "dateModified": "2026-04-27",
+  "inLanguage": "en",
+  "proficiencyLevel": "Beginner",
+  "dependencies": "Claude Code, an MCP-capable client",
+  "author": { "@id": {{ _org_id | tojson }} },
+  "publisher": { "@id": {{ _org_id | tojson }} }
+}
+</script>
+{% endblock %}
+
 {% block head_extra %}
         .qs {
             max-width: 780px;
@@ -57,6 +83,71 @@
             margin: 0.8rem 0 1rem;
             font-style: italic;
         }
+
+        /* FAQ — plain markup, no FAQPage schema (rich-result restricted
+           to gov/health). The content alone helps GEO. */
+        .qs-faq { display: grid; gap: 1.4rem; margin-bottom: 2rem; }
+        .qs-faq dt {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 1.02rem;
+            color: var(--text);
+            margin-bottom: 0.3rem;
+        }
+        .qs-faq dd {
+            margin: 0;
+            color: var(--text-2);
+            line-height: 1.55;
+        }
+
+        /* End-of-page CTA — closes the cold-end the audit flagged. */
+        .qs-end-cta {
+            margin-top: 3rem;
+            padding: 2rem 1.6rem;
+            border: 1px solid var(--outline);
+            border-radius: var(--radius-lg);
+            background: var(--surface);
+        }
+        .qs-end-cta h2 {
+            margin-top: 0 !important;
+        }
+        .qs-end-cta form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+            align-items: center;
+            margin-top: 1rem;
+            max-width: 520px;
+        }
+        .qs-end-cta input[type="email"] {
+            flex: 1 1 240px;
+            padding: 0.75rem 1rem;
+            background: var(--bg);
+            border: 1.5px solid var(--outline);
+            border-radius: var(--radius-pill);
+            font-family: var(--font-display);
+            font-size: 0.95rem;
+            color: var(--text);
+        }
+        .qs-end-cta input[type="email"]::placeholder { color: var(--muted); }
+        .qs-end-cta input[type="email"]:focus {
+            outline: none;
+            border-color: var(--text);
+        }
+        .qs-end-cta button {
+            padding: 0.75rem 1.4rem;
+            background: var(--text);
+            color: var(--bg);
+            border: 1.5px solid var(--text);
+            border-radius: var(--radius-pill);
+            font-family: var(--font-display);
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: transform 0.18s ease;
+        }
+        .qs-end-cta button:hover { transform: translateY(-1px); }
 {% endblock %}
 
 {% block content %}
@@ -165,5 +256,33 @@
     <a href="/alternatives">alternatives</a> page if you're weighing this against Git, Notion, Google Docs, or HackMD.
     Stuck on anything the troubleshooting list doesn't cover? Reply to the signup email &mdash; a real human reads it.
   </p>
+
+  <h2>FAQ</h2>
+  <dl class="qs-faq">
+    <dt>Do I need an API key?</dt>
+    <dd>No. <code>claude mcp add markland</code> hits a setup endpoint that mints a per-user bearer token, which Claude Code stores for you. You never see or paste the token; it lives in the CLI&rsquo;s MCP config.</dd>
+
+    <dt>Can I use Markland from Cursor or another MCP client?</dt>
+    <dd>Yes. Any MCP-capable client can register Markland and call its tools. The setup snippet on the landing page is in plain MCP-config JSON &mdash; copy it into whichever client you use. The CLI flow on this page is the Claude Code shortcut.</dd>
+
+    <dt>What does <code>markland_publish</code> actually do?</dt>
+    <dd>Creates a new document with the markdown body you pass in, returns its stable ID and a public share URL. Subsequent edits go through <code>markland_update</code> with an <code>if_version</code> argument so concurrent writers see a clean conflict instead of clobbering each other.</dd>
+
+    <dt>Can I make a doc public without a share link?</dt>
+    <dd>Yes &mdash; pass <code>public=true</code> to <code>markland_publish</code>. The doc shows up on <a href="/explore">/explore</a>, gets a stable share URL, and is reachable without a grant. Default is private.</dd>
+
+    <dt>What if I want to revoke access?</dt>
+    <dd>Ask Claude something like &ldquo;Revoke <code>friend@example.com</code> on that doc.&rdquo; The agent calls <code>markland_revoke</code>; the grant is removed and the audit log captures who removed it.</dd>
+  </dl>
+
+  <section class="qs-end-cta">
+    <h2>Don&rsquo;t have an account yet?</h2>
+    <p>Drop your email and we&rsquo;ll send a magic link the moment a slot opens. No password, no pitch deck, no spam.</p>
+    <form method="post" action="/api/waitlist">
+      <input type="email" name="email" required placeholder="you@company.com" aria-label="Email address">
+      <input type="hidden" name="source" value="quickstart-end">
+      <button type="submit">Join the waitlist</button>
+    </form>
+  </section>
 </article>
 {% endblock %}

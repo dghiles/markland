@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% set seo_description = "Markland vs " ~ competitor.name ~ ": " ~ competitor.one_liner ~ " MCP-first sharing, per-doc grants, one link." %}
+{% set seo_description = competitor.seo_description %}
 
-{% block title %}Markland vs {{ competitor.name }} &middot; Markland{% endblock %}
+{% block title %}{{ competitor.seo_title }}{% endblock %}
 
 {% block extra_jsonld %}
 {# BreadcrumbList: dynamic values must use | tojson per the contract documented in _seo_meta.html. #}

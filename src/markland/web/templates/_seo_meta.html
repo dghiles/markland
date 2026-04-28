@@ -10,6 +10,9 @@
   Optional (set via {% set %} at the top of the page template):
     seo_description:  <meta name="description"> content; required per page.
     seo_og_type:      og:type; defaults to "website".
+    seo_noindex:      truthy → emit `<meta name="robots" content="noindex">`.
+                      Use for pages that should not enter the index until
+                      they have content (audit M9 — empty /explore).
 -#}
 {%- set _canonical = canonical_host ~ request.url.path -%}
 {# Every page extending base.html MUST set {% set seo_description = "..." %} in its block.
@@ -18,6 +21,9 @@
 {%- set _desc = seo_description | default("Markland — shared documents for you and your agents.", true) -%}
 {%- set _og_type = seo_og_type | default('website') -%}
 <meta name="description" content="{{ _desc }}">
+{%- if seo_noindex %}
+<meta name="robots" content="noindex, follow">
+{%- endif %}
 <link rel="canonical" href="{{ _canonical }}">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon.ico" sizes="any">
