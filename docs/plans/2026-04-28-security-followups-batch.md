@@ -336,55 +336,100 @@ Track failed-confirm attempts on the `device_authorizations` row and mark the ro
 - Modify: `src/markland/service/device_flow.py:242-309` (`authorize` function)
 - Test: `tests/test_device_flow.py` (existing) — add new tests; verify path with `tests/test_device_flow_routes.py`
 
-- [ ] **Step 1: Write the failing test (service-level)**
+- [ ] **Step 1: Write the failing tests (service-level)**
 
-Append to `tests/test_device_flow.py` (or create the test alongside the existing service tests for `authorize`):
+Append two tests to `tests/test_device_flow.py`. The first verifies the lock-out fires when a pending row receives 5 failed authorize attempts. The second locks in the critical invariant that an already-authorized row must NOT be lockable — otherwise an attacker spamming `/device/confirm` after a legitimate auth could flip the row to `expired` before the legit `poll` mints the token, denying service to the real user.
 
 ```python
-def test_authorize_locks_row_after_five_failed_confirms(tmp_path):
-    """After 5 wrong user_codes for a single device_code's row, that row is
-    marked expired and further attempts return reason='expired'."""
+def test_authorize_locks_pending_row_after_five_failed_confirms(tmp_path):
+    """A pending row that fails 5 authorize attempts gets locked to expired.
+
+    Drive 5 TTL-expired hits against a single pending row. Each hit returns
+    reason='expired' (natural TTL) and bumps failed_confirms. The 5th attempt
+    additionally flips status='pending' -> 'expired' so subsequent polls
+    short-circuit even if (somehow) TTL extended.
+    """
+    from markland.db import init_db
+    from markland.service import device_flow
+
+    conn = init_db(tmp_path / "t.db")
+    # Manually insert a pending row whose TTL is already in the past — every
+    # authorize() call hits the TTL-expired branch and bumps the counter.
+    conn.execute(
+        "INSERT INTO device_authorizations "
+        "(device_code, user_code, status, created_at, expires_at) "
+        "VALUES ('dc_test', 'AAAABBBB', 'pending', "
+        "'2026-01-01T00:00:00Z', '2026-01-01T00:10:00Z')"
+    )
+    conn.commit()
+
+    # First 4 fails: reason='expired' (TTL), row still 'pending'.
+    for i in range(4):
+        r = device_flow.authorize(conn, "AAAA-BBBB", user_id="usr_x")
+        assert r.ok is False
+        assert r.reason == "expired"
+        row = conn.execute(
+            "SELECT status, failed_confirms FROM device_authorizations "
+            "WHERE device_code='dc_test'"
+        ).fetchone()
+        assert row[0] == "pending", f"after {i + 1} failures, status should still be pending"
+        assert row[1] == i + 1
+
+    # Fifth fail: lock fires, status flipped to 'expired'.
+    r = device_flow.authorize(conn, "AAAA-BBBB", user_id="usr_x")
+    assert r.ok is False
+    assert r.reason == "expired"
+    row = conn.execute(
+        "SELECT status, failed_confirms FROM device_authorizations "
+        "WHERE device_code='dc_test'"
+    ).fetchone()
+    assert row[0] == "expired"
+    assert row[1] == 5
+
+
+def test_authorize_does_not_lock_authorized_row(tmp_path):
+    """An authorized row must NOT be locked by repeated already_authorized hits.
+
+    Otherwise a third party who learned the user_code (e.g. shoulder-surfed
+    after the human typed it) could spam /device/confirm post-auth and flip
+    the row to 'expired' before the legitimate CLI's next poll, preventing
+    token mint.
+    """
     from markland.db import init_db
     from markland.service import device_flow
     from markland.service.users import create_user
 
     conn = init_db(tmp_path / "t.db")
-    user = create_user(conn, email="alice@example.com", display_name="Alice")
+    user = create_user(conn, email="a@x", display_name="A")
     start = device_flow.start(conn, base_url="https://markland.test")
 
-    # Five wrong codes (each lookup misses the row, returning not_found).
-    # We need failures that *target* the real row to bump its counter, so use
-    # near-miss user_codes that share a real row by way of the device_code...
-    # Actually: the spec is "5 wrong codes for a given device_code". The
-    # row to lock is the one being targeted. Wrong codes that don't resolve
-    # to any row can't bump anything, so the behavior we test is: 5 failed
-    # confirms against the SAME row (e.g. status mismatch / wrong user_id).
-    # To force failure with a hit, we authorize once (row -> status=authorized)
-    # then try four more times -> already_authorized; fifth attempt locks it.
-    res = device_flow.authorize(conn, start.user_code, user_id=user.id)
-    assert res.ok is True
-    # Now repeated attempts hit "already_authorized" — count those as failures.
-    for _ in range(4):
+    # Legit auth.
+    r = device_flow.authorize(conn, start.user_code, user_id=user.id)
+    assert r.ok is True
+
+    # Attacker spams 10 retries — each returns already_authorized.
+    for _ in range(10):
         r = device_flow.authorize(conn, start.user_code, user_id=user.id)
         assert r.ok is False
-    # Fifth failure should lock the row to expired.
-    final = device_flow.authorize(conn, start.user_code, user_id=user.id)
-    assert final.ok is False
-    assert final.reason == "expired"
+        assert r.reason == "already_authorized"
 
-    # Verify DB state.
+    # Row must remain 'authorized' so the legit poll can still mint the token.
     row = conn.execute(
-        "SELECT status, failed_confirms FROM device_authorizations WHERE device_code=?",
+        "SELECT status FROM device_authorizations WHERE device_code=?",
         (start.device_code,),
     ).fetchone()
-    assert row[0] == "expired"
-    assert row[1] >= 5
+    assert row[0] == "authorized"
+
+    # And the legit poll still mints.
+    poll_result = device_flow.poll(conn, start.device_code)
+    assert poll_result["status"] == "authorized"
+    assert "access_token" in poll_result
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run tests to verify they fail**
 
 ```bash
-uv run pytest tests/test_device_flow.py::test_authorize_locks_row_after_five_failed_confirms -v
+uv run pytest tests/test_device_flow.py::test_authorize_locks_pending_row_after_five_failed_confirms tests/test_device_flow.py::test_authorize_does_not_lock_authorized_row -v
 ```
 
 Expected: FAIL — `failed_confirms` column doesn't exist (`OperationalError: no such column`) and the lock-out behavior isn't implemented.
@@ -430,7 +475,7 @@ Edit `src/markland/service/device_flow.py`. Add a constant near the other consta
 MAX_FAILED_CONFIRMS = 5
 ```
 
-Then modify `authorize` (lines 242-309). The new flow: on every non-OK return path that *found* a row, bump `failed_confirms`; if the bump pushes the count to `MAX_FAILED_CONFIRMS`, set `status='expired'` and return `reason='expired'` instead of the original reason. Replace the function body with:
+Then modify `authorize` (lines 242-309). The new flow: on every non-OK return path that *found* a row, bump `failed_confirms`; if the bump pushes the count to `MAX_FAILED_CONFIRMS` **and the row is still in `pending` status**, flip status to `'expired'`. The pending-only gate is critical: an `'authorized'` row that's awaiting its first poll must NOT be lockable, because that would let a third party who learned the `user_code` flip the row to `expired` after a legit auth, denying token mint. Replace the function body with:
 
 ```python
 def authorize(
@@ -457,7 +502,12 @@ def authorize(
     now = _utcnow()
 
     def _bump_and_maybe_lock(reason: str) -> AuthorizeResult:
-        """Increment failed_confirms; lock the row if it reaches the cap."""
+        """Increment failed_confirms; lock the row if it reaches the cap.
+
+        Lock only applies when status is still 'pending' — never overwrite
+        'authorized' (would deny token mint to the legitimate poll) or
+        'expired'/'denied' (already terminal).
+        """
         cur = conn.execute(
             "UPDATE device_authorizations "
             "SET failed_confirms = failed_confirms + 1 "
@@ -467,7 +517,7 @@ def authorize(
         )
         new_count_row = cur.fetchone()
         new_count = new_count_row[0] if new_count_row else 0
-        if new_count >= MAX_FAILED_CONFIRMS and status != "expired":
+        if new_count >= MAX_FAILED_CONFIRMS and status == "pending":
             conn.execute(
                 "UPDATE device_authorizations SET status='expired' WHERE device_code=?",
                 (device_code,),
@@ -642,16 +692,22 @@ git commit -m "feat(audit): enforce audit_log append-only via SQLite triggers"
 
 Today `PrincipalMiddleware` only gates `/mcp` (`src/markland/web/principal_middleware.py:27`). The `/admin/audit` handler in `src/markland/web/app.py:432-452` therefore re-runs `resolve_token` itself — duplicating logic. Change the middleware to accept a tuple of protected prefixes, gate both `/mcp` and `/admin/`, and drop the bearer-resolve from `admin_audit`. The `RateLimitMiddleware` lazy-resolve at `src/markland/web/rate_limit_middleware.py:68-91` stays as-is (it already handles principals being pre-populated).
 
-**Sequenced last** because changing middleware behavior touches every `/admin/*` route, including `/admin/waitlist` (added in commit 185b9e7). Verify the full HTTP test suite passes.
+**Sequenced last** because changing middleware behavior touches every `/admin/*` route. Verified safe against existing tests:
+
+- `tests/test_admin_audit.py` — fixture mints a real admin user via `create_user_token` and seeds `is_admin=1`; tests already expect 401/403/200. After the widening the middleware does the 401 instead of the handler, but the contract is unchanged.
+- `tests/test_admin_waitlist.py` — same pattern (real admin token, expects 401/403/200).
+- `tests/test_seo_helpers.py` — exercises `should_noindex("/admin/audit")` as a unit test on the helper, no HTTP involved.
+
+No existing test uses `test_principal_by_token` to hit `/admin/*`, so the Starlette middleware-ordering interaction (`_inject_principal` runs inside `PrincipalMiddleware`) doesn't bite any current test.
 
 **Files:**
 - Modify: `src/markland/web/principal_middleware.py` (accept tuple of prefixes)
-- Modify: `src/markland/web/app.py:432-452` (drop duplicate resolve), `:691-700` (pass widened prefix set)
-- Test: New file `tests/test_principal_middleware_admin.py`; existing tests in `tests/test_admin_audit.py` and any `tests/test_admin_*` must still pass
+- Modify: `src/markland/web/app.py:432-452` (drop duplicate resolve), `:691-700` (always install, pass widened prefix set)
+- Test: New file `tests/test_principal_middleware_admin.py`
 
 - [ ] **Step 1: Write the failing test**
 
-Create `tests/test_principal_middleware_admin.py`:
+Create `tests/test_principal_middleware_admin.py`. The fixture mints a real admin token via `create_user_token` (mirroring `tests/test_admin_audit.py`) so `PrincipalMiddleware` can resolve it through the real auth path. We do NOT use `test_principal_by_token` here because the injection middleware runs *inside* `PrincipalMiddleware` in the request flow (Starlette reverses add-order), so the gate would see no principal and 401 before injection happens.
 
 ```python
 """PrincipalMiddleware should gate /admin/* identically to /mcp."""
@@ -662,35 +718,28 @@ import pytest
 from fastapi.testclient import TestClient
 
 from markland.db import init_db
-from markland.service.auth import Principal
+from markland.service.auth import create_user_token
+from markland.service.users import create_user
 from markland.web.app import create_app
 
 
 @pytest.fixture
-def admin_client(tmp_path):
+def admin_client(tmp_path, monkeypatch):
+    monkeypatch.setenv("MARKLAND_RATE_LIMIT_USER_PER_MIN", "1000")
+    monkeypatch.setenv("MARKLAND_RATE_LIMIT_ANON_PER_MIN", "1000")
+
     conn = init_db(tmp_path / "t.db")
-    admin = Principal(
-        principal_id="usr_admin",
-        principal_type="user",
-        display_name="Admin",
-        is_admin=True,
-        user_id="usr_admin",
-    )
-    conn.execute(
-        "INSERT OR IGNORE INTO users (id, email, created_at) "
-        "VALUES ('usr_admin', 'admin@x', '2026-01-01')"
-    )
+    admin = create_user(conn, email="admin@m.dev", display_name="Admin")
+    conn.execute("UPDATE users SET is_admin=1 WHERE id = ?", (admin.id,))
     conn.commit()
-    # mount_mcp=True is required for PrincipalMiddleware to be installed at all
-    # in the current factory wiring; the admin-prefix gating is what we test.
-    app = create_app(
-        conn,
-        mount_mcp=True,
-        base_url="https://markland.test",
-        session_secret="test",
-        test_principal_by_token={"adm": admin},
-    )
-    return TestClient(app)
+    _, admin_token = create_user_token(conn, user_id=admin.id, label="t")
+
+    # mount_mcp=False — after Task 6 Step 5, PrincipalMiddleware is always
+    # installed regardless of MCP, so /admin/* gating is exercised either way.
+    app = create_app(conn, mount_mcp=False, base_url="https://markland.test")
+    client = TestClient(app)
+    client.admin_token = admin_token
+    return client
 
 
 def test_admin_audit_without_bearer_returns_401(admin_client):
@@ -714,20 +763,19 @@ def test_admin_audit_with_bad_bearer_returns_401(admin_client):
 def test_admin_audit_with_valid_admin_bearer_succeeds(admin_client):
     """Once gated by middleware, the handler still serves admins."""
     r = admin_client.get(
-        "/admin/audit", headers={"Authorization": "Bearer adm"}
+        "/admin/audit",
+        headers={"Authorization": f"Bearer {admin_client.admin_token}"},
     )
     assert r.status_code == 200
 ```
 
-- [ ] **Step 2: Run tests to verify the structure works (some will fail)**
+- [ ] **Step 2: Run tests to verify expected starting state**
 
 ```bash
 uv run pytest tests/test_principal_middleware_admin.py -v
 ```
 
-Expected: the 401 cases may already pass (because `admin_audit` does its own resolve), but `test_admin_audit_with_valid_admin_bearer_succeeds` will fail because `test_principal_by_token` injection happens via a separate test middleware that runs *after* `PrincipalMiddleware` in the current ordering and the new gate won't see the injected principal. We fix this in the implementation steps.
-
-(If all three pass before any change is made, the task still has value — it locks in the contract — but you must still complete the impl steps so the duplicate resolve in `admin_audit` is removed.)
+Expected: the two 401 tests pass today (the in-handler resolve in `admin_audit` already enforces this); `test_admin_audit_with_valid_admin_bearer_succeeds` may also pass today since the handler-level resolve handles a valid token. The point of writing them now is to lock the contract before we move the auth out of the handler — if any of them regress during Steps 3-5, we know immediately.
 
 - [ ] **Step 3: Widen `PrincipalMiddleware`**
 
@@ -791,34 +839,7 @@ class PrincipalMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 ```
 
-**Test-fixture interaction note:** The test-injection middleware (`_inject_principal` at `src/markland/web/app.py:682-689`) is added *before* `PrincipalMiddleware`; Starlette's reversed add-order means it runs *after* `PrincipalMiddleware` in the request flow. So when a test sends `Bearer adm`, the gate sees no injected principal yet and `resolve_token` would fail (`adm` isn't a real token). The pre-injected `getattr(request.state, "principal", None)` short-circuit above is harmless but does NOT help here. The fix is in the test fixture: register a real user token via `service.auth.create_user_token` rather than relying on the in-memory inject map.
-
-Update the test fixture in `tests/test_principal_middleware_admin.py` (Step 1) accordingly. Replace its body with:
-
-```python
-@pytest.fixture
-def admin_client(tmp_path):
-    from markland.service.auth import create_user_token
-
-    conn = init_db(tmp_path / "t.db")
-    conn.execute(
-        "INSERT OR IGNORE INTO users (id, email, is_admin, created_at) "
-        "VALUES ('usr_admin', 'admin@x', 1, '2026-01-01')"
-    )
-    conn.commit()
-    _, plaintext = create_user_token(conn, user_id="usr_admin", label="t")
-    app = create_app(
-        conn,
-        mount_mcp=True,
-        base_url="https://markland.test",
-        session_secret="test",
-    )
-    client = TestClient(app)
-    client.admin_token = plaintext
-    return client
-```
-
-And update the success-case test (`test_admin_audit_with_valid_admin_bearer_succeeds`) to use `admin_client.admin_token` in the header. If the `users` schema does not have an `is_admin` column, swap the seed for the project's actual admin-flag pattern — verify by reading `src/markland/db.py` users table around line 95-103 and `src/markland/service/auth.py` for the admin resolution logic.
+**Test-fixture interaction note:** The pre-injected-principal short-circuit above (`getattr(request.state, "principal", None)`) is defensive — Starlette's reversed add-order means `_inject_principal` (added at `src/markland/web/app.py:682-689` for tests using `test_principal_by_token`) actually runs *inside* `PrincipalMiddleware` in the request flow. So the short-circuit doesn't help inject-map tests reach `/admin/*`; those tests would 401 at the gate. This is fine — no current test does that, and Step 1's fixture mints a real token instead.
 
 - [ ] **Step 4: Drop the duplicate resolve in `admin_audit`**
 
@@ -888,19 +909,48 @@ Update each call-site to use the new keyword and pass a tuple.
 uv run pytest tests/ -q
 ```
 
-Expected: PASS. Pay attention to:
-- `tests/test_principal_middleware*.py` — both old and new
-- `tests/test_admin_audit.py` (if present) — uses bearer tokens already, should pass through the widened gate cleanly
-- `tests/test_admin_waitlist*.py` (if present, added in commit 185b9e7) — same
-- Any test that calls `/admin/*` without a bearer must now expect 401 (it was likely 401 before too, via the in-handler check)
+Expected: PASS. Pre-verified (2026-04-28) call-sites:
+- `tests/test_principal_middleware_admin.py` — new file, all three tests pass.
+- `tests/test_admin_audit.py` (3 HTTP tests at lines 56-77) — already uses real `admin_token` / `user_token` minted via `create_user_token`. 401 anon, 403 non-admin, 200 admin all preserved.
+- `tests/test_admin_waitlist.py` (4 HTTP tests at lines 40-82) — same pattern, same expectations preserved.
+- `tests/test_seo_helpers.py:27` — unit test on `should_noindex("/admin/audit")` helper, no HTTP, unaffected.
+- `grep -rn "/admin/" tests/` returned no other call-sites.
 
-If a previously-passing test breaks because it called `/admin/foo` with no auth and expected (say) 404 / 200, that's a real change — treat it as a follow-up: either supply auth in the test or document the intentional behavior shift.
+If any test breaks unexpectedly, do NOT reach for a quick fix that re-adds in-handler resolve — investigate whether the failure reflects a real contract change.
 
 - [ ] **Step 7: Commit**
 
 ```bash
 git add src/markland/web/principal_middleware.py src/markland/web/app.py tests/test_principal_middleware_admin.py
 git commit -m "refactor(middleware): gate /admin/* via PrincipalMiddleware, drop duplicate resolve"
+```
+
+---
+
+## Task 7: Prune the burned-down items from `docs/FOLLOW-UPS.md`
+
+After Tasks 1-6 land, six entries in the Security section of `docs/FOLLOW-UPS.md` are obsolete and must be removed so the doc continues to reflect *open* follow-ups only. This is a docs-only change; per project convention it can be committed straight to `main` without a PR.
+
+**Files:**
+- Modify: `docs/FOLLOW-UPS.md` (Security section, current lines 8-57)
+
+- [ ] **Step 1: Remove the six shipped entries**
+
+Delete from `docs/FOLLOW-UPS.md`:
+- "Unescaped `user_code` in device login redirect" bullet (Task 1)
+- "Per-IP rate limit on device confirm" bullet (Task 3)
+- "Lock / expire device row after N failed confirms" bullet (Task 4)
+- "`grant_by_principal_id` defensive check" bullet (Task 2)
+- "Append-only audit enforcement" bullet (Task 5)
+- "`/admin/audit` duplicates bearer resolution" bullet (Task 6)
+
+The remaining Security items (magic-link single-use, agent-token leak via query string, CSRF on save routes) stay — they are out of scope for this batch.
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add docs/FOLLOW-UPS.md
+git commit -m "docs(follow-ups): remove security items shipped in 2026-04-28 batch"
 ```
 
 ---
@@ -914,13 +964,16 @@ git commit -m "refactor(middleware): gate /admin/* via PrincipalMiddleware, drop
 - (d) `grant_by_principal_id` defensive check → Task 2 ✓
 - (e) Append-only `audit_log` enforcement → Task 5 ✓
 - (f) Widen `/admin/audit` middleware coverage → Task 6 ✓
+- Burndown of those entries from `docs/FOLLOW-UPS.md` → Task 7 ✓
 
-All six items mapped. Ordering: 1 (smallest, single-line fix) → 2 (pure validation) → 3 (mirrors existing limiter) → 4 (schema migration + service logic) → 5 (DB triggers) → 6 (middleware reshape, largest blast radius). Each task is self-contained: tests added, impl shown, verify command, commit step.
+Ordering: 1 (smallest, single-line fix) → 2 (pure validation) → 3 (mirrors existing limiter) → 4 (schema migration + service logic) → 5 (DB triggers) → 6 (middleware reshape, largest blast radius) → 7 (docs cleanup). Each task is self-contained: tests added, impl shown, verify command, commit step.
 
 **Placeholder scan:** No "TBD," "TODO," or "implement later." Each step contains the actual code to write or the actual command to run.
 
 **Type consistency:** `PrincipalMiddleware.__init__` takes `protected_prefixes: tuple[str, ...]` in Task 6 and is invoked with `protected_prefixes=("/mcp", "/admin/")`. The old kwarg `protected_prefix` is renamed; Task 6 Step 5 includes a grep + update for all callers. `_VALID_PRINCIPAL_TYPES` in Task 2 is consistently spelled. `failed_confirms` column name matches between schema (Task 4 Step 3) and service queries (Task 4 Step 4). `MAX_FAILED_CONFIRMS` constant is referenced consistently.
 
-**Note on Task 4 line numbers:** The follow-up doc cites `device_routes.py:230` and `:234` for the same line — current actual line is 234. Task 4 (and Task 1) cite the live line numbers verified against the file as of 2026-04-28.
+**Task 4 lock-out semantics:** The lock fires only on rows with `status == "pending"`. Rows in `'authorized'`, `'expired'`, or `'denied'` status are never overwritten — the failed_confirms counter still increments (defensible signal) but status stays put. This protects the legitimate `poll → mint token` path against a third party who learned the `user_code` and spams `/device/confirm` after a real auth. A dedicated test (`test_authorize_does_not_lock_authorized_row`) locks in this invariant.
 
-**Note on Task 6 ordering subtlety:** The Starlette reversed-add-order interaction between `_inject_principal` (test harness) and `PrincipalMiddleware` is explicitly addressed in Step 3 by switching the test fixture to mint a real token instead of relying on the inject map. This avoids weakening `PrincipalMiddleware`'s real-auth contract.
+**Task 4 line numbers:** The follow-up doc cites `device_routes.py:230` and `:234` for the same line — current actual line is 234. Task 4 (and Task 1) cite live line numbers verified against the file as of 2026-04-28.
+
+**Task 6 verification:** Pre-checked existing `/admin/*` test call-sites (`tests/test_admin_audit.py`, `tests/test_admin_waitlist.py`, `tests/test_seo_helpers.py`). All HTTP-level tests already use real bearer tokens minted via `create_user_token`, so widening `PrincipalMiddleware` to gate `/admin/*` does not require updating any existing test. The new `tests/test_principal_middleware_admin.py` fixture follows the same real-token pattern to stay consistent.
