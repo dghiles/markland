@@ -46,6 +46,7 @@
 {%- set _site_id = canonical_host ~ "/#website" -%}
 {%- set _sw_id = canonical_host ~ "/#software" -%}
 {%- set _home = canonical_host ~ "/" -%}
+{%- set _logo_url = canonical_host ~ "/og.png" -%}
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -53,7 +54,16 @@
   "@id": {{ _org_id | tojson }},
   "name": "Markland",
   "url": {{ _home | tojson }},
-  "description": "Agent-native document publishing. Shared documents for you and your agents, via MCP."
+  "description": "Agent-native document publishing. Shared documents for you and your agents, via MCP.",
+  "logo": {
+    "@type": "ImageObject",
+    "url": {{ _logo_url | tojson }},
+    "width": 1200,
+    "height": 630
+  },
+  "sameAs": [
+    "https://github.com/dghiles/markland"
+  ]
 }
 </script>
 <script type="application/ld+json">
@@ -85,6 +95,12 @@
     "One-link distribution",
     "Fork attribution"
   ],
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD",
+    "availability": "https://schema.org/InStock"
+  },
   "publisher": { "@id": {{ _org_id | tojson }} }
 }
 </script>
