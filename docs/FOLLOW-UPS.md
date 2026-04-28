@@ -91,13 +91,6 @@ post-launch sprint should pick up.
 - **Bounded queue size for DoS defense** — `asyncio.Queue()` in
   `email_dispatcher.py` has no `maxsize`. Set one (e.g. 1000) and log-drop on
   overflow.
-- **DRY the two drop branches in `EmailDispatcher._process`** — the permanent
-  and retry-exhausted branches in `src/markland/service/email_dispatcher.py`
-  build identical `action` dicts and Sentry tag dicts and call
-  `_safe_sentry_capture` with the same payload. Extract a `_emit_drop(item,
-  exc, failure_kind, *, log_format)` helper so the next change can't silently
-  diverge between branches. Two call sites today; a third (e.g. give-up on
-  shutdown) would tip the scales.
 - **Back-compat `email_client=` kwargs** — `create_app`, `grants.grant()`,
   `invite_routes._notify_creator` all still accept the pre-Plan-7 `email_client=`
   parameter. Remove once all internal callers use `dispatcher=`.
