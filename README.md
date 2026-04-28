@@ -81,4 +81,4 @@ uv run python src/markland/server.py
 
 ## License
 
-Source-available pending a decision post-launch.
+[MIT](LICENSE) © magic_davey
