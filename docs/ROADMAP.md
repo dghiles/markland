@@ -24,14 +24,17 @@ Current selection: **"Shared notes for you and your agents."** — collaboration
 
 ---
 
-## Where we are (2026-04-27)
+## Where we are (2026-04-28)
 
 Code-complete on the v1 build (10 plans, 616 tests collected). Live deploy at
-`markland.fly.dev`, CI auto-deploy on push to `main` working since v3.
-Marketing surface up: landing + waitlist, `/alternatives` hub with five
-competitors, save-to-Markland CTA, trust-floor stub pages. SEO foundation
-shipped (meta/OG/JSON-LD, robots.txt, dynamic sitemap, security headers, GEO
-paragraph) plus batch 1 of the post-audit action plan.
+`markland.fly.dev`, CI auto-deploy on push to `main` working since v3. Repo
+public on GitHub. Marketing surface up: landing + waitlist, `/alternatives`
+hub with five competitors, save-to-Markland CTA, trust-floor stub pages. SEO
+foundation shipped (meta/OG/JSON-LD, robots.txt, dynamic sitemap, security
+headers, GEO paragraph) plus batch 1 of the post-audit action plan plus
+self-hosted Figtree/DM Mono/Newsreader. MCP audit advanced from spec to seven
+implementation plans. First install-flow fixes shipped from the 2026-04-24
+dogfood run.
 
 **Blocked on user-side work:** buying `markland.dev` (blocks Resend domain
 verify → magic-link email → real sign-ins; blocks GSC sitemap submission;
@@ -43,11 +46,10 @@ blocks `301 → markland.dev` redirects).
 
 Active or imminent. Items here have a plan or a clear next action.
 
-- **MCP audit + test harness** — `docs/specs/2026-04-27-mcp-audit-design.md`. The 18-tool surface accreted across 10 plans rather than being designed as a coherent whole. Audit consolidates naming, return shapes, error model, granularity, pagination, idempotency; adds 5 missing tools (`markland_get_by_share_token`, `markland_list_invites`, `markland_explore`, `markland_fork`, `markland_revisions`); ships behind a 30-day deprecation window. New dual-layer test harness (direct + HTTP backends) + per-tool snapshot baselines back the audit and stay as fast feedback for future MCP work.
+- **MCP audit + test harness** — spec at `docs/specs/2026-04-27-mcp-audit-design.md`; seven implementation plans landed 2026-04-28 under `docs/plans/2026-04-27-mcp-{harness-and-baseline,axis-1-6-naming-docstrings,axis-2-7-return-shapes-pagination,axis-3-error-model,axis-4-8-granularity-idempotency,axis-5-new-tools,phase-b-deprecation-removal}.md`. Plans sequence the work: harness + baselines first, then six audit axes, then deprecation/removal phase. Next action: execute Plan 1 (harness + baselines) before any axis work.
 - **SEO action plan batch 2+** — remaining items from `docs/audits/2026-04-24-seo-audit/ACTION-PLAN.md`. Critical leftovers: **C3** (HTML 404 page), **C4** (expand `/about /security /privacy /terms` to 250-300 words each — content, not code). High items beyond H2/H3/H5/H6 (already in batch 1).
-- **Make repo public** — `docs/plans/2026-04-27-make-repo-public.md`. Three-phase plan (audit, history rewrite, publish + branch protection). Unblocks free GitHub Pro APIs Markland needs and provides marketing/credibility.
 - **Buy `markland.dev` and cut over** — sequence in `docs/FOLLOW-UPS.md` Deploy/operations §1. Single user-side action with the largest cascade: unblocks Resend → real magic-link sign-ins, unblocks GSC, unblocks 301 redirects from fly.dev.
-- **Install/onboarding flow simplification** — first-time CLI install today is six steps across two channels: CLI shows `user_code` → visit `/device` → email form → check inbox → click magic link → bounce back → enter code → confirm. Device-flow assumes you're already signed in, and magic-link is the sign-in primitive, so they stack. Tonight surfaced a redirect bug on top: `next=/device` doesn't survive the magic-link round-trip (lands on `/me/tokens` instead). Cheapest wins, in order of leverage: (1) fix `next=` redirect so post-sign-in lands on `/device` with code prefilled; (2) prefill `user_code` via `/device?code=…` (route already supports it — runbook needs to construct the link); (3) single-link install — CLI runbook generates one `/device?code=…` URL so sign-in + code-entry happen on the same page; (4) skip device flow for browser-first users — sign in, hit "Connect Claude Code", copy one-shot token from `/me/tokens` into `claude mcp add`. Worth a brainstorm pass before launch — right answer depends on whether the primary install audience is browser-first humans or CLI-first agents.
+- **Install/onboarding flow simplification** — first-time CLI install today is six steps across two channels: CLI shows `user_code` → visit `/device` → email form → check inbox → click magic link → bounce back → enter code → confirm. Device-flow assumes you're already signed in, and magic-link is the sign-in primitive, so they stack. Plan `docs/plans/2026-04-24-setup-install-ux-fix.md` captures the four leverage-ordered cleanup options. **Option 1 shipped 2026-04-28 (PR #12 + #13)**: `?next=` now threads through `/login` → magic-link → `/verify` and is url-encoded so the `user_code` survives the `/device/confirm` bounce. Remaining: (2) prefill `user_code` via `/device?code=…` (route already supports it — runbook needs to construct the link); (3) single-link install — CLI runbook generates one `/device?code=…` URL so sign-in + code-entry happen on the same page; (4) skip device flow for browser-first users — sign in, hit "Connect Claude Code", copy one-shot token from `/me/tokens` into `claude mcp add`. Worth a brainstorm pass on (2)-(4) before launch — right answer depends on whether the primary install audience is browser-first humans or CLI-first agents.
 
 ## Next
 
@@ -81,6 +83,7 @@ date it landed.
 
 ### Hosted infrastructure + ops
 
+- **2026-04-28** — Repo public on GitHub. Three-phase make-repo-public plan executed: audit, git-filter-repo identity scrub of full history, publish + branch protection ruleset on `main` (no direct push, no force push, signed reviews via PR). Unblocks GitHub Pro APIs and provides marketing/credibility.
 - **2026-04-24** — `/admin/waitlist` JSON endpoint for signup signals.
 - **2026-04-20** — CI auto-deploy working end-to-end (release v3 from `deploy.yml`).
 - **2026-04-20** — First Fly.io deploy (`markland` app, iad, 1 GB volume, shared-cpu-1x). Live at `https://markland.fly.dev/`. `MARKLAND_SESSION_SECRET` set; Resend / R2 / Sentry deferred.
@@ -100,6 +103,7 @@ date it landed.
 
 ### Marketing + UX surface
 
+- **2026-04-28** — Install-flow fixes from 2026-04-24 dogfood run (PR #12 + #13). `?next=` thread-through (`/login` → magic-link → `/verify` preserves intended landing); url-encoded `next=` so a `user_code` containing `&` or `?` survives the `/device/confirm` bounce; "For humans" preamble on `/setup`; runbook fixed to use the `/install` Claude Code command rather than the unsupported `claude mcp add markland <url>`; `claude mcp add` references swept across docs; trust `X-Forwarded-Proto` so the `/mcp` redirect preserves https behind Fly's proxy.
 - **2026-04-20** — `/alternatives` hub + per-competitor comparison pages (markshare.to + 4 others).
 - **2026-04-20** — Save-to-Markland CTA partial (desktop popover + mobile sheet); `/fork` and `/bookmark` routes with logged-out intent capture; `/resume` + magic-link hook for post-login action resume; signed pending-intent cookie via `URLSafeTimedSerializer`; `bookmarks` table + `forked_from_doc_id` column; "Saved" dashboard section; "Forked from" attribution on viewer.
 - **2026-04-19** — Landing page + waitlist (`landing-waitlist-implementation.md`).
@@ -108,5 +112,6 @@ date it landed.
 
 ### SEO foundation
 
+- **2026-04-28** — Self-hosted Figtree, DM Mono, Newsreader (perf/SEO Task 10). Variable woff2 files served from `src/markland/web/assets/fonts/`, `@font-face` declarations in `base.html`, Newsreader italic axis widened to weight 600, `tests/test_self_hosted_fonts.py` verifies presence and font-face declarations.
 - **2026-04-27** — SEO batch 1 from 2026-04-24 audit: `/alternatives` competitor cards as `<h2>` (C1), `Offer` on `SoftwareApplication` JSON-LD (C2), `BreadcrumbList` on per-competitor pages (H2), `logo` + `sameAs` on `Organization` (H3), additional H5/H6/M8 quick wins. Audit artifacts committed under `docs/audits/2026-04-24-seo-audit/`. HackMD coverage test added.
 - **2026-04-22** — `_seo_meta.html` partial (canonical, OG, Twitter, JSON-LD); per-page meta descriptions; homepage retitle for MCP + Claude Code; GEO definitional paragraph for AI Overviews / LLM citation; expanded `/quickstart` (600+ words, H2 steps, templated host); trust-floor stub pages (`about/security/privacy/terms`) + footer; dynamic `/robots.txt` and `/sitemap.xml` (sourced from `COMPETITORS`); `SecurityHeadersMiddleware` (HSTS, CSP, XFO, XCTO, Referrer-Policy, Permissions-Policy, per-path `X-Robots-Tag`).
