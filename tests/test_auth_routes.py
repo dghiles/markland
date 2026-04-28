@@ -118,3 +118,14 @@ def test_login_threads_next_param_into_magic_link(client_and_conn, monkeypatch):
     )
     assert r.status_code == 200
     assert captured["return_to"] == "/device"
+
+
+def test_magic_link_sent_page_sets_honest_expectations(client_and_conn):
+    client, _, _ = client_and_conn
+    r = client.post(
+        "/api/auth/magic-link",
+        data={"email": "alice@example.com"},
+    )
+    assert r.status_code == 200
+    body = r.text
+    assert "up to a minute" in body, "expected honest delivery-time copy in magic_link_sent"
