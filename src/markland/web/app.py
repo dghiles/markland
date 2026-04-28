@@ -212,6 +212,7 @@ def create_app(
     security_tpl = env.get_template("security.html")
     privacy_tpl = env.get_template("privacy.html")
     terms_tpl = env.get_template("terms.html")
+    not_found_tpl = env.get_template("404.html")
 
     mcp_snippet = _load_mcp_snippet()
     mcp_snippet_json = json.dumps(mcp_snippet)
@@ -279,15 +280,11 @@ def create_app(
 
     @app.get("/alternatives/{slug}", response_class=HTMLResponse)
     def alternative(slug: str, request: Request):
+        from fastapi import HTTPException
+
         competitor = get_competitor(slug)
         if competitor is None:
-            return HTMLResponse(
-                "<html><body style='font-family:system-ui;padding:2rem;background:#0A0A0A;color:#fff;'>"
-                "<h1>Alternative not found</h1>"
-                "<p><a href='/alternatives' style='color:#4285F4;'>See all alternatives</a></p>"
-                "</body></html>",
-                status_code=404,
-            )
+            raise HTTPException(status_code=404)
         return HTMLResponse(
             alternative_tpl.render(
                 **_seo_ctx(request, base_url),
@@ -637,5 +634,34 @@ def create_app(
 
     from markland.web.security_headers_middleware import SecurityHeadersMiddleware
     app.add_middleware(SecurityHeadersMiddleware)
+
+    # 404 handler: render branded HTML for browser requests, JSON for API
+    # clients. Triggers both for unmatched paths (Starlette raises
+    # HTTPException(404) automatically) and for routes that explicitly
+    # `raise HTTPException(status_code=404)` — e.g. /alternatives/{slug}
+    # with an unknown slug. /api/* paths and Accept: application/json
+    # callers always get JSON so machine clients are unaffected.
+    from starlette.exceptions import HTTPException as StarletteHTTPException
+
+    def _wants_json(request: Request) -> bool:
+        if request.url.path.startswith("/api/"):
+            return True
+        accept = request.headers.get("accept", "").lower()
+        if "application/json" in accept and "text/html" not in accept:
+            return True
+        return False
+
+    @app.exception_handler(StarletteHTTPException)
+    async def _http_exception_handler(request: Request, exc: StarletteHTTPException):
+        if exc.status_code == 404 and not _wants_json(request):
+            return HTMLResponse(
+                not_found_tpl.render(**_seo_ctx(request, base_url)),
+                status_code=404,
+            )
+        return JSONResponse(
+            {"detail": exc.detail or "Error"},
+            status_code=exc.status_code,
+            headers=exc.headers or {},
+        )
 
     return app
