@@ -102,7 +102,7 @@ A second entry point for obtaining a user token, designed for the "paste a URL i
    - If the starting URL included `?invite=<token>`, the authorization screen names the grant ("This will give you edit access to Bob's doc *<title>*") so consent covers both acts in one click.
    - Confirms.
 4. Next `device-poll` returns `{status: "authorized", access_token}`.
-5. Claude Code installs the MCP server. Prefer `claude mcp add markland https://markland.dev/mcp --header "Authorization=Bearer <token>"` when the CLI is available; fall back to editing `~/.mcp.json` directly.
+5. Claude Code installs the MCP server. Prefer `claude mcp add --transport http markland https://markland.dev/mcp/ --header "Authorization: Bearer <token>"` when the CLI is available; fall back to editing `~/.mcp.json` directly.
 6. User restarts Claude Code; `markland_*` tools are live.
 
 **Security constraints**
