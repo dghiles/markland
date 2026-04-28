@@ -1,22 +1,46 @@
 {% extends "base.html" %}
-{% set seo_description = "How Markland handles tokens, grants, and user data. Per-doc grants, scoped bearer tokens, encrypted transport." %}
+{% set seo_description = "How Markland handles authentication, tokens, and document access. Per-doc grants, scoped bearer tokens, HTTPS-only transport, and how to report a security issue." %}
 
 {% block title %}Security at Markland — Tokens, Grants & Data Handling{% endblock %}
 
 {% block content %}
 <article style="max-width: 720px; margin: 0 auto; padding: 3rem 1rem; color: var(--text-2);">
   <h1 style="font-family: var(--font-display); font-size: clamp(2rem, 5vw, 3rem); letter-spacing: -0.03em; line-height: 1.05; margin-bottom: 1.5rem; color: var(--text);">Security</h1>
+
+  <p style="margin-bottom: 1.4rem;">
+    Markland is in public beta and operated by a single developer (<a href="https://github.com/dghiles" rel="author" style="color: var(--blue); border-bottom: 1px solid var(--outline);">@dghiles</a>). This page describes the current security posture &mdash; honest about what is implemented, and explicit about what is not yet.
+  </p>
+
   <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">Authentication</h2>
   <p style="margin-bottom: 1rem;">
-    Markland uses magic-link email for human sign-in and scoped bearer tokens for MCP clients. Tokens are issued per-user and per-agent; you can revoke them individually from the settings page.
+    Humans sign in with magic-link email &mdash; no passwords are stored. Magic links are single-use, expire after 15 minutes, and are signed with a short-lived server secret. AI agents authenticate with scoped bearer tokens minted from a logged-in user account. Tokens are hashed at rest; only the bearer plaintext is shown once at mint time. You can revoke any token individually from settings, and all token issuance is recorded in an append-only audit log.
   </p>
+
+  <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">Document access</h2>
+  <p style="margin-bottom: 1rem;">
+    Documents default to private. Sharing is per-document, per-principal &mdash; not "anyone with the link." Each doc carries an explicit list of grants (user emails, agent IDs, single-use invite tokens) that the owner controls. The viewer code denies-as-NotFound when a caller has no grant, so a 404 from <code>/d/{token}</code> never reveals whether a doc exists. Public docs (opt-in only) do receive a stable share token; everything else stays scoped.
+  </p>
+
+  <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">Concurrency &amp; integrity</h2>
+  <p style="margin-bottom: 1rem;">
+    Updates take an <code>if_version</code> argument; concurrent writers see a clean <code>ConflictError</code> rather than silently clobbering each other. Every revision is stored in an append-only revision log so you can see what changed, when, and by whom (or which agent).
+  </p>
+
+  <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">Transport &amp; headers</h2>
+  <p style="margin-bottom: 1rem;">
+    All traffic is HTTPS. Responses carry HSTS, a strict Content-Security-Policy, X-Frame-Options DENY, X-Content-Type-Options nosniff, Referrer-Policy strict-origin-when-cross-origin, and a restrictive Permissions-Policy. Non-marketing paths additionally return <code>X-Robots-Tag: noindex, nofollow</code> so private surfaces don&rsquo;t leak into search results.
+  </p>
+
   <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">Data handling</h2>
   <p style="margin-bottom: 1rem;">
-    Documents are stored in SQLite on the server. Grants are per-document; there is no &ldquo;anyone with the link&rdquo; default. All traffic is HTTPS.
+    Documents and grants are stored in SQLite on the application server. Markland does not sell your data, share it with advertisers, or train AI models on it. See <a href="/privacy" style="color: var(--blue); border-bottom: 1px solid var(--outline);">/privacy</a> for what is and isn&rsquo;t stored, and how to delete it.
   </p>
+
   <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">Reporting issues</h2>
-  <p>
-    A security contact address will be published here before general availability. If you believe you've found a security issue in the meantime, please reply to any Markland email you've received &mdash; those replies reach a human.
+  <p style="margin-bottom: 1rem;">
+    A dedicated security contact will be published here once <code>markland.dev</code> is live. Until then: reply to any Markland email you&rsquo;ve received and the message reaches a human who reads everything. Please include a description of the issue, reproduction steps if you have them, and an estimate of severity. Reports are not bug-bountied at this stage but they are read and acted on quickly.
   </p>
+
+  <p style="margin-top: 3rem; font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--outline-hairline); padding-top: 1rem;">Last updated: 2026-04-27</p>
 </article>
 {% endblock %}

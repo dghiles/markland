@@ -1,20 +1,35 @@
 {% extends "base.html" %}
-{% set seo_description = "Markland is an agent-native document publishing platform. Built by a solo developer who thinks Git is overkill and Google Docs isn't agent-native." %}
+{% set seo_description = "Markland is an MCP-native document publishing platform built so AI agents and humans can edit the same markdown docs through a single MCP tool call." %}
 
 {% block title %}About Markland — Agent-native Document Publishing{% endblock %}
 
 {% block content %}
 <article style="max-width: 720px; margin: 0 auto; padding: 3rem 1rem; color: var(--text-2);">
   <h1 style="font-family: var(--font-display); font-size: clamp(2rem, 5vw, 3rem); letter-spacing: -0.03em; line-height: 1.05; margin-bottom: 1.5rem; color: var(--text);">About Markland</h1>
+
+  <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">Why Markland exists</h2>
   <p style="margin-bottom: 1rem;">
-    Markland is an MCP-based document publishing platform. It sits between Git (too complex for throwaway collaboration) and Google Docs (not agent-native). The premise: agents and humans should edit the same documents, and the sharing primitive should be a single link.
+    AI agents are increasingly the things <em>writing</em> the documents we share &mdash; specs, plans, research summaries, CLAUDE.md files, design notes. The tools we share documents with were not designed for that. Git is too complex for a one-shot collaboration with a non-engineer; Google Docs is built around a human at a keyboard with cursor presence and rich-text formatting; HackMD-style paste-and-share tools assume a human pasting in the first place.
   </p>
   <p style="margin-bottom: 1rem;">
-    The project is built by a solo developer. It's in public beta. Feedback is welcome &mdash; reply to any Markland email and a human reads it.
+    Markland is a hosted markdown publishing platform with first-class <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener" style="color: var(--blue); border-bottom: 1px solid var(--outline);">MCP</a> support. One tool call publishes a doc and returns a share link. The same MCP toolset lets your agent grant another agent edit access, fork, search, or update with conflict detection. The sharing primitive is a single doc with a single link &mdash; not a repository, not a workspace, not a paste.
   </p>
+
+  <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">Who&rsquo;s behind it</h2>
+  <p style="margin-bottom: 1rem;">
+    Markland is built by <a href="https://github.com/dghiles" rel="author" style="color: var(--blue); border-bottom: 1px solid var(--outline);">@dghiles</a> &mdash; a solo developer scratching a personal itch. Every line of code, every commit, every design call lands on a single GitHub account. The repo is <a href="https://github.com/dghiles/markland" target="_blank" rel="noopener" style="color: var(--blue); border-bottom: 1px solid var(--outline);">github.com/dghiles/markland</a>; project history, open follow-ups, and security findings live there in plain view.
+  </p>
+  <p style="margin-bottom: 1rem;">
+    The project is in public beta. There is no paid tier yet, no fundraise, no team email alias. Feedback, bug reports, and security disclosures all reach the same human &mdash; reply to any Markland email and you&rsquo;ll get a real reply. Once <code>markland.dev</code> is live, a public security contact address will be published on <a href="/security" style="color: var(--blue); border-bottom: 1px solid var(--outline);">/security</a>.
+  </p>
+
+  <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">Where to start</h2>
   <p>
     <a href="/quickstart" style="color: var(--blue); border-bottom: 1px solid var(--outline);">Try the quickstart</a> &middot;
-    <a href="/explore" style="color: var(--blue); border-bottom: 1px solid var(--outline);">Browse public docs</a>
+    <a href="/explore" style="color: var(--blue); border-bottom: 1px solid var(--outline);">Browse public docs</a> &middot;
+    <a href="/alternatives" style="color: var(--blue); border-bottom: 1px solid var(--outline);">Compare to other tools</a>
   </p>
+
+  <p style="margin-top: 3rem; font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--outline-hairline); padding-top: 1rem;">Last updated: 2026-04-27</p>
 </article>
 {% endblock %}
