@@ -6,7 +6,7 @@ See docs/specs/2026-04-27-mcp-audit-design.md §4-§11 for design.
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
@@ -40,3 +40,10 @@ class MCPHarness:
             _mcp=mcp,
             _tmp_path=tmp_path,
         )
+
+    def close(self) -> None:
+        """Release resources. Safe to call multiple times."""
+        try:
+            self.db.close()
+        except Exception:
+            pass

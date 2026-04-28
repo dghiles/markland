@@ -24,9 +24,13 @@ def pytest_addoption(parser):
 
 @pytest.fixture
 def mcp(tmp_path) -> MCPHarness:
-    return MCPHarness.create(tmp_path, mode="direct")
+    h = MCPHarness.create(tmp_path, mode="direct")
+    yield h
+    h.close()
 
 
 @pytest.fixture
 def mcp_http(tmp_path) -> MCPHarness:
-    return MCPHarness.create(tmp_path, mode="http")
+    h = MCPHarness.create(tmp_path, mode="http")
+    yield h
+    h.close()
