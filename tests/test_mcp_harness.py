@@ -2,16 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
 from tests._mcp_harness import MCPHarness
-
-
-@pytest.fixture
-def mcp(tmp_path):
-    h = MCPHarness.create(tmp_path)
-    yield h
-    h.close()
 
 
 def test_harness_create_direct_mode(tmp_path):
