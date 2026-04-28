@@ -278,6 +278,10 @@ def create_app(
     # correct: a content edit to a single competitor lives in
     # competitors.py, not a template, so we'd want their lastmods to
     # share the alternative.html mtime anyway.
+    #
+    # Adding a new marketing route? Update BOTH the FastAPI handler below
+    # AND this map — sitemap iterates _PATH_TEMPLATE.keys() so a missing
+    # entry silently drops the page from the sitemap entirely.
     _PATH_TEMPLATE = {
         "/": landing_tpl,
         "/quickstart": quickstart_tpl,
