@@ -6,11 +6,12 @@ the current MCP surface). This spec governs the *redesign* of that surface.
 
 ## 1. Purpose
 
-The Markland MCP server ships with 18 tools that accreted across 10
+The Markland MCP server ships with 19 tools that accreted across 10
 implementation plans rather than being designed as a coherent surface. This
-project audits the existing surface, lands a deliberate v1.0, and builds a
-dual-layer test harness that gives the codebase a regression net during the
-audit and a fast feedback loop afterward.
+project audits the existing surface, lands a deliberate v1.0 (17 tools after
+folding, plus 5 new = 22), and builds a dual-layer test harness that gives
+the codebase a regression net during the audit and a fast feedback loop
+afterward.
 
 Out of scope for this spec: new product features (comments, sections,
 revisions UI), performance work, infrastructure changes.
@@ -61,7 +62,7 @@ tests/
 ├── _mcp_harness.py            harness module (MCPHarness, Caller, Response)
 ├── conftest.py                fixtures (mcp, mcp_http)
 ├── test_mcp_harness.py        Layer A — tests of the harness itself
-├── test_mcp_baseline.py       Layer B — snapshot suite, all 18 tools
+├── test_mcp_baseline.py       Layer B — snapshot suite, all current tools
 ├── test_audit_naming.py       Layer C — per-axis audit tests
 ├── test_audit_return_envelopes.py
 ├── test_audit_error_model.py
@@ -254,6 +255,41 @@ The following changes ship behind the moderate-policy deprecation window: old
 name/shape lives alongside new for one release, marked `Deprecated.` in its
 docstring with the removal date.
 
+### 8.0 Per-tool disposition
+
+The 19 current tools and 5 new tools, with their target-surface disposition.
+This is the canonical work-unit list that the implementation plan will
+enumerate against.
+
+| Current tool | Disposition | Target name | Notes |
+|---|---|---|---|
+| `markland_whoami` | keep | `markland_whoami` | docstring rewrite |
+| `markland_publish` | keep | `markland_publish` | returns `doc_envelope`; not idempotent |
+| `markland_list` | keep | `markland_list` | returns `list_envelope`; +pagination |
+| `markland_get` | keep | `markland_get` | returns `doc_envelope` (with `active_principals`) |
+| `markland_search` | keep | `markland_search` | returns `list_envelope`; +pagination |
+| `markland_share` | keep | `markland_share` | docstring rewrite |
+| `markland_update` | keep | `markland_update` | returns `doc_envelope`; conflict via `if_version` |
+| `markland_delete` | keep | `markland_delete` | not idempotent (errors on second delete) |
+| `markland_set_visibility` | **fold** | `markland_doc_meta` | folded with `markland_feature` |
+| `markland_feature` | **fold** | `markland_doc_meta` | folded with `markland_set_visibility` |
+| `markland_grant` | keep | `markland_grant` | param `principal` → `target`; idempotent (upsert) |
+| `markland_revoke` | keep | `markland_revoke` | idempotency flip: success even if no grant |
+| `markland_list_grants` | keep | `markland_list_grants` | returns `list_envelope`; +pagination |
+| `markland_create_invite` | keep | `markland_create_invite` | not idempotent |
+| `markland_revoke_invite` | keep | `markland_revoke_invite` | idempotency flip: success even if no invite |
+| `markland_list_my_agents` | keep | `markland_list_my_agents` | returns `list_envelope`; +pagination |
+| `markland_set_status` | **fold** | `markland_status` | folded with `markland_clear_status` |
+| `markland_clear_status` | **fold** | `markland_status` | folded with `markland_set_status` |
+| `markland_audit` | keep | `markland_audit` | returns `list_envelope`; +pagination |
+| _(new)_ | add | `markland_get_by_share_token` | anonymous-viewer-equivalent read |
+| _(new)_ | add | `markland_list_invites` | owner-only; mirrors `markland_list_grants` |
+| _(new)_ | add | `markland_explore` | public docs feed; anonymous-friendly |
+| _(new)_ | add | `markland_fork` | promote existing HTTP fork to MCP |
+| _(new)_ | add | `markland_revisions` | list capped revisions; read-only |
+
+Net surface: 19 current → 17 after folds → 22 with the 5 additions.
+
 ### 8.1 Axis 1 — Naming
 
 - Tool names: `markland_<verb>(_<noun>)?`. Audit pass enforces this pattern
@@ -371,9 +407,9 @@ Every mutating tool's docstring states its idempotency contract. The closed
 set:
 
 - **Idempotent** — repeating the call with same args produces same outcome:
-  `markland_visibility`, `markland_doc_meta`, `markland_grant` (upsert),
-  `markland_revoke` (success even if no grant existed), `markland_status`,
-  `markland_revoke_invite` (success even if no invite).
+  `markland_doc_meta`, `markland_grant` (upsert), `markland_revoke` (success
+  even if no grant existed), `markland_status`, `markland_revoke_invite`
+  (success even if no invite).
 - **Not idempotent** — repeating produces different outcome:
   `markland_publish` (creates a new doc each time), `markland_update`
   (changes version), `markland_delete` (errors second time), `markland_fork`
@@ -488,7 +524,8 @@ during plan authoring if implementation surfaces new ones.
 
 The audit is complete when:
 
-1. All 18 existing tools either rename, fold, or stay; documented in §8.
+1. All 19 existing tools land their disposition per the §8.0 table (keep,
+   fold, or — none in this audit — remove).
 2. Five new tools from axis 5 are live: `markland_get_by_share_token`,
    `markland_list_invites`, `markland_explore`, `markland_fork`,
    `markland_revisions`.
