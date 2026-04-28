@@ -7,9 +7,30 @@
     {% set _seo_page_title = self.title() %}
     {% include "_seo_meta.html" %}
     {% block extra_jsonld %}{% endblock %}
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/figtree-var.woff2" crossorigin>
+    <style>
+        @font-face {
+            font-family: 'Figtree';
+            font-style: normal;
+            font-weight: 400 800;
+            font-display: swap;
+            src: url('/assets/fonts/figtree-var.woff2') format('woff2');
+        }
+        @font-face {
+            font-family: 'DM Mono';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('/assets/fonts/dmmono-400.woff2') format('woff2');
+        }
+        @font-face {
+            font-family: 'DM Mono';
+            font-style: normal;
+            font-weight: 500;
+            font-display: swap;
+            src: url('/assets/fonts/dmmono-500.woff2') format('woff2');
+        }
+    </style>
     <style>
         :root {
             /* Canvas */

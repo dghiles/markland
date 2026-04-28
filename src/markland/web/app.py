@@ -268,6 +268,22 @@ def create_app(
     def og_image():
         return Response(content=_OG_IMAGE_BYTES, media_type="image/png", headers=_ASSET_CACHE)
 
+    _FONTS_DIR = _ASSETS_DIR / "fonts"
+    _FONT_BYTES = {
+        p.name: p.read_bytes()
+        for p in _FONTS_DIR.glob("*.woff2")
+    }
+    _FONT_CACHE = {"Cache-Control": "public, max-age=31536000, immutable"}
+
+    @app.get("/assets/fonts/{name}")
+    def font_asset(name: str):
+        from fastapi import HTTPException
+
+        data = _FONT_BYTES.get(name)
+        if data is None:
+            raise HTTPException(status_code=404)
+        return Response(content=data, media_type="font/woff2", headers=_FONT_CACHE)
+
     @app.get("/robots.txt", response_class=PlainTextResponse)
     def robots_txt(request: Request):
         sitemap_url = f"{_public_host(request, base_url)}/sitemap.xml"
