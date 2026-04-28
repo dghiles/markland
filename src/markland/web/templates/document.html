@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title }} &middot; Markland</title>
     <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/figtree-var.woff2" crossorigin>
-    <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/newsreader-roman-var.woff2" crossorigin>
     <style>
         @font-face {
             font-family: 'Figtree';
@@ -27,20 +26,6 @@
             font-weight: 500;
             font-display: swap;
             src: url('/assets/fonts/dmmono-500.woff2') format('woff2');
-        }
-        @font-face {
-            font-family: 'Newsreader';
-            font-style: normal;
-            font-weight: 400 600;
-            font-display: swap;
-            src: url('/assets/fonts/newsreader-roman-var.woff2') format('woff2');
-        }
-        @font-face {
-            font-family: 'Newsreader';
-            font-style: italic;
-            font-weight: 400 600;
-            font-display: swap;
-            src: url('/assets/fonts/newsreader-italic-var.woff2') format('woff2');
         }
     </style>
     <style>
@@ -65,7 +50,7 @@
 
             --max-width: 760px;
             --font-display: 'Figtree', -apple-system, sans-serif;
-            --font-body: 'Newsreader', 'Charter', 'Georgia', serif;
+            --font-body: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             --font-mono: 'DM Mono', 'Menlo', monospace;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }

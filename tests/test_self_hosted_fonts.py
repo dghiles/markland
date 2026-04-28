@@ -66,8 +66,8 @@ def test_csp_no_longer_whitelists_google_fonts(client):
     assert "font-src 'self'" in csp
 
 
-def test_document_template_self_hosts_newsreader(client, tmp_path, monkeypatch):
-    """The doc viewer page also needs Newsreader self-hosted."""
+def test_document_template_self_hosts_fonts(client, tmp_path, monkeypatch):
+    """The doc viewer page must self-host its display font (Figtree)."""
     from markland.db import init_db, insert_document
 
     monkeypatch.setenv("MARKLAND_RATE_LIMIT_ANON_PER_MIN", "1000")
@@ -78,7 +78,7 @@ def test_document_template_self_hosts_newsreader(client, tmp_path, monkeypatch):
     r = c.get("/d/tok")
     assert r.status_code == 200
     assert "fonts.googleapis.com" not in r.text
-    assert "/assets/fonts/newsreader-roman-var.woff2" in r.text
+    assert "/assets/fonts/figtree-var.woff2" in r.text
 
 
 @pytest.mark.parametrize("family", ["Figtree", "DM Mono"])
@@ -90,7 +90,7 @@ def test_landing_declares_font_face(client, family):
     assert f"font-family: '{family}'" in r.text
 
 
-@pytest.mark.parametrize("family", ["Figtree", "DM Mono", "Newsreader"])
+@pytest.mark.parametrize("family", ["Figtree", "DM Mono"])
 def test_document_declares_font_face(family, tmp_path, monkeypatch):
     from markland.db import init_db, insert_document
 
