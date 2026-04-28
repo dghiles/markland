@@ -509,3 +509,70 @@ def _parse_jsonrpc(resp) -> dict:
         return {}
     import json
     return resp.json()
+
+
+# ---------------------------------------------------------------------------
+# Snapshot helpers
+# ---------------------------------------------------------------------------
+
+import re
+
+_VOLATILE_FIELDS = {
+    "id": "<ID>",  # generic — overridden below by id-prefix pattern
+    "share_token": "<SHARE_TOKEN>",
+    "share_url": "<SHARE_URL>",
+    "created_at": "<TIMESTAMP>",
+    "updated_at": "<TIMESTAMP>",
+    "expires_at": "<TIMESTAMP>",
+    "completed_at": "<TIMESTAMP>",
+    "consumed_at": "<TIMESTAMP>",
+    "owner_id": "<USR_ID>",
+    "principal_id": "<PRINCIPAL_ID>",
+    "agent_id": "<AGT_ID>",
+    "user_id": "<USR_ID>",
+    "doc_id": "<DOC_ID>",
+    "invite_id": "<INVITE_ID>",
+}
+
+
+def _placeholder_for_id(value: str) -> str:
+    """Map id-shaped strings to their typed placeholders."""
+    if not isinstance(value, str):
+        return value
+    if re.match(r"^doc_[a-f0-9]+$", value):
+        return "<DOC_ID>"
+    if re.match(r"^usr_[a-f0-9]+$", value):
+        return "<USR_ID>"
+    if re.match(r"^agt_[a-f0-9]+$", value):
+        return "<AGT_ID>"
+    if re.match(r"^mk_inv_[A-Za-z0-9_-]+$", value):
+        return "<INVITE_TOKEN>"
+    return value
+
+
+def as_envelope(value: Any) -> Any:
+    """Recursively strip volatile fields from a snapshot payload."""
+    if isinstance(value, dict):
+        out = {}
+        for k, v in value.items():
+            if isinstance(v, (dict, list)):
+                out[k] = as_envelope(v)
+            elif isinstance(v, str):
+                # Prefer typed id placeholder if value matches a known prefix.
+                typed = _placeholder_for_id(v)
+                if typed != v:
+                    out[k] = typed
+                elif k in _VOLATILE_FIELDS:
+                    out[k] = _VOLATILE_FIELDS[k]
+                else:
+                    out[k] = v
+            elif k in _VOLATILE_FIELDS:
+                out[k] = _VOLATILE_FIELDS[k]
+            else:
+                out[k] = v
+        return out
+    if isinstance(value, list):
+        return [as_envelope(v) for v in value]
+    if isinstance(value, str):
+        return _placeholder_for_id(value)
+    return value

@@ -195,3 +195,39 @@ def test_email_capture_on_grant(mcp):
     sent = mcp.emails_sent_to("bob@example.com")
     assert len(sent) == 1
     assert "shared" in (sent[0].get("subject", "") + sent[0].get("text", "")).lower()
+
+
+from tests._mcp_harness import as_envelope
+
+
+def test_as_envelope_strips_volatile_fields():
+    payload = {
+        "id": "doc_abc123",
+        "owner_id": "usr_xyz789",
+        "share_url": "https://harness.test/d/abc123",
+        "share_token": "abc123",
+        "created_at": "2026-04-27T03:00:00Z",
+        "updated_at": "2026-04-27T03:00:01Z",
+        "title": "Hello",
+        "content": "# Hello",
+        "version": 1,
+        "is_public": False,
+    }
+    out = as_envelope(payload)
+    assert out["id"] == "<DOC_ID>"
+    assert out["owner_id"] == "<USR_ID>"
+    assert out["share_url"] == "<SHARE_URL>"
+    assert out["share_token"] == "<SHARE_TOKEN>"
+    assert out["created_at"] == "<TIMESTAMP>"
+    assert out["updated_at"] == "<TIMESTAMP>"
+    # Stable fields untouched.
+    assert out["title"] == "Hello"
+    assert out["content"] == "# Hello"
+    assert out["version"] == 1
+    assert out["is_public"] is False
+
+
+def test_as_envelope_recurses_into_lists():
+    payload = {"items": [{"id": "doc_a"}, {"id": "doc_b"}]}
+    out = as_envelope(payload)
+    assert out == {"items": [{"id": "<DOC_ID>"}, {"id": "<DOC_ID>"}]}
