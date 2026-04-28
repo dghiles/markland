@@ -29,6 +29,28 @@ logger = logging.getLogger("markland.email_dispatcher")
 # Attempts after initial: 1s, 3s, 10s, then drop. Total 4 attempts including initial.
 DEFAULT_RETRY_DELAYS: tuple[float, ...] = (1.0, 3.0, 10.0)
 
+# Permanent-failure signatures from Resend. Anything matching here drops
+# on attempt 1 instead of burning the retry budget. Refine as we collect
+# more rejection shapes — a single helper, message-based, intentionally simple.
+_PERMANENT_SIGNATURES: tuple[str, ...] = (
+    "you can only send testing emails",  # sandbox mode
+    "validation_error",                  # 422 from Resend on bad payload
+    "invalid `to` field",                # malformed address
+)
+
+
+def _classify(exc: EmailSendError) -> str:
+    """Return 'permanent' or 'transient' for an EmailSendError.
+
+    Permanent failures should not be retried (sandbox rejection, validation).
+    Transient failures (5xx, network, rate-limit) get the full retry ladder.
+    """
+    msg = str(exc).lower()
+    for sig in _PERMANENT_SIGNATURES:
+        if sig in msg:
+            return "permanent"
+    return "transient"
+
 
 class _ClientProto(Protocol):
     def send(
@@ -138,7 +160,12 @@ class EmailDispatcher:
                 metadata=item.metadata,
             )
         except EmailSendError as exc:
-            if item.attempt >= len(self._retry_delays):
+            failure_kind = _classify(exc)
+            is_last_attempt = (
+                failure_kind == "permanent"
+                or item.attempt >= len(self._retry_delays)
+            )
+            if is_last_attempt:
                 logger.warning(
                     "dropping email to %s after %d attempts: %s",
                     item.to, item.attempt + 1, exc,
@@ -153,7 +180,6 @@ class EmailDispatcher:
                 item.to, item.attempt + 1, delay, exc,
             )
             item.attempt += 1
-            # Schedule a delayed re-enqueue without blocking the worker.
             asyncio.create_task(self._requeue_after(item, delay))
         except Exception as exc:
             # Unexpected error — drop, don't poison the queue.
