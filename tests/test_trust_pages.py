@@ -56,6 +56,59 @@ def test_privacy_terms_meta_description_length(client, path):
     assert 130 <= len(desc) <= 160, f"{path} description is {len(desc)} chars"
 
 
+@pytest.mark.parametrize(
+    ("path", "min_words"),
+    [
+        # Audit 2026-04-24 C4: every trust page must clear the 250-word
+        # E-E-A-T thin-content floor. Page-specific floors picked above
+        # the audit baseline (about 98w, security 118w, privacy 101w,
+        # terms 95w) — never let regression silently re-thin them.
+        ("/about", 250),
+        ("/security", 300),
+        ("/privacy", 250),
+        ("/terms", 250),
+    ],
+)
+def test_trust_page_word_count(client, path, min_words):
+    import re as _re
+
+    r = client.get(path)
+    # Strip script/style and tags; condense whitespace; count words.
+    body = _re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", r.text, flags=_re.DOTALL)
+    visible = _re.sub(r"<[^>]+>", " ", body)
+    visible = _re.sub(r"\s+", " ", visible)
+    words = len(visible.split())
+    assert words >= min_words, f"{path} now has {words} words (floor {min_words})"
+
+
+@pytest.mark.parametrize("path", ["/about", "/security", "/privacy", "/terms"])
+def test_trust_page_has_last_updated(client, path):
+    """Freshness signal — every trust page must carry a 'Last updated' line."""
+    r = client.get(path)
+    assert "Last updated:" in r.text
+
+
+@pytest.mark.parametrize("path", ["/", "/quickstart", "/alternatives", "/about"])
+def test_footer_has_author_byline(client, path):
+    """Audit 2026-04-24 H1: every marketing page footer must carry an
+    author/expertise signal — without it the site has no off-page trust
+    hook for E-E-A-T or LLM citation hedging."""
+    r = client.get(path)
+    text = r.text
+    assert "@dghiles" in text
+    assert 'href="https://github.com/dghiles"' in text
+    assert 'rel="author"' in text
+
+
+def test_organization_jsonld_has_founder(client):
+    """Organization.founder Person block ties the entity to a named human."""
+    r = client.get("/")
+    text = r.text
+    assert '"founder"' in text
+    assert '"@type": "Person"' in text
+    assert '"name": "@dghiles"' in text
+
+
 def test_footer_links_to_trust_pages(client):
     r = client.get("/")
     text = r.text

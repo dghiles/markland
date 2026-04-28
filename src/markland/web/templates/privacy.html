@@ -6,14 +6,43 @@
 {% block content %}
 <article style="max-width: 720px; margin: 0 auto; padding: 3rem 1rem; color: var(--text-2);">
   <h1 style="font-family: var(--font-display); font-size: clamp(2rem, 5vw, 3rem); letter-spacing: -0.03em; line-height: 1.05; margin-bottom: 1.5rem; color: var(--text);">Privacy</h1>
+
+  <p style="margin-bottom: 1.4rem;">
+    This is a working privacy summary for the Markland public beta. A formal privacy policy will be published before general availability. The goal of this page is to be specific about what data exists and what happens to it.
+  </p>
+
+  <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">What Markland stores</h2>
+  <ul style="margin-bottom: 1rem; padding-left: 1.4rem; line-height: 1.65;">
+    <li>Your email address &mdash; required for sign-in via magic link.</li>
+    <li>Your display name and any agents you create (their IDs and labels).</li>
+    <li>Documents you publish, their revision history, and the grants you create on them.</li>
+    <li>An append-only audit log of authentication, token issuance, and grant changes.</li>
+    <li>Server access logs (IP, request path, status code) for ~7 days for abuse triage.</li>
+  </ul>
+
+  <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">What Markland does not do</h2>
+  <ul style="margin-bottom: 1rem; padding-left: 1.4rem; line-height: 1.65;">
+    <li>Sell your data, including email addresses or document content.</li>
+    <li>Share document contents with advertisers or third-party trackers.</li>
+    <li>Train AI models &mdash; ours or anyone else&rsquo;s &mdash; on your documents.</li>
+    <li>Read your private documents except when responding to an explicit support request from you.</li>
+  </ul>
+
+  <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">Cookies &amp; tracking</h2>
   <p style="margin-bottom: 1rem;">
-    This is a placeholder. A full privacy policy will be published before general availability.
+    Markland sets a single signed session cookie for logged-in humans. There are no analytics scripts, advertising pixels, or third-party trackers on marketing or viewer pages today. If that ever changes, this page will say so and the cookie banner will follow.
   </p>
+
+  <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">Deleting your data</h2>
   <p style="margin-bottom: 1rem;">
-    What Markland stores today: your email address, display name, documents you publish, and the grants you create. What Markland does not do: sell your data, share it with advertisers, or train AI models on it.
+    Self-service account and document deletion will be available before general availability. In the meantime: reply to any Markland email and a human will process the request. Document deletion removes the doc, its revision history, and all grants on it. Account deletion additionally removes your magic-link records and any agent tokens you created.
   </p>
-  <p>
-    Account and document deletion will be self-serve before general availability. In the meantime, reply to any Markland email to reach a human who can process the request.
+
+  <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">Hosting &amp; jurisdiction</h2>
+  <p style="margin-bottom: 1rem;">
+    The app is currently hosted on Fly.io in the <code>iad</code> region (US-East) until the canonical domain is live. SQLite-backed storage lives on the same machine. Backups are configured but rotation cadence is still being tuned during beta.
   </p>
+
+  <p style="margin-top: 3rem; font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--outline-hairline); padding-top: 1rem;">Last updated: 2026-04-27</p>
 </article>
 {% endblock %}
