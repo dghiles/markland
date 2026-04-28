@@ -5,6 +5,7 @@ See docs/specs/2026-04-27-mcp-audit-design.md §4-§11 for design.
 
 from __future__ import annotations
 
+import difflib
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -30,6 +31,14 @@ class Caller:
     @property
     def principal_id(self) -> str | None:
         return self.principal.principal_id if self.principal else None
+
+    def call_raw(self, tool: str, **kwargs: Any) -> "Response":
+        h = self._harness
+        if h.mode == "direct":
+            return _direct_call(h, self, tool, kwargs)
+        elif h.mode == "http":
+            return _http_call(h, self, tool, kwargs)
+        raise MCPHarnessError(f"unknown mode {h.mode!r}")
 
 
 @dataclass
@@ -207,3 +216,98 @@ class MCPCallError(Exception):
 
 class MCPHarnessError(Exception):
     """Raised by the harness for setup/usage errors (not tool errors)."""
+
+
+# ---------------------------------------------------------------------------
+# Direct-mode call helpers
+# ---------------------------------------------------------------------------
+
+
+def _normalize_direct(value: Any, exc: BaseException | None) -> "Response":
+    if exc is not None:
+        from mcp.server.fastmcp.exceptions import ToolError
+
+        if isinstance(exc, ToolError):
+            data = getattr(exc, "data", None) or {}
+            code = data.get("code") if isinstance(data, dict) else None
+            if code is None:
+                # Today's only ToolError carries "conflict: …" with data fields.
+                code = "conflict" if "conflict" in str(exc) else "internal_error"
+            return Response(
+                ok=False,
+                value=None,
+                error_code=code,
+                error_data={k: v for k, v in (data or {}).items() if k != "code"},
+                raw=exc,
+            )
+        if isinstance(exc, PermissionError):
+            return Response(
+                ok=False,
+                value=None,
+                error_code="forbidden",
+                error_data={},
+                raw=exc,
+            )
+        if isinstance(exc, ValueError):
+            # Today's tools raise ValueError on bad status enum etc.
+            return Response(
+                ok=False,
+                value=None,
+                error_code="invalid_argument",
+                error_data={"reason": str(exc)},
+                raw=exc,
+            )
+        return Response(
+            ok=False,
+            value=None,
+            error_code="internal_error",
+            error_data={"raw": repr(exc)},
+            raw=exc,
+        )
+
+    # No exception. Inspect the returned value.
+    if isinstance(value, dict) and "error" in value:
+        err = value["error"]
+        if err == "not_found":
+            return Response(False, None, "not_found", {}, value)
+        if err == "forbidden":
+            return Response(False, None, "forbidden", {}, value)
+        if err == "invalid_argument":
+            reason = value.get("reason", "")
+            return Response(False, None, "invalid_argument", {"reason": reason}, value)
+        # Unknown error string — surface as-is.
+        return Response(False, None, str(err), {}, value)
+
+    return Response(True, value, None, {}, value)
+
+
+class _Ctx:
+    """Minimal stand-in for FastMCP's Context carrying a Principal."""
+
+    def __init__(self, principal: Any):
+        self.principal = principal
+
+
+def _direct_call(
+    harness: "MCPHarness", caller: "Caller", tool: str, kwargs: dict
+) -> "Response":
+    handlers = harness._mcp.markland_handlers
+    if tool not in handlers:
+        suggestion = difflib.get_close_matches(tool, list(handlers), n=1)
+        hint = f" — did you mean {suggestion[0]!r}?" if suggestion else ""
+        raise MCPHarnessError(f"no such tool: {tool!r}{hint}")
+    handler = handlers[tool]
+
+    # The handlers expect _Ctx as first arg; anon callers pass principal=None.
+    ctx = _Ctx(caller.principal)
+    try:
+        value = handler(ctx, **kwargs)
+    except BaseException as exc:  # noqa: BLE001 — we re-wrap deliberately
+        return _normalize_direct(None, exc)
+    return _normalize_direct(value, None)
+
+
+def _http_call(
+    harness: "MCPHarness", caller: "Caller", tool: str, kwargs: dict
+) -> "Response":
+    raise MCPHarnessError("HTTP mode not yet implemented")

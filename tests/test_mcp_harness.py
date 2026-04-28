@@ -96,3 +96,25 @@ def test_response_assert_error_with_data():
     r.assert_error("conflict", current_version=3)
     with pytest.raises(AssertionError):
         r.assert_error("conflict", current_version=99)
+
+
+def test_direct_call_raw_publish_succeeds(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    r = alice.call_raw("markland_publish", content="# hi", title=None, public=False)
+    r.assert_ok()
+    assert r.value["owner_id"] == alice.principal_id
+    assert "share_url" in r.value
+
+
+def test_direct_call_raw_normalizes_not_found(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    r = alice.call_raw("markland_get", doc_id="doc_does_not_exist")
+    r.assert_error("not_found")
+
+
+def test_direct_call_raw_unknown_tool_raises_harness_error(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    from tests._mcp_harness import MCPHarnessError
+
+    with pytest.raises(MCPHarnessError, match="no such tool"):
+        alice.call_raw("markland_publshhh", content="x")
