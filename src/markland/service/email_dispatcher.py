@@ -89,6 +89,46 @@ def _safe_sentry_capture(
         logger.warning("sentry capture failed: %r", err)
 
 
+def _emit_drop(
+    item: "_Item",
+    exc: EmailSendError,
+    failure_kind: str,
+    *,
+    log_format: str,
+) -> None:
+    """Emit the structured drop log + Sentry capture for an unrecoverable send.
+
+    `log_format` differs between branches (permanent vs retry-exhausted) and
+    is the only per-call-site difference; everything else — the action dict,
+    the Sentry tags, the recipient hash — is identical and lives here so the
+    two call sites can't silently diverge.
+    """
+    attempts = item.attempt + 1
+    template = (item.metadata or {}).get("template", "unknown")
+    rcpt_hash = _recipient_hash(item.to)
+    action = {
+        "template": template,
+        "attempts": attempts,
+        "error_class": type(exc).__name__,
+        "failure_kind": failure_kind,
+        "recipient_hash": rcpt_hash,
+    }
+    logger.warning(
+        log_format,
+        rcpt_hash, attempts, exc,
+        extra={"action": action},
+    )
+    _safe_sentry_capture(
+        exc,
+        tags={
+            "template": template,
+            "attempts": str(attempts),
+            "failure_kind": failure_kind,
+            "recipient_hash": rcpt_hash,
+        },
+    )
+
+
 class _ClientProto(Protocol):
     def send(
         self,
@@ -199,55 +239,15 @@ class EmailDispatcher:
         except EmailSendError as exc:
             failure_kind = _classify(exc)
             if failure_kind == "permanent":
-                attempts = item.attempt + 1
-                template = (item.metadata or {}).get("template", "unknown")
-                rcpt_hash = _recipient_hash(item.to)
-                action = {
-                    "template": template,
-                    "attempts": attempts,
-                    "error_class": type(exc).__name__,
-                    "failure_kind": failure_kind,
-                    "recipient_hash": rcpt_hash,
-                }
-                logger.warning(
-                    "dropping email (rcpt %s) on attempt %d (permanent): %s",
-                    rcpt_hash, attempts, exc,
-                    extra={"action": action},
-                )
-                _safe_sentry_capture(
-                    exc,
-                    tags={
-                        "template": template,
-                        "attempts": str(attempts),
-                        "failure_kind": failure_kind,
-                        "recipient_hash": rcpt_hash,
-                    },
+                _emit_drop(
+                    item, exc, failure_kind,
+                    log_format="dropping email (rcpt %s) on attempt %d (permanent): %s",
                 )
                 return
             if item.attempt >= len(self._retry_delays):
-                attempts = item.attempt + 1
-                template = (item.metadata or {}).get("template", "unknown")
-                rcpt_hash = _recipient_hash(item.to)
-                action = {
-                    "template": template,
-                    "attempts": attempts,
-                    "error_class": type(exc).__name__,
-                    "failure_kind": failure_kind,
-                    "recipient_hash": rcpt_hash,
-                }
-                logger.warning(
-                    "dropping email (rcpt %s) after %d attempts: %s",
-                    rcpt_hash, attempts, exc,
-                    extra={"action": action},
-                )
-                _safe_sentry_capture(
-                    exc,
-                    tags={
-                        "template": template,
-                        "attempts": str(attempts),
-                        "failure_kind": failure_kind,
-                        "recipient_hash": rcpt_hash,
-                    },
+                _emit_drop(
+                    item, exc, failure_kind,
+                    log_format="dropping email (rcpt %s) after %d attempts: %s",
                 )
                 return
             delay = self._retry_delays[item.attempt]
