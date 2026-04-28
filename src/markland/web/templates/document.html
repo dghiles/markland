@@ -4,9 +4,45 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title }} &middot; Markland</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&display=swap" rel="stylesheet">
+    <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/figtree-var.woff2" crossorigin>
+    <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/newsreader-roman-var.woff2" crossorigin>
+    <style>
+        @font-face {
+            font-family: 'Figtree';
+            font-style: normal;
+            font-weight: 400 800;
+            font-display: swap;
+            src: url('/assets/fonts/figtree-var.woff2') format('woff2');
+        }
+        @font-face {
+            font-family: 'DM Mono';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('/assets/fonts/dmmono-400.woff2') format('woff2');
+        }
+        @font-face {
+            font-family: 'DM Mono';
+            font-style: normal;
+            font-weight: 500;
+            font-display: swap;
+            src: url('/assets/fonts/dmmono-500.woff2') format('woff2');
+        }
+        @font-face {
+            font-family: 'Newsreader';
+            font-style: normal;
+            font-weight: 400 600;
+            font-display: swap;
+            src: url('/assets/fonts/newsreader-roman-var.woff2') format('woff2');
+        }
+        @font-face {
+            font-family: 'Newsreader';
+            font-style: italic;
+            font-weight: 400 500;
+            font-display: swap;
+            src: url('/assets/fonts/newsreader-italic-var.woff2') format('woff2');
+        }
+    </style>
     <style>
         :root {
             --bg: #0A0A0A;

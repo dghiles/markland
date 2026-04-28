@@ -19,8 +19,8 @@ from markland.web.seo import should_noindex
 
 _CSP = (
     "default-src 'self'; "
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-    "font-src 'self' https://fonts.gstatic.com; "
+    "style-src 'self' 'unsafe-inline'; "
+    "font-src 'self'; "
     "img-src 'self' data:; "
     "script-src 'self' 'unsafe-inline'; "
     "connect-src 'self'; "
