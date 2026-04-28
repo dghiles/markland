@@ -135,3 +135,25 @@ def test_call_raises_mcp_call_error(mcp):
     assert exc_info.value.response.error_code == "not_found"
     assert exc_info.value.tool == "markland_get"
     assert exc_info.value.kwargs == {"doc_id": "doc_nope"}
+
+
+def test_http_call_publish(mcp_http):
+    alice = mcp_http.as_user(email="alice@example.com")
+    value = alice.call("markland_publish", content="# hi")
+    assert value["owner_id"] == alice.principal_id
+    assert "share_url" in value
+
+
+def test_http_anon_unauthenticated(mcp_http):
+    r = mcp_http.anon().call_raw("markland_publish", content="x")
+    r.assert_error("unauthenticated")
+
+
+def test_http_session_per_caller(mcp_http):
+    alice = mcp_http.as_user(email="alice@example.com")
+    bob = mcp_http.as_user(email="bob@example.com")
+    alice.call("markland_publish", content="# from alice")
+    bob.call("markland_publish", content="# from bob")
+    assert alice._http_session_id is not None
+    assert bob._http_session_id is not None
+    assert alice._http_session_id != bob._http_session_id

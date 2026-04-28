@@ -27,6 +27,7 @@ class Caller:
     principal: Principal | None
     token: str | None
     _harness: "MCPHarness" = field(repr=False)
+    _http_session_id: str | None = None
 
     @property
     def principal_id(self) -> str | None:
@@ -65,7 +66,8 @@ class MCPHarness:
         db = init_db(db_path)
         base_url = "https://harness.test"
         mcp = build_mcp(db, base_url=base_url, email_client=None)
-        return cls(
+
+        harness = cls(
             mode=mode,
             db=db,
             base_url=base_url,
@@ -73,8 +75,38 @@ class MCPHarness:
             _tmp_path=tmp_path,
         )
 
+        if mode == "http":
+            # Set rate-limit env vars BEFORE create_app, since the app reads
+            # them at build time. Setting after create_app has no effect.
+            import os
+            os.environ.setdefault("MARKLAND_RATE_LIMIT_USER_PER_MIN", "10000")
+            os.environ.setdefault("MARKLAND_RATE_LIMIT_AGENT_PER_MIN", "10000")
+            os.environ.setdefault("MARKLAND_RATE_LIMIT_ANON_PER_MIN", "10000")
+
+            from fastapi.testclient import TestClient
+            from markland.web.app import create_app
+
+            app = create_app(
+                db,
+                mount_mcp=True,
+                base_url=base_url,
+                session_secret="harness-secret",
+            )
+
+            client = TestClient(app)
+            client.__enter__()  # start lifespan
+            harness._http_client = client
+            harness._http_app = app
+
+        return harness
+
     def close(self) -> None:
         """Release resources. Safe to call multiple times."""
+        if hasattr(self, "_http_client"):
+            try:
+                self._http_client.__exit__(None, None, None)
+            except Exception:
+                pass
         try:
             self.db.close()
         except Exception:
@@ -316,4 +348,133 @@ def _direct_call(
 def _http_call(
     harness: "MCPHarness", caller: "Caller", tool: str, kwargs: dict
 ) -> "Response":
-    raise MCPHarnessError("HTTP mode not yet implemented")
+    if not hasattr(harness, "_http_client"):
+        raise MCPHarnessError(
+            "HTTP-mode harness was not initialized with TestClient"
+        )
+
+    # Lazy session init.
+    if caller._http_session_id is None and caller.token is not None:
+        _http_initialize(harness, caller)
+
+    headers = {
+        "Accept": "application/json, text/event-stream",
+        "Content-Type": "application/json",
+    }
+    if caller.token:
+        headers["Authorization"] = f"Bearer {caller.token}"
+    if caller._http_session_id:
+        headers["Mcp-Session-Id"] = caller._http_session_id
+
+    body = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {"name": tool, "arguments": kwargs},
+    }
+    resp = harness._http_client.post("/mcp/", headers=headers, json=body)
+
+    if resp.status_code == 401:
+        return Response(False, None, "unauthenticated", {}, resp)
+    if resp.status_code == 403:
+        return Response(False, None, "forbidden", {}, resp)
+    if resp.status_code == 429:
+        retry = resp.headers.get("Retry-After")
+        return Response(False, None, "rate_limited", {"retry_after": retry}, resp)
+    if resp.status_code != 200:
+        return Response(
+            False,
+            None,
+            "internal_error",
+            {"status": resp.status_code, "body": resp.text},
+            resp,
+        )
+
+    data = _parse_jsonrpc(resp)
+    if "error" in data:
+        err = data["error"]
+        return Response(
+            False,
+            None,
+            err.get("code", "internal_error"),
+            err.get("data") or {},
+            resp,
+        )
+
+    # tools/call success — extract structured content.
+    result = data.get("result", {})
+    contents = result.get("content", [])
+    if contents and contents[0].get("type") == "text":
+        import json
+        try:
+            value = json.loads(contents[0]["text"])
+        except (json.JSONDecodeError, KeyError):
+            value = contents[0]["text"]
+    else:
+        value = result
+
+    # tools/call may also flag isError + structured error.
+    if result.get("isError"):
+        if isinstance(value, dict) and "code" in value:
+            return Response(
+                False,
+                None,
+                value["code"],
+                {k: v for k, v in value.items() if k != "code"},
+                resp,
+            )
+        return Response(False, None, "internal_error", {"raw": value}, resp)
+
+    return Response(True, value, None, {}, resp)
+
+
+def _http_initialize(harness: "MCPHarness", caller: "Caller") -> None:
+    """Run the JSON-RPC initialize handshake, capture the session id."""
+    headers = {
+        "Accept": "application/json, text/event-stream",
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {caller.token}",
+    }
+    body = {
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-03-26",
+            "capabilities": {},
+            "clientInfo": {"name": "harness", "version": "0"},
+        },
+    }
+    resp = harness._http_client.post("/mcp/", headers=headers, json=body)
+    if resp.status_code != 200:
+        raise MCPHarnessError(
+            f"initialize failed for {caller.principal_id!r}: "
+            f"{resp.status_code} {resp.text}"
+        )
+    session_id = resp.headers.get("Mcp-Session-Id")
+    if not session_id:
+        raise MCPHarnessError("initialize did not return Mcp-Session-Id header")
+    caller._http_session_id = session_id
+
+    # Required `initialized` notification per MCP spec.
+    notify = {
+        "jsonrpc": "2.0",
+        "method": "notifications/initialized",
+    }
+    nh = dict(headers)
+    nh["Mcp-Session-Id"] = session_id
+    harness._http_client.post("/mcp/", headers=nh, json=notify)
+
+
+def _parse_jsonrpc(resp) -> dict:
+    """FastMCP can return either application/json or text/event-stream.
+    Handle both."""
+    ct = resp.headers.get("content-type", "")
+    if ct.startswith("text/event-stream"):
+        for line in resp.text.splitlines():
+            if line.startswith("data: "):
+                import json
+                return json.loads(line[len("data: "):])
+        return {}
+    import json
+    return resp.json()
