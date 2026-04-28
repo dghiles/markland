@@ -13,7 +13,7 @@
 
   <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">Authentication</h2>
   <p style="margin-bottom: 1rem;">
-    Humans sign in with magic-link email &mdash; no passwords are stored. Magic links are single-use, expire after 15 minutes, and are signed with a short-lived server secret. AI agents authenticate with scoped bearer tokens minted from a logged-in user account. Tokens are hashed at rest; only the bearer plaintext is shown once at mint time. You can revoke any token individually from settings, and all token issuance is recorded in an append-only audit log.
+    Humans sign in with magic-link email &mdash; no passwords are stored. Sign-in links are signed with a server secret and expire 15 minutes after issue. The link is sent only to the email address on the request, and the session it creates is bound to a separate signed cookie. (We do not currently track per-token consumption server-side, so a captured link can be used within its 15-minute window before it expires &mdash; that gap is on the post-beta hardening list.) AI agents authenticate with scoped bearer tokens minted from a logged-in user account. Tokens are hashed at rest; only the bearer plaintext is shown once at mint time. You can revoke any token individually from settings, and all token issuance is recorded in an append-only audit log.
   </p>
 
   <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">Document access</h2>

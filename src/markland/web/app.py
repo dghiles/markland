@@ -636,11 +636,12 @@ def create_app(
     app.add_middleware(SecurityHeadersMiddleware)
 
     # 404 handler: render branded HTML for browser requests, JSON for API
-    # clients. Triggers both for unmatched paths (Starlette raises
-    # HTTPException(404) automatically) and for routes that explicitly
-    # `raise HTTPException(status_code=404)` — e.g. /alternatives/{slug}
-    # with an unknown slug. /api/* paths and Accept: application/json
-    # callers always get JSON so machine clients are unaffected.
+    # clients. Registered for status 404 specifically so non-404
+    # HTTPExceptions (401, 403, 422, 429, ...) keep falling through to
+    # FastAPI's default JSON handler — keeps the machine API contract
+    # intact without re-implementing it here.
+    #
+    # /api/* is contract; everywhere else, only opt into JSON via explicit Accept.
     from starlette.exceptions import HTTPException as StarletteHTTPException
 
     def _wants_json(request: Request) -> bool:
@@ -651,17 +652,17 @@ def create_app(
             return True
         return False
 
-    @app.exception_handler(StarletteHTTPException)
-    async def _http_exception_handler(request: Request, exc: StarletteHTTPException):
-        if exc.status_code == 404 and not _wants_json(request):
-            return HTMLResponse(
-                not_found_tpl.render(**_seo_ctx(request, base_url)),
+    @app.exception_handler(404)
+    async def _not_found_handler(request: Request, exc: StarletteHTTPException):
+        if _wants_json(request):
+            return JSONResponse(
+                {"detail": exc.detail or "Not Found"},
                 status_code=404,
+                headers=exc.headers or {},
             )
-        return JSONResponse(
-            {"detail": exc.detail or "Error"},
-            status_code=exc.status_code,
-            headers=exc.headers or {},
+        return HTMLResponse(
+            not_found_tpl.render(**_seo_ctx(request, base_url)),
+            status_code=404,
         )
 
     return app
