@@ -176,3 +176,22 @@ def test_mode_equivalence_publish(tmp_path):
     finally:
         direct.close()
         http.close()
+
+
+def test_email_capture_on_grant(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# shared")
+
+    # Seed bob first so the grant has a target user.
+    mcp.as_user(email="bob@example.com")
+
+    alice.call(
+        "markland_grant",
+        doc_id=pub["id"],
+        principal="bob@example.com",
+        level="view",
+    )
+
+    sent = mcp.emails_sent_to("bob@example.com")
+    assert len(sent) == 1
+    assert "shared" in (sent[0].get("subject", "") + sent[0].get("text", "")).lower()

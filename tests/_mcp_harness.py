@@ -17,6 +17,27 @@ from markland.service.auth import Principal, create_user_token
 from markland.service.users import create_user
 
 
+class _CapturingEmailClient:
+    """In-memory email capture for tests. Mirrors EmailClient.send signature."""
+
+    def __init__(self):
+        self.sent: list[dict] = []
+
+    def send(
+        self,
+        *,
+        to: str,
+        subject: str,
+        html: str | None = None,
+        text: str | None = None,
+        metadata: dict | None = None,
+    ) -> None:
+        self.sent.append(
+            {"to": to, "subject": subject, "html": html, "text": text,
+             "metadata": metadata}
+        )
+
+
 Mode = Literal["direct", "http"]
 
 
@@ -67,7 +88,8 @@ class MCPHarness:
         db_path = tmp_path / "harness.db"
         db = init_db(db_path)
         base_url = "https://harness.test"
-        mcp = build_mcp(db, base_url=base_url, email_client=None)
+        email_client = _CapturingEmailClient()
+        mcp = build_mcp(db, base_url=base_url, email_client=email_client)
 
         harness = cls(
             mode=mode,
@@ -76,6 +98,7 @@ class MCPHarness:
             _mcp=mcp,
             _tmp_path=tmp_path,
         )
+        harness._email_client = email_client
 
         if mode == "http":
             # Set rate-limit env vars BEFORE create_app, since the app reads
@@ -206,6 +229,12 @@ class MCPHarness:
 
     def anon(self) -> Caller:
         return Caller(principal=None, token=None, _harness=self)
+
+    def emails_sent_to(self, recipient: str) -> list[dict]:
+        return [
+            e for e in self._email_client.sent
+            if e["to"].lower() == recipient.lower()
+        ]
 
 
 @dataclass
