@@ -161,11 +161,13 @@ class EmailDispatcher:
             )
         except EmailSendError as exc:
             failure_kind = _classify(exc)
-            is_last_attempt = (
-                failure_kind == "permanent"
-                or item.attempt >= len(self._retry_delays)
-            )
-            if is_last_attempt:
+            if failure_kind == "permanent":
+                logger.warning(
+                    "dropping email to %s on attempt %d (permanent): %s",
+                    item.to, item.attempt + 1, exc,
+                )
+                return
+            if item.attempt >= len(self._retry_delays):
                 logger.warning(
                     "dropping email to %s after %d attempts: %s",
                     item.to, item.attempt + 1, exc,
