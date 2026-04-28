@@ -1,0 +1,26 @@
+User-agent: *
+Allow: /
+Disallow: /api
+Disallow: /mcp
+Disallow: /admin
+Disallow: /settings
+Disallow: /dashboard
+Disallow: /inbox
+Disallow: /resume
+Disallow: /login
+Disallow: /verify
+Disallow: /setup
+Disallow: /device
+Disallow: /invite
+Disallow: /health
+
+# Block AI training crawlers; real search engines (Googlebot, Bingbot) fall
+# through to the wildcard rule above.
+User-agent: GPTBot
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+Sitemap: https://markland.fly.dev/sitemap.xml
+
