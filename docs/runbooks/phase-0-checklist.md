@@ -17,7 +17,7 @@ A non-engineer friend ("Alex") can complete this script without instructions
 beyond the one-page quickstart:
 
 - [ ] **1. Sign up.** Alex visits `/`, clicks "Sign in", enters their email, clicks the magic link -> redirected to the dashboard.
-- [ ] **2. Install.** Alex pastes `claude mcp add markland https://markland.dev/setup` into Claude Code, completes the device flow, sees `markland_*` tools.
+- [ ] **2. Install.** Alex tells Claude Code to *"install the Markland MCP server from https://markland.dev/setup"*, completes the device flow, sees `markland_*` tools.
 - [ ] **3. Publish.** Alex asks "publish a markdown doc titled 'Hello' with some notes". Claude calls `markland_publish`. Share link returned.
 - [ ] **4. Share.** Alex asks "share this with <operator's email>, edit access". Claude calls `markland_grant`. Operator receives an email notification.
 - [ ] **5. Agent edits.** Operator's agent calls `markland_update` with the correct `if_version`. No silent data loss; operator sees the edit at the share URL within 5 seconds of the update returning.

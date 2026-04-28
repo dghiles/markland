@@ -261,7 +261,7 @@
   <h2>FAQ</h2>
   <dl class="qs-faq">
     <dt>Do I need an API key?</dt>
-    <dd>No. <code>claude mcp add markland</code> hits a setup endpoint that mints a per-user bearer token, which Claude Code stores for you. You never see or paste the token; it lives in the CLI&rsquo;s MCP config.</dd>
+    <dd>No. The <code>/setup</code> runbook walks Claude Code through a device-authorization flow that mints a per-user bearer token, which Claude Code stores for you. You never see or paste the token; it lives in the CLI&rsquo;s MCP config.</dd>
 
     <dt>Can I use Markland from Cursor or another MCP client?</dt>
     <dd>Yes. Any MCP-capable client can register Markland and call its tools. The setup snippet on the landing page is in plain MCP-config JSON &mdash; copy it into whichever client you use. The CLI flow on this page is the Claude Code shortcut.</dd>

@@ -14,8 +14,8 @@ leaving the terminal.
 ## Quickstart (2 minutes)
 
 1. Visit <https://markland.dev>, sign up with your email, click the magic link.
-2. In Claude Code: `claude mcp add markland https://markland.dev/setup`.
-   Complete the device flow in your browser. Restart Claude Code.
+2. In Claude Code, send: *"Install the Markland MCP server from https://markland.dev/setup"*.
+   Claude Code drives the device flow; complete the browser authorization when prompted, then restart Claude Code.
 3. Ask your agent: *"Publish a markdown doc titled 'Hello Markland'."*
 4. Ask your agent: *"Share it with alice@example.com, edit access."*
 
