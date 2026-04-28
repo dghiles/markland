@@ -17,6 +17,7 @@ import sqlite3
 import time
 from collections import defaultdict, deque
 from typing import Deque
+from urllib.parse import quote, urlencode
 
 from fastapi import APIRouter, Body, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -226,8 +227,13 @@ def build_device_router(
         user_id = _session_user_id(request)
         session = _session_obj(user_id)
         if user_id is None:
+            # urlencode the inner query so `next=` survives URL parsing — bare
+            # `?next=/device?code=…` splits at the second `?` and the browser
+            # treats `code=…` as a top-level param on /login, dropping it from
+            # the next= value entirely.
+            next_path = f"/device?code={user_code}"
             return RedirectResponse(
-                url=f"/login?next=/device?code={user_code}", status_code=303
+                url=f"/login?{urlencode({'next': next_path})}", status_code=303
             )
         if not verify_csrf_token(csrf, user_id, secret=session_secret):
             return HTMLResponse(
@@ -261,7 +267,6 @@ def build_device_router(
         if result.invite_accepted:
             params.append("invite_accepted=1")
         if result.invite_error:
-            from urllib.parse import quote
             params.append(f"invite_error={quote(result.invite_error)}")
         return RedirectResponse(
             url=f"/device/done?{'&'.join(params)}",

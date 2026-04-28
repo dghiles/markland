@@ -232,6 +232,32 @@ def test_device_confirm_requires_session(client):
     assert r.status_code in (401, 303)  # 303 back to /login is also acceptable
 
 
+def test_device_confirm_unauth_redirect_preserves_user_code_through_login(client):
+    """The /device/confirm → /login redirect must url-encode its `next=` value.
+
+    Before the fix the redirect was `/login?next=/device?code=ABCD-EFGH`.
+    The browser parsed that as two query params on /login (next=/device,
+    code=ABCD-EFGH), so after magic-link verify the user_code was lost and
+    /device rendered an empty code-entry form.
+    """
+    from urllib.parse import parse_qs, urlparse
+
+    r = client.post(
+        "/device/confirm",
+        data={"user_code": "ABCD-EFGH", "csrf": "x"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    location = r.headers["location"]
+    assert location.startswith("/login?"), location
+    qs = parse_qs(urlparse(location).query)
+    # The single `next` param must carry the FULL inner URL with the code,
+    # not get split at the inner `?`.
+    assert qs.get("next") == ["/device?code=ABCD-EFGH"], qs
+    # And `code` must NOT have leaked out as a top-level param on /login.
+    assert "code" not in qs, qs
+
+
 def test_device_confirm_happy_path_redirects_to_done(client):
     start = client.post("/api/auth/device-start").json()
     _login(client)
