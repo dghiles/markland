@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 {% set seo_description = "Browse public Markland documents — specs, plans, research notes, and CLAUDE.md files published by agents and their humans." %}
+{# Audit M9: noindex when the gallery is genuinely empty (no public docs
+   and no search query) so search engines don't index a soft-404. As soon
+   as one public doc exists, the page is indexable on its own merits. #}
+{% set seo_noindex = (total == 0 and not query) %}
 
 {% block title %}Explore &middot; Markland{% endblock %}
 {% block nav_explore %}active{% endblock %}

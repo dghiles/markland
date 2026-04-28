@@ -20,6 +20,12 @@ class Competitor:
     best_for: str
     not_ideal_for: str
     angles: tuple[tuple[str, str], ...]  # (heading, paragraph) pairs
+    # SEO copy — keep titles ≤60 chars and descriptions 140–160 chars.
+    # Audit 2026-04-24 M1: every page must end with a unique benefit
+    # line, never the canned "MCP-first sharing, per-doc grants, one link."
+    # tail. Verified per-row in tests/test_alternative_seo_copy.py.
+    seo_title: str
+    seo_description: str
 
 
 MARKLAND = {
@@ -42,6 +48,8 @@ COMPETITORS: tuple[Competitor, ...] = (
         agent_access="Indirect. Your agent has to shell out to the CLI — there is no MCP surface.",
         best_for="Developers who want a one-shot 'paste this command, get a URL' flow from their own terminal.",
         not_ideal_for="Multi-agent or multi-human collaboration on the same doc over time.",
+        seo_title="Markland vs Markshare.to — MCP-native agent publishing",
+        seo_description="Markshare's CLI uploads markdown; Markland's MCP server lets your agent publish, share, and edit the same doc directly — no shell-out, no copy-paste.",
         angles=(
             (
                 "MCP-native vs CLI",
@@ -70,6 +78,8 @@ COMPETITORS: tuple[Competitor, ...] = (
         agent_access="None via MCP. Agents would need repo write access, auth, and a commit/PR flow.",
         best_for="Engineering teams reviewing code, versioning source, and shipping software.",
         not_ideal_for="Sharing a single private document with a non-engineering colleague or client.",
+        seo_title="Markland vs GitHub — Per-doc sharing, no repo access",
+        seo_description="GitHub shares repositories; Markland shares documents. Hand a non-engineer a single private link, with no GitHub account or org membership required.",
         angles=(
             (
                 "Sharing unit mismatch",
@@ -98,6 +108,8 @@ COMPETITORS: tuple[Competitor, ...] = (
         agent_access="Bolt-on. API access exists but the UI is built for humans; no MCP surface; content lives inside a Drive UI an agent cannot reason about.",
         best_for="Teams of humans writing together, leaving comments, tracking suggestions, and using rich formatting.",
         not_ideal_for="Agent-first workflows where the content is markdown end-to-end and the agent is an equal editor.",
+        seo_title="Markland vs Google Docs — Markdown for AI agents",
+        seo_description="Google Docs converts markdown into rich-text blocks; Markland keeps the markdown your agent wrote, byte-identical, and serves it back through MCP.",
         angles=(
             (
                 "Built for human editors, not agents",
@@ -126,6 +138,8 @@ COMPETITORS: tuple[Competitor, ...] = (
         agent_access="API-based, block-shaped. Lossy for agents producing markdown.",
         best_for="Teams building internal wikis, databases, and structured workflows.",
         not_ideal_for="Anyone whose content is plain markdown and who wants that markdown preserved on disk.",
+        seo_title="Markland vs Notion — Markdown stays markdown",
+        seo_description="Notion's block model rewrites markdown on every round-trip; Markland stores the bytes your agent wrote and serves them back, no account wall to readers.",
         angles=(
             (
                 "Blocks vs markdown",
@@ -150,6 +164,8 @@ COMPETITORS: tuple[Competitor, ...] = (
         agent_access="None. A human has to paste.",
         best_for="Humans sharing a one-off snippet from their own browser.",
         not_ideal_for="Anything an agent produces — because the paste step is the friction.",
+        seo_title="Markland vs HackMD — Skip the paste step",
+        seo_description="Paste-and-share tools (HackMD, HedgeDoc, Gist, Pastebin) need a human pasting markdown into a form. Markland lets the agent publish via one MCP call.",
         angles=(
             (
                 "The paste step is the friction",

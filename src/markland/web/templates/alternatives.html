@@ -3,6 +3,34 @@
 
 {% block title %}Markland alternatives &middot; MCP-native markdown publishing{% endblock %}
 
+{% block extra_jsonld %}
+{# ItemList of comparison pages. There is no Schema.org ComparisonTable
+   type; ItemList of WebPage items is the supported pattern. Dynamic
+   per-competitor URLs and names go through |tojson per the partial's
+   contract — items.length tracks COMPETITORS automatically. #}
+{%- set _hub_url = canonical_host ~ "/alternatives" -%}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  "name": "Markland alternatives",
+  "url": {{ _hub_url | tojson }},
+  "itemListOrder": "https://schema.org/ItemListUnordered",
+  "numberOfItems": {{ competitors | length }},
+  "itemListElement": [
+    {%- for c in competitors %}
+    {
+      "@type": "ListItem",
+      "position": {{ loop.index }},
+      "url": {{ (canonical_host ~ "/alternatives/" ~ c.slug) | tojson }},
+      "name": {{ ("Markland vs " ~ c.name) | tojson }}
+    }{% if not loop.last %},{% endif %}
+    {%- endfor %}
+  ]
+}
+</script>
+{% endblock %}
+
 {% block head_extra %}
         /* --- Hero --- */
         .alt-hero {

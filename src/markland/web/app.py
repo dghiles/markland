@@ -77,9 +77,40 @@ def _public_host(request: Request, base_url: str) -> str:
     return f"{scheme}://{request.url.netloc}"
 
 
-def _seo_ctx(request: Request, base_url: str) -> dict:
-    """Context keys every base-extending template needs for the _seo_meta partial."""
-    return {"request": request, "canonical_host": _public_host(request, base_url)}
+def _seo_ctx(
+    request: Request,
+    base_url: str,
+    *,
+    page_template=None,
+) -> dict:
+    """Context keys every base-extending template needs for the _seo_meta partial.
+
+    If `page_template` is supplied, also exposes `page_last_updated` —
+    a YYYY-MM-DD string from the template file's mtime — so the base
+    layout can render a "Last updated:" line per page (audit M7).
+    """
+    ctx: dict = {
+        "request": request,
+        "canonical_host": _public_host(request, base_url),
+    }
+    if page_template is not None:
+        ctx["page_last_updated"] = _template_lastmod(page_template)
+    return ctx
+
+
+def _template_lastmod(template) -> str:
+    """YYYY-MM-DD of `template`'s file mtime (UTC). Audit M7 + M10.
+
+    A single source of truth: when a template is edited, the visible
+    "Last updated:" footer line and the sitemap `<lastmod>` for that
+    page move together.
+    """
+    try:
+        ts = Path(template.filename).stat().st_mtime
+    except (AttributeError, OSError):
+        # Defensive — fall back to today on any filesystem oddity.
+        ts = datetime.now(timezone.utc).timestamp()
+    return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d")
 
 
 def create_app(
@@ -242,29 +273,43 @@ def create_app(
         sitemap_url = f"{_public_host(request, base_url)}/sitemap.xml"
         return PlainTextResponse(render_robots_txt(sitemap_url))
 
+    # Path → template object for the sitemap's per-page lastmod (audit M10).
+    # /alternatives/{slug} all share the same template file, which is
+    # correct: a content edit to a single competitor lives in
+    # competitors.py, not a template, so we'd want their lastmods to
+    # share the alternative.html mtime anyway.
+    _PATH_TEMPLATE = {
+        "/": landing_tpl,
+        "/quickstart": quickstart_tpl,
+        "/explore": explore_tpl,
+        "/alternatives": alternatives_tpl,
+        "/about": about_tpl,
+        "/security": security_tpl,
+        "/privacy": privacy_tpl,
+        "/terms": terms_tpl,
+    }
+
     @app.get("/sitemap.xml", name="sitemap_xml")
     def sitemap_xml(request: Request):
         host = _public_host(request, base_url)
-        paths = [
-            "/",
-            "/quickstart",
-            "/explore",
-            "/alternatives",
-            "/about",
-            "/security",
-            "/privacy",
-            "/terms",
-        ]
+        paths = list(_PATH_TEMPLATE.keys())
         paths += [f"/alternatives/{c.slug}" for c in COMPETITORS]
         today = datetime.now(timezone.utc).date().isoformat()
-        body = build_sitemap_xml(base_url=host, urls=paths, lastmod=today)
+
+        def _lastmod_for(path: str) -> str:
+            tpl = _PATH_TEMPLATE.get(path)
+            if tpl is None and path.startswith("/alternatives/"):
+                tpl = alternative_tpl
+            return _template_lastmod(tpl) if tpl is not None else today
+
+        body = build_sitemap_xml(base_url=host, urls=paths, lastmod=_lastmod_for)
         return Response(body, media_type="application/xml")
 
     @app.get("/quickstart", response_class=HTMLResponse)
     def quickstart(request: Request):
         return HTMLResponse(
             quickstart_tpl.render(
-                **_seo_ctx(request, base_url),
+                **_seo_ctx(request, base_url, page_template=quickstart_tpl),
             )
         )
 
@@ -272,7 +317,7 @@ def create_app(
     def alternatives(request: Request):
         return HTMLResponse(
             alternatives_tpl.render(
-                **_seo_ctx(request, base_url),
+                **_seo_ctx(request, base_url, page_template=alternatives_tpl),
                 competitors=COMPETITORS,
                 markland=MARKLAND,
             )
@@ -287,7 +332,7 @@ def create_app(
             raise HTTPException(status_code=404)
         return HTMLResponse(
             alternative_tpl.render(
-                **_seo_ctx(request, base_url),
+                **_seo_ctx(request, base_url, page_template=alternative_tpl),
                 competitor=competitor,
                 markland=MARKLAND,
             )
@@ -295,19 +340,27 @@ def create_app(
 
     @app.get("/about", response_class=HTMLResponse)
     def about(request: Request):
-        return HTMLResponse(about_tpl.render(**_seo_ctx(request, base_url)))
+        return HTMLResponse(
+            about_tpl.render(**_seo_ctx(request, base_url, page_template=about_tpl))
+        )
 
     @app.get("/security", response_class=HTMLResponse)
     def security(request: Request):
-        return HTMLResponse(security_tpl.render(**_seo_ctx(request, base_url)))
+        return HTMLResponse(
+            security_tpl.render(**_seo_ctx(request, base_url, page_template=security_tpl))
+        )
 
     @app.get("/privacy", response_class=HTMLResponse)
     def privacy(request: Request):
-        return HTMLResponse(privacy_tpl.render(**_seo_ctx(request, base_url)))
+        return HTMLResponse(
+            privacy_tpl.render(**_seo_ctx(request, base_url, page_template=privacy_tpl))
+        )
 
     @app.get("/terms", response_class=HTMLResponse)
     def terms(request: Request):
-        return HTMLResponse(terms_tpl.render(**_seo_ctx(request, base_url)))
+        return HTMLResponse(
+            terms_tpl.render(**_seo_ctx(request, base_url, page_template=terms_tpl))
+        )
 
     @app.get("/admin/waitlist")
     def admin_waitlist(request: Request, limit: int = 50):
@@ -385,7 +438,7 @@ def create_app(
         signup_state = signup if signup in ("ok", "invalid") else None
         return HTMLResponse(
             landing_tpl.render(
-                **_seo_ctx(request, base_url),
+                **_seo_ctx(request, base_url, page_template=landing_tpl),
                 docs=cards,
                 mcp_config_json=mcp_snippet_json,
                 signup=signup_state,
@@ -416,7 +469,7 @@ def create_app(
                 cards.append(_doc_to_card(doc))
             return HTMLResponse(
                 explore_tpl.render(
-                    **_seo_ctx(request, base_url),
+                    **_seo_ctx(request, base_url, page_template=explore_tpl),
                     docs=cards,
                     query=query,
                     total=len(cards),
@@ -430,7 +483,7 @@ def create_app(
         cards = [_doc_to_card(d) for d in docs]
         return HTMLResponse(
             explore_tpl.render(
-                **_seo_ctx(request, base_url),
+                **_seo_ctx(request, base_url, page_template=explore_tpl),
                 docs=cards,
                 query=query,
                 total=len(total_docs),
