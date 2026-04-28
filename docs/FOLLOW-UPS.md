@@ -7,6 +7,14 @@ post-launch sprint should pick up.
 
 ## Security
 
+- **Magic-link single-use enforcement** — `src/markland/service/magic_link.py`
+  uses `URLSafeTimedSerializer` (stateless), so a token can be replayed any
+  number of times within its 15-minute window. Today this is honestly
+  disclosed on `/security` ("a captured link can be used within its 15-minute
+  window before it expires"), but the long-term fix is to track consumed
+  JTIs in a `magic_link_consumed (jti, email, consumed_at)` table and reject
+  reused tokens at `read_magic_link_token`. Update `/security` wording back
+  to "single-use" once enforced.
 - **Agent token leak via query string** — `src/markland/web/routes_agents.py:224`
   redirects to `/settings/agents?new_token={plaintext}` after minting, exposing
   the token to browser history, Referer headers, and proxy access logs. Replace
@@ -141,3 +149,10 @@ post-launch sprint should pick up.
   `RateLimitMiddleware`-outside ordering, document it next to the
   `PrincipalMiddleware` section in `docs/ARCHITECTURE.md` so a future reader
   doesn't "fix" it.
+- **`Organization.founder.name` real name vs handle** — JSON-LD currently
+  emits `{"@type":"Person","name":"@dghiles","url":"https://github.com/dghiles"}`
+  in `src/markland/web/templates/_seo_meta.html`. Schema.org doesn't reject
+  this but Google's rich-card UI treats `name` as a personal name, not a
+  social handle. When ready to publish a real name, swap to
+  `{"name":"<real name>","alternateName":"@dghiles","url":...}` and mirror
+  the byline in `base.html` footer.
