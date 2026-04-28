@@ -157,3 +157,53 @@ class MCPHarness:
 
     def anon(self) -> Caller:
         return Caller(principal=None, token=None, _harness=self)
+
+
+@dataclass
+class Response:
+    """Wrapper over a tool call result. Normalizes success and error shapes."""
+
+    ok: bool
+    value: dict | list | None
+    error_code: str | None
+    error_data: dict
+    raw: Any
+
+    def assert_ok(self) -> None:
+        if not self.ok:
+            raise AssertionError(
+                f"expected ok response, got error_code={self.error_code!r} "
+                f"data={self.error_data!r}"
+            )
+
+    def assert_error(self, code: str, **expected_data: Any) -> None:
+        if self.ok:
+            raise AssertionError(
+                f"expected error_code={code!r}, got ok response value={self.value!r}"
+            )
+        if self.error_code != code:
+            raise AssertionError(
+                f"expected error_code={code!r}, got {self.error_code!r}"
+            )
+        for key, value in expected_data.items():
+            actual = self.error_data.get(key)
+            if actual != value:
+                raise AssertionError(
+                    f"expected error_data[{key!r}]={value!r}, got {actual!r}"
+                )
+
+
+class MCPCallError(Exception):
+    """Raised by Caller.call(...) when the call returns an error."""
+
+    def __init__(self, response: Response, tool: str, kwargs: dict):
+        self.response = response
+        self.tool = tool
+        self.kwargs = kwargs
+        super().__init__(
+            f"{tool}({kwargs!r}) → {response.error_code}: {response.error_data}"
+        )
+
+
+class MCPHarnessError(Exception):
+    """Raised by the harness for setup/usage errors (not tool errors)."""

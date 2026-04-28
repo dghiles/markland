@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from tests._mcp_harness import MCPHarness
 
 
@@ -61,3 +63,36 @@ def test_anon_returns_caller_with_no_principal(mcp):
     assert caller.principal is None
     assert caller.principal_id is None
     assert caller.token is None
+
+
+from tests._mcp_harness import Response
+
+
+def test_response_ok():
+    r = Response(ok=True, value={"id": "doc_x"}, error_code=None, error_data={}, raw=None)
+    r.assert_ok()
+    assert r.value == {"id": "doc_x"}
+
+
+def test_response_error():
+    r = Response(
+        ok=False, value=None, error_code="not_found", error_data={}, raw=None
+    )
+    with pytest.raises(AssertionError):
+        r.assert_ok()
+    r.assert_error("not_found")
+    with pytest.raises(AssertionError):
+        r.assert_error("forbidden")
+
+
+def test_response_assert_error_with_data():
+    r = Response(
+        ok=False,
+        value=None,
+        error_code="conflict",
+        error_data={"current_version": 3},
+        raw=None,
+    )
+    r.assert_error("conflict", current_version=3)
+    with pytest.raises(AssertionError):
+        r.assert_error("conflict", current_version=99)
