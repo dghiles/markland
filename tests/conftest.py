@@ -23,14 +23,16 @@ def pytest_addoption(parser):
 
 
 @pytest.fixture
-def mcp(tmp_path) -> MCPHarness:
+def mcp(tmp_path, request) -> MCPHarness:
     h = MCPHarness.create(tmp_path, mode="direct")
+    h._snapshot_update = request.config.getoption("--snapshot-update")
     yield h
     h.close()
 
 
 @pytest.fixture
-def mcp_http(tmp_path) -> MCPHarness:
+def mcp_http(tmp_path, request) -> MCPHarness:
     h = MCPHarness.create(tmp_path, mode="http")
+    h._snapshot_update = request.config.getoption("--snapshot-update")
     yield h
     h.close()

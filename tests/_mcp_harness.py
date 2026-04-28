@@ -6,6 +6,7 @@ See docs/specs/2026-04-27-mcp-audit-design.md §4-§11 for design.
 from __future__ import annotations
 
 import difflib
+import json
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -80,6 +81,7 @@ class MCPHarness:
     _tmp_path: Path
     _user_cache: dict[str, Caller] = field(default_factory=dict)
     _agent_cache: dict[str, Caller] = field(default_factory=dict)
+    _snapshot_update: bool = False
 
     @classmethod
     def create(cls, tmp_path: Path, *, mode: Mode = "direct") -> "MCPHarness":
@@ -235,6 +237,26 @@ class MCPHarness:
             e for e in self._email_client.sent
             if e["to"].lower() == recipient.lower()
         ]
+
+    def snapshot(self, tool: str, scenario: str, payload: Any) -> None:
+        path = _SNAPSHOT_DIR / f"{tool}.json"
+        existing = json.loads(path.read_text()) if path.exists() else {}
+
+        if self._snapshot_update:
+            existing[scenario] = payload
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(existing, indent=2, sort_keys=True) + "\n")
+            return
+
+        if scenario not in existing:
+            raise AssertionError(
+                f"Missing snapshot for {tool}/{scenario}. "
+                f"Run: pytest --snapshot-update"
+            )
+        if existing[scenario] != payload:
+            raise AssertionError(
+                "snapshot mismatch:\n" + _format_snapshot_diff(existing[scenario], payload)
+            )
 
 
 @dataclass
@@ -516,6 +538,15 @@ def _parse_jsonrpc(resp) -> dict:
 # ---------------------------------------------------------------------------
 
 import re
+
+_SNAPSHOT_DIR = Path(__file__).parent / "fixtures" / "mcp_baseline"
+
+
+def _format_snapshot_diff(expected: Any, actual: Any) -> str:
+    e = json.dumps(expected, indent=2, sort_keys=True).splitlines()
+    a = json.dumps(actual, indent=2, sort_keys=True).splitlines()
+    diff = difflib.unified_diff(e, a, fromfile="expected", tofile="actual", lineterm="")
+    return "\n".join(diff)
 
 _VOLATILE_FIELDS = {
     "id": "<ID>",  # generic — overridden below by id-prefix pattern

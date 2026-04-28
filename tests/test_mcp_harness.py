@@ -231,3 +231,46 @@ def test_as_envelope_recurses_into_lists():
     payload = {"items": [{"id": "doc_a"}, {"id": "doc_b"}]}
     out = as_envelope(payload)
     assert out == {"items": [{"id": "<DOC_ID>"}, {"id": "<DOC_ID>"}]}
+
+
+def test_snapshot_assert_match_writes_in_update_mode(mcp, monkeypatch, tmp_path):
+    fixtures_dir = tmp_path / "snapshots"
+    monkeypatch.setattr(
+        "tests._mcp_harness._SNAPSHOT_DIR", fixtures_dir, raising=False
+    )
+    mcp._snapshot_update = True
+
+    mcp.snapshot("markland_publish", "minimal", {"id": "<DOC_ID>", "version": 1})
+
+    path = fixtures_dir / "markland_publish.json"
+    assert path.exists()
+    import json
+    data = json.loads(path.read_text())
+    assert data["minimal"] == {"id": "<DOC_ID>", "version": 1}
+
+
+def test_snapshot_missing_scenario_raises(mcp, tmp_path, monkeypatch):
+    fixtures_dir = tmp_path / "snapshots"
+    fixtures_dir.mkdir()
+    monkeypatch.setattr(
+        "tests._mcp_harness._SNAPSHOT_DIR", fixtures_dir, raising=False
+    )
+    mcp._snapshot_update = False
+
+    with pytest.raises(AssertionError, match="--snapshot-update"):
+        mcp.snapshot("markland_publish", "minimal", {"id": "<DOC_ID>"})
+
+
+def test_snapshot_mismatch_raises_with_diff(mcp, tmp_path, monkeypatch):
+    fixtures_dir = tmp_path / "snapshots"
+    fixtures_dir.mkdir()
+    (fixtures_dir / "markland_publish.json").write_text(
+        '{"minimal": {"id": "<DOC_ID>", "version": 1}}\n'
+    )
+    monkeypatch.setattr(
+        "tests._mcp_harness._SNAPSHOT_DIR", fixtures_dir, raising=False
+    )
+    mcp._snapshot_update = False
+
+    with pytest.raises(AssertionError, match="snapshot mismatch"):
+        mcp.snapshot("markland_publish", "minimal", {"id": "<DOC_ID>", "version": 2})
