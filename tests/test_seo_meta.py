@@ -112,7 +112,14 @@ def test_alternatives_hub_competitor_names_are_h2(client):
     r = client.get("/alternatives")
     text = r.text
     # Every competitor name should appear inside an <h2>...</h2>; div-wrapping was the regression we just fixed.
-    for name in ("Markshare.to", "GitHub", "Google Docs", "Notion"):
+    # All five COMPETITORS rows must be covered — HackMD's row uses the long compound name from competitors.py.
+    for name in (
+        "Markshare.to",
+        "GitHub",
+        "Google Docs",
+        "Notion",
+        "HackMD / HedgeDoc / Gist / Pastebin",
+    ):
         assert f"<h2 class=\"alt-name\">Markland vs {name}</h2>" in text
 
 
