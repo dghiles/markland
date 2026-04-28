@@ -125,12 +125,28 @@ post-launch sprint should pick up.
 - **Resend signup + DNS verification.** Blocks magic-link email on the live
   deploy. Steps in `docs/runbooks/first-deploy.md` §2. Until this lands,
   sign-ins require extracting the magic-link URL from `flyctl logs`.
-- **Cloudflare R2 bucket + Litestream keys.** The app boots fine without them
-  (`scripts/start.sh` falls back to plain uvicorn), but the SQLite volume is
-  the only copy of data — one lost volume = full data loss. Steps in
-  `docs/runbooks/first-deploy.md` §3 and §7.
-- **CI auto-deploy.** `flyctl tokens create deploy` → add as `FLY_API_TOKEN`
-  GitHub secret; `.github/workflows/deploy.yml` does the rest.
+- **~~Cloudflare R2 bucket + Litestream keys.~~** Done 2026-04-28. R2 bucket
+  `markland-db`, scoped Account API token, secrets `LITESTREAM_BUCKET` /
+  `LITESTREAM_ENDPOINT` / `LITESTREAM_ACCESS_KEY_ID` /
+  `LITESTREAM_SECRET_ACCESS_KEY` set on Fly. Litestream replicating to R2
+  every 10s with 6h snapshot interval and 72h retention.
+- **~~CI auto-deploy.~~** Wired but **disabled** until the launch-group bug
+  below is fixed. `.github/workflows/deploy.yml` only runs on
+  `workflow_dispatch` for now; deploys are operator-driven via
+  `flyctl machine update`.
+- **Fly launch-group registration is broken.** `flyctl deploy` (and the CI
+  workflow that calls it) creates a fresh sibling machine + volume on every
+  run instead of updating the existing machine `185191df264378` in place.
+  The deploy log says *"Your app doesn't have any Fly Launch machines, so
+  we'll create one now"* despite `flyctl machine list` showing the machine
+  with correct `fly_process_group: app` metadata. Workaround in use:
+  `flyctl deploy --build-only` (or rely on CI to push the image), then
+  `flyctl machine update <id> --image <tag>` to roll the existing machine
+  in place. Permanent fix probably needs a Fly support ticket — try
+  `flyctl deploy --strategy immediate` first, or `flyctl scale count 1`
+  to re-register the machine with the launch group, before opening the
+  ticket. While this is unfixed, every accidental `flyctl deploy` creates
+  an orphan that has to be manually destroyed.
 - **Submit `/sitemap.xml` to Google Search Console** — deferred until the
   canonical domain is live. Submitting under `markland.fly.dev` now would
   burn the property on a host we plan to abandon, and Search Console does
