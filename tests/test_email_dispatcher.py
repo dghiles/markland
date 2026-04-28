@@ -156,3 +156,106 @@ async def test_permanent_failure_drops_on_first_attempt(caplog):
 
     assert len(client.calls) == 1, f"expected 1 attempt, got {len(client.calls)}"
     assert any("dropping email" in r.message.lower() for r in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_drop_invokes_sentry_capture(monkeypatch):
+    """Final drop must call sentry_sdk.capture_exception once with tags."""
+    captured: list[dict] = []
+
+    class _FakeSentry:
+        @staticmethod
+        def capture_exception(exc, **kwargs):
+            captured.append({"exc": exc, "kwargs": kwargs})
+
+        class Scope:
+            def __init__(self):
+                self.tags: dict[str, str] = {}
+
+            def set_tag(self, k, v):
+                self.tags[k] = v
+
+        @staticmethod
+        def push_scope():
+            import contextlib
+
+            @contextlib.contextmanager
+            def _cm():
+                scope = _FakeSentry.Scope()
+                captured.append({"scope": scope})
+                yield scope
+
+            return _cm()
+
+    import sys
+    monkeypatch.setitem(sys.modules, "sentry_sdk", _FakeSentry)
+
+    client = _FakeClient(fail_times=99)
+    disp = EmailDispatcher(client, retry_delays=(0.01, 0.01, 0.01))
+    await disp.start()
+    try:
+        disp.enqueue(
+            to="a@b",
+            subject="s",
+            html="<p>h</p>",
+            text="h",
+            metadata={"template": "magic_link"},
+        )
+        for _ in range(80):
+            await asyncio.sleep(0.02)
+            if len(client.calls) >= 4:
+                await asyncio.sleep(0.05)
+                break
+        await disp.drain()
+    finally:
+        await disp.stop()
+
+    capture_calls = [c for c in captured if "exc" in c]
+    scope_calls = [c["scope"] for c in captured if "scope" in c]
+    assert len(capture_calls) == 1, f"expected 1 capture, got {len(capture_calls)}"
+    assert isinstance(capture_calls[0]["exc"], EmailSendError)
+    assert len(scope_calls) == 1
+    tags = scope_calls[0].tags
+    assert tags["template"] == "magic_link"
+    assert tags["failure_kind"] == "transient"
+    assert tags["attempts"] == "4"
+    assert "recipient_hash" in tags
+    # PII guard: raw recipient must not appear in any tag value.
+    assert all("a@b" not in v for v in tags.values())
+
+
+@pytest.mark.asyncio
+async def test_drop_log_carries_structured_action_fields(caplog):
+    import logging
+    caplog.set_level(logging.WARNING, logger="markland.email_dispatcher")
+
+    client = _FakeClient(fail_times=99)
+    disp = EmailDispatcher(client, retry_delays=(0.01, 0.01, 0.01))
+    await disp.start()
+    try:
+        disp.enqueue(
+            to="a@b",
+            subject="s",
+            html="<p>h</p>",
+            text="h",
+            metadata={"template": "user_grant"},
+        )
+        for _ in range(80):
+            await asyncio.sleep(0.02)
+            if len(client.calls) >= 4:
+                await asyncio.sleep(0.05)
+                break
+        await disp.drain()
+    finally:
+        await disp.stop()
+
+    drop_records = [r for r in caplog.records if "dropping email" in r.message.lower()]
+    assert len(drop_records) == 1
+    rec = drop_records[0]
+    action = rec.__dict__.get("action")
+    assert isinstance(action, dict), f"expected dict on record.action, got {type(action)}"
+    assert action["template"] == "user_grant"
+    assert action["attempts"] == 4
+    assert action["error_class"] == "EmailSendError"
+    assert action["failure_kind"] == "transient"
+    assert "recipient_hash" in action
