@@ -56,9 +56,14 @@ magic_davey <9299277+dghiles@users.noreply.github.com>
 | `docs/plans/2026-04-19-hosted-infra.md:659` | `curl-auth-header` | False positive — placeholder string `Bearer local_test` in tutorial curl example. |
 | `docs/plans/2026-04-19-users-and-tokens.md:2743` | `curl-auth-header` | False positive — literal placeholder `Bearer mk_usr_PASTE_HERE`. |
 
-### 3b. Full git history (gitleaks `detect`, 47 commits scanned on both `seo/batch-2-trust-and-conversion` and `origin/main`)
+### 3b. Full git history (gitleaks `detect`)
 
-- Same 2 findings, no others. No real keys ever committed.
+At audit time: 47 commits scanned on both `seo/batch-2-trust-and-conversion`
+and `origin/main`, same 2 findings as the working-tree scan, no others.
+
+Re-run before Task 4 to pick up any commits added since this snapshot was
+written — the count will be higher; only the *findings* need to stay
+unchanged. Real keys would show as new findings, not as a count delta.
 
 ### 3c. Provider-prefix grep (working tree + full history)
 

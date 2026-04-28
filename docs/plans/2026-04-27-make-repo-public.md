@@ -222,12 +222,15 @@ Expected: filter-repo prints "New history written" with a commit count.
 git log --all --format="%an <%ae>%n%cn <%ce>" | sort -u
 ```
 
-Expected (single line):
+Expected (exactly two lines, in some order):
 ```
+GitHub <noreply@github.com>
 magic_davey <9299277+dghiles@users.noreply.github.com>
 ```
 
-If anything else appears, **STOP** and inspect with `git log --all --format="%H %an <%ae>" | grep -v "9299277+dghiles"` to find the missed commits.
+The `GitHub <noreply@github.com>` line is preserved on purpose — those commits were authored by GitHub's merge bot when PRs were squash-merged, and rewriting them would misattribute work GitHub did itself.
+
+If any **other** identity appears, **STOP** and inspect with `git log --all --format="%H %an <%ae>" | grep -vE "9299277\+dghiles|noreply@github\.com"` to find the missed commits.
 
 - [ ] **Step 6: Re-add the remote (filter-repo strips it as a safety measure)**
 
