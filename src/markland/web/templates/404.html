@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% set seo_description = "Page not found. Try the homepage, the quickstart, or the alternatives page." %}
+
+{% block title %}Page not found — Markland{% endblock %}
+
+{% block content %}
+<article style="max-width: 720px; margin: 0 auto; padding: 6rem 1rem 4rem; text-align: center; color: var(--text-2);">
+  <p style="font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin-bottom: 1.2rem;">404 &middot; Not found</p>
+  <h1 style="font-family: var(--font-display); font-size: clamp(2.4rem, 6vw, 3.8rem); line-height: 1.05; letter-spacing: -0.04em; font-weight: 800; margin-bottom: 1.4rem; color: var(--text);">
+    This page isn&rsquo;t here.
+  </h1>
+  <p style="font-size: 1.05rem; max-width: 540px; margin: 0 auto 2.4rem; line-height: 1.55;">
+    The link may be old, or the doc behind it may have been deleted or set to private. Try one of these instead.
+  </p>
+  <p style="display: flex; gap: 0.8rem; justify-content: center; flex-wrap: wrap;">
+    <a href="/" style="display: inline-block; padding: 0.85rem 1.5rem; background: var(--text); color: var(--bg); border-radius: var(--radius-pill); font-family: var(--font-display); font-weight: 600; font-size: 0.95rem; text-decoration: none;">Home</a>
+    <a href="/quickstart" style="display: inline-block; padding: 0.85rem 1.5rem; background: transparent; color: var(--text); border: 1.5px solid var(--outline-strong); border-radius: var(--radius-pill); font-family: var(--font-display); font-weight: 600; font-size: 0.95rem; text-decoration: none;">Quickstart</a>
+    <a href="/alternatives" style="display: inline-block; padding: 0.85rem 1.5rem; background: transparent; color: var(--text); border: 1.5px solid var(--outline-strong); border-radius: var(--radius-pill); font-family: var(--font-display); font-weight: 600; font-size: 0.95rem; text-decoration: none;">Alternatives</a>
+  </p>
+</article>
+{% endblock %}
