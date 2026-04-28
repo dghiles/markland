@@ -157,3 +157,22 @@ def test_http_session_per_caller(mcp_http):
     assert alice._http_session_id is not None
     assert bob._http_session_id is not None
     assert alice._http_session_id != bob._http_session_id
+
+
+def test_mode_equivalence_publish(tmp_path):
+    """Same call in direct and http modes produces equivalent Response shapes."""
+    direct = MCPHarness.create(tmp_path / "d", mode="direct")
+    http = MCPHarness.create(tmp_path / "h", mode="http")
+    try:
+        alice_d = direct.as_user(email="alice@example.com")
+        alice_h = http.as_user(email="alice@example.com")
+
+        rd = alice_d.call_raw("markland_publish", content="# hi")
+        rh = alice_h.call_raw("markland_publish", content="# hi")
+
+        assert rd.ok == rh.ok
+        # IDs and timestamps differ; structure must match.
+        assert set(rd.value) == set(rh.value), (rd.value, rh.value)
+    finally:
+        direct.close()
+        http.close()

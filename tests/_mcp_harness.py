@@ -62,6 +62,8 @@ class MCPHarness:
 
     @classmethod
     def create(cls, tmp_path: Path, *, mode: Mode = "direct") -> "MCPHarness":
+        tmp_path = Path(tmp_path)
+        tmp_path.mkdir(parents=True, exist_ok=True)
         db_path = tmp_path / "harness.db"
         db = init_db(db_path)
         base_url = "https://harness.test"
