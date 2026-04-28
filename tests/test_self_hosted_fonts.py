@@ -79,3 +79,25 @@ def test_document_template_self_hosts_newsreader(client, tmp_path, monkeypatch):
     assert r.status_code == 200
     assert "fonts.googleapis.com" not in r.text
     assert "/assets/fonts/newsreader-roman-var.woff2" in r.text
+
+
+@pytest.mark.parametrize("family", ["Figtree", "DM Mono"])
+def test_landing_declares_font_face(client, family):
+    """Locks in that base.html still declares @font-face for each family.
+    Catches regressions where a future refactor drops a face block but
+    leaves the absence-of-Google-Fonts checks passing."""
+    r = client.get("/")
+    assert f"font-family: '{family}'" in r.text
+
+
+@pytest.mark.parametrize("family", ["Figtree", "DM Mono", "Newsreader"])
+def test_document_declares_font_face(family, tmp_path, monkeypatch):
+    from markland.db import init_db, insert_document
+
+    monkeypatch.setenv("MARKLAND_RATE_LIMIT_ANON_PER_MIN", "1000")
+    conn = init_db(tmp_path / "t3.db")
+    insert_document(conn, "d2", "T", "B", "tok2", is_public=True)
+    app = create_app(conn, mount_mcp=False, base_url="http://testserver")
+    c = TestClient(app)
+    r = c.get("/d/tok2")
+    assert f"font-family: '{family}'" in r.text
