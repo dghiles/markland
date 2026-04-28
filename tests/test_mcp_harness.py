@@ -274,3 +274,21 @@ def test_snapshot_mismatch_raises_with_diff(mcp, tmp_path, monkeypatch):
 
     with pytest.raises(AssertionError, match="snapshot mismatch"):
         mcp.snapshot("markland_publish", "minimal", {"id": "<DOC_ID>", "version": 2})
+
+
+def test_per_test_isolation(tmp_path):
+    """Two harnesses don't share DB state."""
+    a = MCPHarness.create(tmp_path / "a", mode="direct")
+    b = MCPHarness.create(tmp_path / "b", mode="direct")
+    try:
+        alice_a = a.as_user(email="alice@example.com")
+        alice_a.call("markland_publish", content="# from harness a")
+
+        docs_a = a.as_user(email="alice@example.com").call("markland_list")
+        docs_b = b.as_user(email="alice@example.com").call("markland_list")
+
+        assert len(docs_a) == 1
+        assert len(docs_b) == 0
+    finally:
+        a.close()
+        b.close()
