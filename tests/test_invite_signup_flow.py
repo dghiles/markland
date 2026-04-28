@@ -114,3 +114,53 @@ def test_anon_invite_flow_end_to_end(harness):
     # Invite is now consumed.
     inv_row = conn.execute("SELECT uses_remaining FROM invites").fetchone()
     assert inv_row[0] == 0
+
+
+def test_form_post_to_magic_link_returns_html_not_raw_json(harness):
+    """A browser form submit (no JSON header) should land on a 'check your
+    email' HTML page, not display raw {"ok":true}."""
+    client, conn, email_client, token = harness
+
+    resp = client.post(
+        "/api/auth/magic-link",
+        data={"email": "carol@example.com", "return_to": f"/invite/{token}"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 200, resp.text
+    ctype = resp.headers.get("content-type", "")
+    assert "text/html" in ctype, f"expected HTML, got {ctype}: {resp.text[:200]}"
+    assert "Check your email" in resp.text
+    assert '{"ok"' not in resp.text
+
+
+def test_form_post_url_encodes_return_to_in_request_new_link(harness):
+    """The 'request a new one' link must URL-encode return_to so query strings
+    inside it survive a round trip through /login?next=…"""
+    client, _conn, _email_client, _token = harness
+    tricky = "/d/abc?x=1&y=2"
+
+    resp = client.post(
+        "/api/auth/magic-link",
+        data={"email": "eve@example.com", "return_to": tricky},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 200
+    # The reserved '?' and '&' from return_to must be percent-encoded inside
+    # the next= value so they don't leak as sibling query params on /login.
+    assert "next=" in resp.text
+    assert "%3F" in resp.text  # encoded '?'
+    assert "%26" in resp.text  # encoded '&'
+    assert "y=2" not in resp.text  # would indicate a sibling param leak
+
+
+def test_json_post_to_magic_link_still_returns_json(harness):
+    """JSON callers (login page JS, API clients) keep getting JSON."""
+    client, conn, email_client, token = harness
+
+    resp = client.post(
+        "/api/auth/magic-link",
+        json={"email": "dave@example.com", "return_to": "/"},
+    )
+    assert resp.status_code == 200
+    assert "application/json" in resp.headers.get("content-type", "")
+    assert resp.json() == {"ok": True}

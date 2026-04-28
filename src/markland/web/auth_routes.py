@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import sqlite3
 from pathlib import Path
@@ -29,6 +30,8 @@ _TEMPLATE_DIR = Path(__file__).parent / "templates"
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
+_logger = logging.getLogger("markland.auth")
+
 
 class _MagicLinkRequest(BaseModel):
     email: str = Field(min_length=3, max_length=320)
@@ -52,6 +55,7 @@ def build_auth_router(
     )
     login_tpl = env.get_template("login.html")
     verify_sent_tpl = env.get_template("verify_sent.html")
+    magic_link_sent_tpl = env.get_template("magic_link_sent.html")
 
     @router.get("/login", response_class=HTMLResponse)
     def login_page(next: str | None = None) -> HTMLResponse:
@@ -65,7 +69,8 @@ def build_auth_router(
         email: str | None = None
         return_to: str | None = None
         content_type = request.headers.get("content-type", "")
-        if "application/json" in content_type:
+        is_json = "application/json" in content_type
+        if is_json:
             try:
                 body = await request.json()
             except Exception:
@@ -96,9 +101,15 @@ def build_auth_router(
             )
         except Exception:
             # Best-effort: enqueue shouldn't raise; if something else blows up
-            # during URL construction, do not leak it to the caller.
-            pass
-        return JSONResponse({"ok": True})
+            # during URL construction, do not leak it to the caller — but log
+            # so the failure is visible in ops.
+            _logger.exception("send_magic_link failed for %s", email)
+        if is_json:
+            return JSONResponse({"ok": True})
+        safe_next = safe_return_to(return_to) if isinstance(return_to, str) else None
+        return HTMLResponse(
+            magic_link_sent_tpl.render(email=email, return_to=safe_next)
+        )
 
     @router.post("/api/auth/verify")
     def verify(body: _VerifyRequest, response: Response) -> JSONResponse:
