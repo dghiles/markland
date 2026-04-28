@@ -60,6 +60,25 @@ Filter or split the alert by `failure_kind:permanent` if you want to be paged
 *only* on misconfiguration (e.g. a never-verified Resend domain) and not on
 transient outages.
 
+### Alert 3b - Permanent email failures (recommended companion)
+
+Create a second alert filtered to `failure_kind:permanent` with threshold
+**>=1 event in 5 minutes**. A single permanent failure means a configuration
+problem (sandbox-mode Resend, unverified domain, malformed sender) that will
+keep blocking real users until ops intervenes — Alert 3's `>3 in 5 min`
+threshold is tuned for outage volume and won't catch a steady trickle of
+single-user signups against a misconfigured sender.
+
+### PII carve-out
+
+Sentry events for `EmailSendError` may contain the **workspace owner's verified
+sender address** in `exception.values[0].value` — Resend's sandbox-rejection
+text literally names the owner ("You can only send testing emails to your own
+email address (you@example.com)..."). The recipient address is hashed and never
+leaks. The owner address is already known to anyone with Sentry access (you
+gave them the DSN), so this is acceptable; calling it out so it isn't
+mistaken for a leak.
+
 ## Structured logging pairing
 
 `run_app.py` installs a JSON log formatter that promotes `principal_id`,
