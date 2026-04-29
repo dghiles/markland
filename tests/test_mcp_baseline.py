@@ -63,3 +63,28 @@ def test_baseline_markland_get_forbidden_hidden_as_not_found(mcp):
     r = bob.call_raw("markland_get", doc_id=pub["id"])
     # Per spec §12.5: deny-as-NotFound.
     mcp.snapshot("markland_get", "forbidden_hidden", _envelope_of_response(r))
+
+
+# ---------------------------------------------------------------------------
+# Task 16: markland_list
+# ---------------------------------------------------------------------------
+
+def test_baseline_markland_list_owner_only(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    alice.call("markland_publish", content="# Only doc")
+    r = alice.call_raw("markland_list")
+    mcp.snapshot("markland_list", "owner_only", _envelope_of_response(r))
+
+
+def test_baseline_markland_list_with_grant(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    bob = mcp.as_user(email="bob@example.com")
+    pub = alice.call("markland_publish", content="# Shared with Bob")
+    alice.call("markland_grant", doc_id=pub["id"], principal="bob@example.com", level="view")
+    r = bob.call_raw("markland_list")
+    mcp.snapshot("markland_list", "with_grant", _envelope_of_response(r))
+
+
+def test_baseline_markland_list_unauthenticated(mcp):
+    r = mcp.anon().call_raw("markland_list")
+    mcp.snapshot("markland_list", "unauthenticated", _envelope_of_response(r))

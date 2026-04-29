@@ -1,0 +1,35 @@
+{
+  "owner_only": {
+    "kind": "ok",
+    "value": [
+      {
+        "id": "<DOC_ID>",
+        "is_featured": false,
+        "is_public": false,
+        "owner_id": "<USR_ID>",
+        "title": "Only doc",
+        "updated_at": "<TIMESTAMP>"
+      }
+    ]
+  },
+  "unauthenticated": {
+    "code": "internal_error",
+    "data": {
+      "raw": "RuntimeError('no principal on context \u2014 PrincipalMiddleware missing?')"
+    },
+    "kind": "error"
+  },
+  "with_grant": {
+    "kind": "ok",
+    "value": [
+      {
+        "id": "<DOC_ID>",
+        "is_featured": false,
+        "is_public": false,
+        "owner_id": "<USR_ID>",
+        "title": "Shared with Bob",
+        "updated_at": "<TIMESTAMP>"
+      }
+    ]
+  }
+}
