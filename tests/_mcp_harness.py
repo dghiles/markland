@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import difflib
 import json
+import re
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -458,7 +459,6 @@ def _http_call(
     result = data.get("result", {})
     contents = result.get("content", [])
     if contents and contents[0].get("type") == "text":
-        import json
         try:
             value = json.loads(contents[0]["text"])
         except (json.JSONDecodeError, KeyError):
@@ -526,18 +526,14 @@ def _parse_jsonrpc(resp) -> dict:
     if ct.startswith("text/event-stream"):
         for line in resp.text.splitlines():
             if line.startswith("data: "):
-                import json
                 return json.loads(line[len("data: "):])
         return {}
-    import json
     return resp.json()
 
 
 # ---------------------------------------------------------------------------
 # Snapshot helpers
 # ---------------------------------------------------------------------------
-
-import re
 
 _SNAPSHOT_DIR = Path(__file__).parent / "fixtures" / "mcp_baseline"
 
