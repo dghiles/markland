@@ -1,0 +1,30 @@
+{
+  "as_agent_self": {
+    "kind": "ok",
+    "value": [
+      {
+        "created_at": "<TIMESTAMP>",
+        "display_name": "bot",
+        "id": "<AGT_ID>",
+        "owner_id": "<USR_ID>",
+        "owner_type": "user"
+      }
+    ]
+  },
+  "user_with_agents": {
+    "kind": "ok",
+    "value": [
+      {
+        "created_at": "<TIMESTAMP>",
+        "display_name": "bot",
+        "id": "<AGT_ID>",
+        "owner_id": "<USR_ID>",
+        "owner_type": "user"
+      }
+    ]
+  },
+  "user_with_no_agents": {
+    "kind": "ok",
+    "value": []
+  }
+}

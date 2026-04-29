@@ -453,3 +453,26 @@ def test_baseline_markland_whoami_as_agent(mcp):
 def test_baseline_markland_whoami_anon(mcp):
     r = mcp.anon().call_raw("markland_whoami")
     mcp.snapshot("markland_whoami", "anon", _envelope_of_response(r))
+
+
+# ---------------------------------------------------------------------------
+# Task 29: markland_list_my_agents
+# ---------------------------------------------------------------------------
+
+def test_baseline_markland_list_my_agents_user_with_agents(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    mcp.as_agent(owner_email="alice@example.com", display_name="bot")
+    r = alice.call_raw("markland_list_my_agents")
+    mcp.snapshot("markland_list_my_agents", "user_with_agents", _envelope_of_response(r))
+
+
+def test_baseline_markland_list_my_agents_user_with_no_agents(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    r = alice.call_raw("markland_list_my_agents")
+    mcp.snapshot("markland_list_my_agents", "user_with_no_agents", _envelope_of_response(r))
+
+
+def test_baseline_markland_list_my_agents_as_agent_self(mcp):
+    agent = mcp.as_agent(owner_email="alice@example.com", display_name="bot")
+    r = agent.call_raw("markland_list_my_agents")
+    mcp.snapshot("markland_list_my_agents", "as_agent_self", _envelope_of_response(r))
