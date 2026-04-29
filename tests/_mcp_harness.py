@@ -557,6 +557,8 @@ _VOLATILE_FIELDS = {
     "expires_at": "<TIMESTAMP>",
     "completed_at": "<TIMESTAMP>",
     "consumed_at": "<TIMESTAMP>",
+    "granted_at": "<TIMESTAMP>",
+    "revoked_at": "<TIMESTAMP>",
     "owner_id": "<USR_ID>",
     "principal_id": "<PRINCIPAL_ID>",
     "agent_id": "<AGT_ID>",

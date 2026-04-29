@@ -1,0 +1,36 @@
+{
+  "agent_target": {
+    "kind": "ok",
+    "value": {
+      "doc_id": "<DOC_ID>",
+      "granted_at": "<TIMESTAMP>",
+      "granted_by": "<USR_ID>",
+      "level": "edit",
+      "principal_id": "<AGT_ID>",
+      "principal_type": "agent"
+    }
+  },
+  "email_target": {
+    "kind": "ok",
+    "value": {
+      "doc_id": "<DOC_ID>",
+      "granted_at": "<TIMESTAMP>",
+      "granted_by": "<USR_ID>",
+      "level": "view",
+      "principal_id": "<USR_ID>",
+      "principal_type": "user"
+    }
+  },
+  "invalid_email": {
+    "code": "invalid_argument",
+    "data": {
+      "reason": "target_not_found"
+    },
+    "kind": "error"
+  },
+  "non_owner_forbidden": {
+    "code": "not_found",
+    "data": {},
+    "kind": "error"
+  }
+}
