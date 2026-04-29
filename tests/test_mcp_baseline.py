@@ -137,3 +137,60 @@ def test_baseline_markland_share_forbidden_hidden(mcp):
     # Bob has no grant — should get not_found (hidden forbidden)
     r = bob.call_raw("markland_share", doc_id=pub["id"])
     mcp.snapshot("markland_share", "forbidden_hidden", _envelope_of_response(r))
+
+
+# ---------------------------------------------------------------------------
+# Task 19: markland_update
+# ---------------------------------------------------------------------------
+
+def test_baseline_markland_update_success(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# v1", title="Original")
+    # Fetch to get the current version number (publish response doesn't include version)
+    doc = alice.call("markland_get", doc_id=pub["id"])
+    r = alice.call_raw(
+        "markland_update",
+        doc_id=pub["id"],
+        if_version=doc["version"],
+        content="# v2 updated",
+        title="Updated",
+    )
+    mcp.snapshot("markland_update", "success", _envelope_of_response(r))
+
+
+def test_baseline_markland_update_stale_version_conflict(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# v1")
+    # Use stale version 99 to trigger conflict
+    r = alice.call_raw(
+        "markland_update",
+        doc_id=pub["id"],
+        if_version=99,
+        content="# stale",
+    )
+    mcp.snapshot("markland_update", "stale_version_conflict", _envelope_of_response(r))
+
+
+def test_baseline_markland_update_not_found(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    r = alice.call_raw(
+        "markland_update",
+        doc_id="doc_does_not_exist",
+        if_version=1,
+        content="# nope",
+    )
+    mcp.snapshot("markland_update", "not_found", _envelope_of_response(r))
+
+
+def test_baseline_markland_update_forbidden_hidden(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    bob = mcp.as_user(email="bob@example.com")
+    pub = alice.call("markland_publish", content="# Alice doc")
+    # Bob has no access — expect not_found (hidden forbidden); version doesn't matter
+    r = bob.call_raw(
+        "markland_update",
+        doc_id=pub["id"],
+        if_version=1,
+        content="# Bob tries to update",
+    )
+    mcp.snapshot("markland_update", "forbidden_hidden", _envelope_of_response(r))
