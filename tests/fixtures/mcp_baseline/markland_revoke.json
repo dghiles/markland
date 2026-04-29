@@ -1,0 +1,22 @@
+{
+  "existing_grant": {
+    "kind": "ok",
+    "value": {
+      "doc_id": "<DOC_ID>",
+      "principal_id": "<USR_ID>",
+      "revoked": true
+    }
+  },
+  "non_owner_forbidden": {
+    "code": "not_found",
+    "data": {},
+    "kind": "error"
+  },
+  "unknown_target_invalid_argument": {
+    "code": "invalid_argument",
+    "data": {
+      "reason": "target_not_found"
+    },
+    "kind": "error"
+  }
+}
