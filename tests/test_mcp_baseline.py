@@ -364,3 +364,40 @@ def test_baseline_markland_list_grants_non_owner_forbidden(mcp):
     # Bob tries to list grants on Alice's doc — per §12.5 deny-as-NotFound
     r = bob.call_raw("markland_list_grants", doc_id=pub["id"])
     mcp.snapshot("markland_list_grants", "non_owner_forbidden", _envelope_of_response(r))
+
+
+# ---------------------------------------------------------------------------
+# Task 26: markland_create_invite
+# ---------------------------------------------------------------------------
+
+def test_baseline_markland_create_invite_single_use(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# t")
+    r = alice.call_raw(
+        "markland_create_invite",
+        doc_id=pub["id"], level="view",
+        single_use=True, expires_in_days=None,
+    )
+    mcp.snapshot("markland_create_invite", "single_use", _envelope_of_response(r))
+
+
+def test_baseline_markland_create_invite_multi_use_with_expiry(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# t")
+    r = alice.call_raw(
+        "markland_create_invite",
+        doc_id=pub["id"], level="edit",
+        single_use=False, expires_in_days=7,
+    )
+    mcp.snapshot("markland_create_invite", "multi_use_with_expiry", _envelope_of_response(r))
+
+
+def test_baseline_markland_create_invite_non_owner_forbidden(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    bob = mcp.as_user(email="bob@example.com")
+    pub = alice.call("markland_publish", content="# t")
+    r = bob.call_raw(
+        "markland_create_invite",
+        doc_id=pub["id"], level="view",
+    )
+    mcp.snapshot("markland_create_invite", "non_owner_forbidden", _envelope_of_response(r))

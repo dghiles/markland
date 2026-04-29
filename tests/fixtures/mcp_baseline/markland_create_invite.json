@@ -1,0 +1,25 @@
+{
+  "multi_use_with_expiry": {
+    "kind": "ok",
+    "value": {
+      "expires_at": "<TIMESTAMP>",
+      "invite_id": "<INVITE_ID>",
+      "level": "edit",
+      "url": "<INVITE_URL>"
+    }
+  },
+  "non_owner_forbidden": {
+    "code": "not_found",
+    "data": {},
+    "kind": "error"
+  },
+  "single_use": {
+    "kind": "ok",
+    "value": {
+      "expires_at": "<TIMESTAMP>",
+      "invite_id": "<INVITE_ID>",
+      "level": "view",
+      "url": "<INVITE_URL>"
+    }
+  }
+}

@@ -552,6 +552,7 @@ _VOLATILE_FIELDS = {
     "id": "<ID>",  # generic — overridden below by id-prefix pattern
     "share_token": "<SHARE_TOKEN>",
     "share_url": "<SHARE_URL>",
+    "url": "<INVITE_URL>",
     "created_at": "<TIMESTAMP>",
     "updated_at": "<TIMESTAMP>",
     "expires_at": "<TIMESTAMP>",
