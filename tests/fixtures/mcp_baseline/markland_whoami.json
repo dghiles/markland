@@ -22,5 +22,13 @@
       "principal_id": "<USR_ID>",
       "principal_type": "user"
     }
+  },
+  "http_as_user": {
+    "kind": "ok",
+    "value": {
+      "display_name": null,
+      "principal_id": "<USR_ID>",
+      "principal_type": "user"
+    }
   }
 }

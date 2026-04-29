@@ -4,6 +4,13 @@
     "data": {},
     "kind": "error"
   },
+  "http_conflict": {
+    "code": "internal_error",
+    "data": {
+      "raw": "Error executing tool markland_update: conflict: document was modified by another caller"
+    },
+    "kind": "error"
+  },
   "not_found": {
     "code": "not_found",
     "data": {},

@@ -1,4 +1,15 @@
 {
+  "http_owner_only": {
+    "kind": "ok",
+    "value": {
+      "id": "<DOC_ID>",
+      "is_featured": false,
+      "is_public": false,
+      "owner_id": "<USR_ID>",
+      "title": "one",
+      "updated_at": "<TIMESTAMP>"
+    }
+  },
   "owner_only": {
     "kind": "ok",
     "value": [

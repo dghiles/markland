@@ -1,4 +1,14 @@
 {
+  "http_minimal": {
+    "kind": "ok",
+    "value": {
+      "id": "<DOC_ID>",
+      "is_public": false,
+      "owner_id": "<USR_ID>",
+      "share_url": "<SHARE_URL>",
+      "title": "hi"
+    }
+  },
   "minimal": {
     "kind": "ok",
     "value": {

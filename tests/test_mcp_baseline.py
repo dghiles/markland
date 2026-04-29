@@ -556,3 +556,55 @@ def test_baseline_markland_audit_non_admin_forbidden(mcp):
     alice = mcp.as_user(email="alice@example.com")
     r = alice.call_raw("markland_audit")
     mcp.snapshot("markland_audit", "non_admin_forbidden", _envelope_of_response(r))
+
+
+# ---------------------------------------------------------------------------
+# Task 33: HTTP-mode sample suite
+# ---------------------------------------------------------------------------
+
+HTTP_SAMPLE_TOOLS = [
+    "markland_publish",  # doc_envelope return
+    "markland_list",     # list shape
+    "markland_grant",    # mutating + email side-effect
+    "markland_update",   # conflict path
+    "markland_whoami",   # principal-shape
+]
+
+
+def test_http_sample_publish_minimal(mcp_http):
+    alice = mcp_http.as_user(email="alice@example.com")
+    r = alice.call_raw("markland_publish", content="# hi")
+    mcp_http.snapshot("markland_publish", "http_minimal", _envelope_of_response(r))
+
+
+def test_http_sample_list_owner_only(mcp_http):
+    alice = mcp_http.as_user(email="alice@example.com")
+    alice.call("markland_publish", content="# one")
+    r = alice.call_raw("markland_list")
+    mcp_http.snapshot("markland_list", "http_owner_only", _envelope_of_response(r))
+
+
+def test_http_sample_grant_email(mcp_http):
+    alice = mcp_http.as_user(email="alice@example.com")
+    mcp_http.as_user(email="bob@example.com")
+    pub = alice.call("markland_publish", content="# share")
+    r = alice.call_raw(
+        "markland_grant", doc_id=pub["id"],
+        principal="bob@example.com", level="view",
+    )
+    mcp_http.snapshot("markland_grant", "http_email_target", _envelope_of_response(r))
+
+
+def test_http_sample_update_conflict(mcp_http):
+    alice = mcp_http.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# v1")
+    r = alice.call_raw(
+        "markland_update", doc_id=pub["id"], if_version=99, content="# v2",
+    )
+    mcp_http.snapshot("markland_update", "http_conflict", _envelope_of_response(r))
+
+
+def test_http_sample_whoami_user(mcp_http):
+    alice = mcp_http.as_user(email="alice@example.com")
+    r = alice.call_raw("markland_whoami")
+    mcp_http.snapshot("markland_whoami", "http_as_user", _envelope_of_response(r))
