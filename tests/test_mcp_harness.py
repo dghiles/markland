@@ -202,7 +202,7 @@ from tests._mcp_harness import as_envelope
 
 def test_as_envelope_strips_volatile_fields():
     payload = {
-        "id": "doc_abc123",
+        "id": "6d164947bd16f07f",
         "owner_id": "usr_xyz789",
         "share_url": "https://harness.test/d/abc123",
         "share_token": "abc123",
@@ -228,7 +228,7 @@ def test_as_envelope_strips_volatile_fields():
 
 
 def test_as_envelope_recurses_into_lists():
-    payload = {"items": [{"id": "doc_a"}, {"id": "doc_b"}]}
+    payload = {"items": [{"id": "6d164947bd16f07f"}, {"id": "abcdef0123456789"}]}
     out = as_envelope(payload)
     assert out == {"items": [{"id": "<DOC_ID>"}, {"id": "<DOC_ID>"}]}
 

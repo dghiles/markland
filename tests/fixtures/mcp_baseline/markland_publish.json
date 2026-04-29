@@ -2,7 +2,7 @@
   "minimal": {
     "kind": "ok",
     "value": {
-      "id": "<ID>",
+      "id": "<DOC_ID>",
       "is_public": false,
       "owner_id": "<USR_ID>",
       "share_url": "<SHARE_URL>",
@@ -19,7 +19,7 @@
   "with_title_public": {
     "kind": "ok",
     "value": {
-      "id": "<ID>",
+      "id": "<DOC_ID>",
       "is_public": true,
       "owner_id": "<USR_ID>",
       "share_url": "<SHARE_URL>",

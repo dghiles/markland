@@ -570,14 +570,19 @@ def _placeholder_for_id(value: str) -> str:
     """Map id-shaped strings to their typed placeholders."""
     if not isinstance(value, str):
         return value
-    if re.match(r"^doc_[a-f0-9]+$", value):
-        return "<DOC_ID>"
+    # User / agent / invite IDs have explicit prefixes.
     if re.match(r"^usr_[a-f0-9]+$", value):
         return "<USR_ID>"
     if re.match(r"^agt_[a-f0-9]+$", value):
         return "<AGT_ID>"
+    if re.match(r"^inv_[a-f0-9]+$", value):
+        return "<INVITE_ID>"
+    # Invite token (the secret used in URLs).
     if re.match(r"^mk_inv_[A-Za-z0-9_-]+$", value):
         return "<INVITE_TOKEN>"
+    # Document IDs are bare 16-char lowercase hex.
+    if re.match(r"^[a-f0-9]{16}$", value):
+        return "<DOC_ID>"
     return value
 
 
