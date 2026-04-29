@@ -1,0 +1,24 @@
+{
+  "no_grants": {
+    "kind": "ok",
+    "value": []
+  },
+  "non_owner_forbidden": {
+    "code": "not_found",
+    "data": {},
+    "kind": "error"
+  },
+  "with_grants": {
+    "kind": "ok",
+    "value": [
+      {
+        "doc_id": "<DOC_ID>",
+        "granted_at": "<TIMESTAMP>",
+        "granted_by": "<USR_ID>",
+        "level": "view",
+        "principal_id": "<USR_ID>",
+        "principal_type": "user"
+      }
+    ]
+  }
+}
