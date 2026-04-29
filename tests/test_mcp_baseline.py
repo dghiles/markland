@@ -432,3 +432,24 @@ def test_baseline_markland_revoke_invite_non_owner_forbidden(mcp):
     )
     r = bob.call_raw("markland_revoke_invite", invite_id=inv["invite_id"])
     mcp.snapshot("markland_revoke_invite", "non_owner_forbidden", _envelope_of_response(r))
+
+
+# ---------------------------------------------------------------------------
+# Task 28: markland_whoami
+# ---------------------------------------------------------------------------
+
+def test_baseline_markland_whoami_as_user(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    r = alice.call_raw("markland_whoami")
+    mcp.snapshot("markland_whoami", "as_user", _envelope_of_response(r))
+
+
+def test_baseline_markland_whoami_as_agent(mcp):
+    agent = mcp.as_agent(owner_email="alice@example.com", display_name="bot")
+    r = agent.call_raw("markland_whoami")
+    mcp.snapshot("markland_whoami", "as_agent", _envelope_of_response(r))
+
+
+def test_baseline_markland_whoami_anon(mcp):
+    r = mcp.anon().call_raw("markland_whoami")
+    mcp.snapshot("markland_whoami", "anon", _envelope_of_response(r))

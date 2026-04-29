@@ -356,9 +356,7 @@ def build_mcp(
             for a in agents
         ]
 
-    @mcp.tool()
-    def markland_whoami(ctx: Context) -> dict:
-        """Return the caller's identity."""
+    def _whoami(ctx):
         principal = _principal_from_ctx(ctx)
         if principal is None:
             return {
@@ -367,6 +365,11 @@ def build_mcp(
                 "display_name": None,
             }
         return _whoami_for_principal(principal)
+
+    @mcp.tool()
+    def markland_whoami(ctx: Context) -> dict:
+        """Return the caller's identity."""
+        return _whoami(ctx)
 
     @mcp.tool()
     def markland_publish(
@@ -540,6 +543,7 @@ def build_mcp(
         return _clear_status(ctx, doc_id)
 
     handlers.update(
+        markland_whoami=_whoami,
         markland_publish=_publish,
         markland_list=_list,
         markland_get=_get,
