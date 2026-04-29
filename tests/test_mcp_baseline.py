@@ -476,3 +476,38 @@ def test_baseline_markland_list_my_agents_as_agent_self(mcp):
     agent = mcp.as_agent(owner_email="alice@example.com", display_name="bot")
     r = agent.call_raw("markland_list_my_agents")
     mcp.snapshot("markland_list_my_agents", "as_agent_self", _envelope_of_response(r))
+
+
+# ---------------------------------------------------------------------------
+# Task 30: markland_set_status
+# ---------------------------------------------------------------------------
+
+def test_baseline_markland_set_status_reading(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# t")
+    r = alice.call_raw("markland_set_status", doc_id=pub["id"], status="reading")
+    mcp.snapshot("markland_set_status", "reading", _envelope_of_response(r))
+
+
+def test_baseline_markland_set_status_editing_with_note(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# t")
+    r = alice.call_raw(
+        "markland_set_status", doc_id=pub["id"], status="editing", note="wip",
+    )
+    mcp.snapshot("markland_set_status", "editing_with_note", _envelope_of_response(r))
+
+
+def test_baseline_markland_set_status_bad_status_invalid_argument(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# t")
+    r = alice.call_raw("markland_set_status", doc_id=pub["id"], status="grilling")
+    mcp.snapshot("markland_set_status", "bad_status_invalid_argument", _envelope_of_response(r))
+
+
+def test_baseline_markland_set_status_forbidden_hidden(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    bob = mcp.as_user(email="bob@example.com")
+    pub = alice.call("markland_publish", content="# private")
+    r = bob.call_raw("markland_set_status", doc_id=pub["id"], status="reading")
+    mcp.snapshot("markland_set_status", "forbidden_hidden", _envelope_of_response(r))

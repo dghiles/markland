@@ -1,0 +1,30 @@
+{
+  "bad_status_invalid_argument": {
+    "code": "invalid_argument",
+    "data": {
+      "reason": "status must be 'reading' or 'editing'"
+    },
+    "kind": "error"
+  },
+  "editing_with_note": {
+    "kind": "ok",
+    "value": {
+      "doc_id": "<DOC_ID>",
+      "expires_at": "<TIMESTAMP>",
+      "status": "editing"
+    }
+  },
+  "forbidden_hidden": {
+    "code": "not_found",
+    "data": {},
+    "kind": "error"
+  },
+  "reading": {
+    "kind": "ok",
+    "value": {
+      "doc_id": "<DOC_ID>",
+      "expires_at": "<TIMESTAMP>",
+      "status": "reading"
+    }
+  }
+}
