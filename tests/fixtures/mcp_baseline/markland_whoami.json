@@ -3,7 +3,7 @@
     "kind": "ok",
     "value": {
       "display_name": null,
-      "principal_id": "<PRINCIPAL_ID>",
+      "principal_id": "anonymous",
       "principal_type": "user"
     }
   },

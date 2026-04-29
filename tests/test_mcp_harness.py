@@ -227,6 +227,13 @@ def test_as_envelope_strips_volatile_fields():
     assert out["is_public"] is False
 
 
+def test_as_envelope_preserves_anonymous_literal():
+    payload = {"principal_id": "anonymous", "principal_type": "user"}
+    out = as_envelope(payload)
+    assert out["principal_id"] == "anonymous"  # NOT <PRINCIPAL_ID>
+    assert out["principal_type"] == "user"
+
+
 def test_as_envelope_recurses_into_lists():
     payload = {"items": [{"id": "6d164947bd16f07f"}, {"id": "abcdef0123456789"}]}
     out = as_envelope(payload)

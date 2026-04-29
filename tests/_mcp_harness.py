@@ -569,6 +569,9 @@ _VOLATILE_FIELDS = {
 }
 
 
+_STABLE_PRINCIPAL_LITERALS = {"anonymous"}  # Don't mask these with _VOLATILE_FIELDS.
+
+
 def _placeholder_for_id(value: str) -> str:
     """Map id-shaped strings to their typed placeholders."""
     if not isinstance(value, str):
@@ -601,6 +604,8 @@ def as_envelope(value: Any) -> Any:
                 typed = _placeholder_for_id(v)
                 if typed != v:
                     out[k] = typed
+                elif v in _STABLE_PRINCIPAL_LITERALS:
+                    out[k] = v  # Preserve stable literals over field-name masking.
                 elif k in _VOLATILE_FIELDS:
                     out[k] = _VOLATILE_FIELDS[k]
                 else:
