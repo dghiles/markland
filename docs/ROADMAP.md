@@ -24,9 +24,9 @@ Current selection: **"Shared notes for you and your agents."** — collaboration
 
 ---
 
-## Where we are (2026-04-28)
+## Where we are (2026-04-29)
 
-Code-complete on the v1 build (10 plans, 616 tests collected). Live deploy at
+Code-complete on the v1 build (10 plans, 686 tests collected). Live deploy at
 `markland.fly.dev`, CI auto-deploy on push to `main` working since v3. Repo
 public on GitHub. Marketing surface up: landing + waitlist, `/alternatives`
 hub with five competitors, save-to-Markland CTA, trust-floor stub pages. SEO
@@ -34,11 +34,16 @@ foundation shipped (meta/OG/JSON-LD, robots.txt, dynamic sitemap, security
 headers, GEO paragraph) plus batch 1 of the post-audit action plan plus
 self-hosted Figtree/DM Mono/Newsreader. MCP audit advanced from spec to seven
 implementation plans. First install-flow fixes shipped from the 2026-04-24
-dogfood run.
+dogfood run. Five additional "Next"-lane plans landed 2026-04-28 (Resend
+domain verify, security follow-ups batch, Phase 0 dogfood walkthrough, Sentry
+DSN + alerts, agent token leak fix) — each ready to execute.
 
-**Blocked on user-side work:** buying `markland.dev` (blocks Resend domain
-verify → magic-link email → real sign-ins; blocks GSC sitemap submission;
-blocks `301 → markland.dev` redirects).
+**Domain registered 2026-04-29:** `markland.dev` bought at Porkbun
+(daveyhiles@gmail.com, registry expires 2027-04-29, locked, contact privacy
+on, Porkbun nameservers active: `curitiba|fortaleza|maceio|salvador.ns.porkbun.com`).
+This unblocks the cutover work that the prior "blocked on user" line gated:
+Fly cert + dedicated IPv4/IPv6, DNS records, Resend domain verify (→ real
+magic-link sign-ins), GSC sitemap submission, 301 redirects from `fly.dev`.
 
 ---
 
@@ -48,21 +53,21 @@ Active or imminent. Items here have a plan or a clear next action.
 
 - **MCP audit + test harness** — spec at `docs/specs/2026-04-27-mcp-audit-design.md`; seven implementation plans landed 2026-04-28 under `docs/plans/2026-04-27-mcp-{harness-and-baseline,axis-1-6-naming-docstrings,axis-2-7-return-shapes-pagination,axis-3-error-model,axis-4-8-granularity-idempotency,axis-5-new-tools,phase-b-deprecation-removal}.md`. Plans sequence the work: harness + baselines first, then six audit axes, then deprecation/removal phase. Next action: execute Plan 1 (harness + baselines) before any axis work.
 - **SEO action plan batch 2+** — remaining items from `docs/audits/2026-04-24-seo-audit/ACTION-PLAN.md`. Critical leftovers: **C3** (HTML 404 page), **C4** (expand `/about /security /privacy /terms` to 250-300 words each — content, not code). High items beyond H2/H3/H5/H6 (already in batch 1).
-- **Buy `markland.dev` and cut over** — sequence in `docs/FOLLOW-UPS.md` Deploy/operations §1. Single user-side action with the largest cascade: unblocks Resend → real magic-link sign-ins, unblocks GSC, unblocks 301 redirects from fly.dev.
+- **Cut over to `markland.dev`** — domain registered 2026-04-29 (Porkbun). Sequence in `docs/FOLLOW-UPS.md` Deploy/operations §1: (1) `flyctl ips allocate-v4 --yes` (~$2/mo) + `allocate-v6`, (2) decide DNS strategy (Porkbun A/AAAA direct vs. switch nameservers to Cloudflare for proxy/CDN), (3) `flyctl certs add markland.dev` and poll until Issued, (4) flip `fly.toml` `MARKLAND_BASE_URL` to `https://markland.dev`, (5) re-run `scripts/hosted_smoke.sh`. Then sequence the dependent unblocks: Resend domain verify (plan: `docs/plans/2026-04-28-resend-domain-verify.md`) → magic-link sign-ins → GSC sitemap submission → 301 redirects from `fly.dev`.
 - **Install/onboarding flow simplification** — first-time CLI install today is six steps across two channels: CLI shows `user_code` → visit `/device` → email form → check inbox → click magic link → bounce back → enter code → confirm. Device-flow assumes you're already signed in, and magic-link is the sign-in primitive, so they stack. Plan `docs/plans/2026-04-24-setup-install-ux-fix.md` captures the four leverage-ordered cleanup options. **Option 1 shipped 2026-04-28 (PR #12 + #13)**: `?next=` now threads through `/login` → magic-link → `/verify` and is url-encoded so the `user_code` survives the `/device/confirm` bounce. Remaining: (2) prefill `user_code` via `/device?code=…` (route already supports it — runbook needs to construct the link); (3) single-link install — CLI runbook generates one `/device?code=…` URL so sign-in + code-entry happen on the same page; (4) skip device flow for browser-first users — sign in, hit "Connect Claude Code", copy one-shot token from `/me/tokens` into `claude mcp add`. Worth a brainstorm pass on (2)-(4) before launch — right answer depends on whether the primary install audience is browser-first humans or CLI-first agents.
 
 ## Next
 
 Queued. Most are post-domain-cutover.
 
-- **Resend domain verify** + `flyctl secrets set RESEND_API_KEY=...`. Without this, magic-link sign-ins on the live deploy require pulling the URL from `flyctl logs`.
-- **R2 bucket + Litestream keys.** App boots fine without them (`scripts/start.sh` falls back to plain uvicorn), but the SQLite volume is the only copy of data — one lost volume = full loss.
-- **GSC sitemap submission** — deferred until canonical domain. Submitting under fly.dev burns the property on a host we plan to abandon. See `docs/FOLLOW-UPS.md` Deploy/operations §6.
+- **Resend domain verify** — plan: `docs/plans/2026-04-28-resend-domain-verify.md`. DNS records (SPF/DKIM/DMARC/return-path) on the new `markland.dev` zone, `flyctl secrets set RESEND_API_KEY=...`, redeploy, smoke-test magic-link. Now executable; was blocked on domain.
+- **R2 bucket + Litestream keys** — app boots fine without them (`scripts/start.sh` falls back to plain uvicorn), but the SQLite volume is the only copy of data. *(Already done per FOLLOW-UPS.md §3 — verify if this line should move to Shipped.)*
+- **GSC sitemap submission** — now actionable post-cutover. Verify `https://markland.dev/sitemap.xml` loads, add domain property in GSC, verify via DNS TXT, submit. See `docs/FOLLOW-UPS.md` Deploy/operations §6.
 - **CSRF on save routes** — `/d/{t}/fork`, `/d/{t}/bookmark` accept plain form/fetch with `SameSite=Lax`. First user-authored mutating POSTs in the app; ship before any real users.
-- **Agent token query-string leak** — `routes_agents.py:224` redirects with the plaintext token in the URL. Replace with signed flash cookie. Audit `identity_routes.py` for the same pattern.
-- **Other security follow-ups from FOLLOW-UPS.md** — `user_code` redirect escape, per-IP rate limit on `/device/confirm`, lock-after-N-failed-confirms, `grant_by_principal_id` defensive check, append-only audit enforcement, `/admin/audit` middleware widening.
-- **Phase 0 dogfooding walkthrough** against live deploy — `docs/runbooks/phase-0-checklist.md`. Blocked on Resend.
-- **Sentry DSN + alert wiring** — `docs/runbooks/sentry-setup.md`.
+- **Agent token query-string leak** — plan: `docs/plans/2026-04-28-agent-token-leak-fix.md`. Replace `routes_agents.py:223-225` redirect with signed flash-cookie pattern.
+- **Security follow-ups batch** — plan: `docs/plans/2026-04-28-security-followups-batch.md`. Six items from FOLLOW-UPS.md (`user_code` redirect escape, per-IP rate limit on `/device/confirm`, lock-after-N-failed-confirms, `grant_by_principal_id` defensive check, append-only audit enforcement, `/admin/audit` middleware widening).
+- **Phase 0 dogfooding walkthrough** against live deploy — plan: `docs/plans/2026-04-28-phase-0-dogfood.md` (operationalizes `docs/runbooks/phase-0-checklist.md`). Blocked on Resend cutover.
+- **Sentry DSN + alert wiring** — plan: `docs/plans/2026-04-28-sentry-dsn-alerts.md`.
 
 ## Later
 
@@ -83,6 +88,8 @@ date it landed.
 
 ### Hosted infrastructure + ops
 
+- **2026-04-29** — Domain `markland.dev` registered at Porkbun (registry expires 2027-04-29, locked, contact privacy on, Porkbun nameservers active). Unblocks the cutover sequence.
+- **2026-04-28** — Five "Next"-lane plans landed under `docs/plans/2026-04-28-*.md`: Resend domain verify, security follow-ups batch (6 items), Phase 0 dogfood walkthrough, Sentry DSN + alerts, agent token query-string leak fix.
 - **2026-04-28** — Repo public on GitHub. Three-phase make-repo-public plan executed: audit, git-filter-repo identity scrub of full history, publish + branch protection ruleset on `main` (no direct push, no force push, signed reviews via PR). Unblocks GitHub Pro APIs and provides marketing/credibility.
 - **2026-04-24** — `/admin/waitlist` JSON endpoint for signup signals.
 - **2026-04-20** — CI auto-deploy working end-to-end (release v3 from `deploy.yml`).

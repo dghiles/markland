@@ -115,13 +115,18 @@ post-launch sprint should pick up.
 
 ## Deploy / operations (post-2026-04-20 first-deploy)
 
-- **Buy `markland.dev` and re-cutover.** App currently runs at
-  `markland.fly.dev`. When the domain lands: (1) `flyctl ips allocate-v4 --yes`
-  (~$2/mo), (2) add Cloudflare `A`/`AAAA` records DNS-only (grey cloud) to the
-  dedicated IPs, (3) `flyctl certs add markland.dev` and poll until Issued,
-  (4) edit `fly.toml` `MARKLAND_BASE_URL` back to `https://markland.dev`,
-  `flyctl deploy`, (5) re-run `scripts/hosted_smoke.sh` with
-  `MARKLAND_URL=https://markland.dev`.
+- **Cut over to `markland.dev`.** Domain registered 2026-04-29 at Porkbun
+  (Porkbun nameservers active: `curitiba|fortaleza|maceio|salvador.ns.porkbun.com`).
+  App still runs at `markland.fly.dev`. Cutover: (1) `flyctl ips allocate-v4 --yes`
+  (~$2/mo) + `flyctl ips allocate-v6`, (2) **DNS strategy decision** — either
+  (a) Porkbun DNS direct: add `A` / `AAAA` records on Porkbun pointing at the
+  Fly IPs (simplest, no proxy/CDN), or (b) switch nameservers to Cloudflare
+  and add `A`/`AAAA` DNS-only / grey-cloud (preserves the option to enable
+  proxy/CDN/WAF later), (3) `flyctl certs add markland.dev` and poll until
+  Issued, (4) edit `fly.toml` `MARKLAND_BASE_URL` from `https://markland.fly.dev`
+  to `https://markland.dev`, `flyctl deploy`, (5) re-run `scripts/hosted_smoke.sh`
+  with `MARKLAND_URL=https://markland.dev`, (6) add a 301 redirect from
+  `markland.fly.dev` → `markland.dev` (or document it as an SEO follow-up).
 - **Resend signup + DNS verification.** Blocks magic-link email on the live
   deploy. Steps in `docs/runbooks/first-deploy.md` §2. Until this lands,
   sign-ins require extracting the magic-link URL from `flyctl logs`.
