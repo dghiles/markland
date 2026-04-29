@@ -401,3 +401,34 @@ def test_baseline_markland_create_invite_non_owner_forbidden(mcp):
         doc_id=pub["id"], level="view",
     )
     mcp.snapshot("markland_create_invite", "non_owner_forbidden", _envelope_of_response(r))
+
+
+# ---------------------------------------------------------------------------
+# Task 27: markland_revoke_invite
+# ---------------------------------------------------------------------------
+
+def test_baseline_markland_revoke_invite_existing(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# t")
+    inv = alice.call(
+        "markland_create_invite", doc_id=pub["id"], level="view",
+    )
+    r = alice.call_raw("markland_revoke_invite", invite_id=inv["invite_id"])
+    mcp.snapshot("markland_revoke_invite", "existing", _envelope_of_response(r))
+
+
+def test_baseline_markland_revoke_invite_not_found(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    r = alice.call_raw("markland_revoke_invite", invite_id="inv_does_not_exist")
+    mcp.snapshot("markland_revoke_invite", "not_found", _envelope_of_response(r))
+
+
+def test_baseline_markland_revoke_invite_non_owner_forbidden(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    bob = mcp.as_user(email="bob@example.com")
+    pub = alice.call("markland_publish", content="# t")
+    inv = alice.call(
+        "markland_create_invite", doc_id=pub["id"], level="view",
+    )
+    r = bob.call_raw("markland_revoke_invite", invite_id=inv["invite_id"])
+    mcp.snapshot("markland_revoke_invite", "non_owner_forbidden", _envelope_of_response(r))
