@@ -88,3 +88,26 @@ def test_baseline_markland_list_with_grant(mcp):
 def test_baseline_markland_list_unauthenticated(mcp):
     r = mcp.anon().call_raw("markland_list")
     mcp.snapshot("markland_list", "unauthenticated", _envelope_of_response(r))
+
+
+# ---------------------------------------------------------------------------
+# Task 17: markland_search
+# ---------------------------------------------------------------------------
+
+def test_baseline_markland_search_match(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    alice.call("markland_publish", content="# Unique Findable Content", title="SearchableDoc")
+    r = alice.call_raw("markland_search", query="Findable")
+    mcp.snapshot("markland_search", "match", _envelope_of_response(r))
+
+
+def test_baseline_markland_search_no_match(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    alice.call("markland_publish", content="# Hello World")
+    r = alice.call_raw("markland_search", query="xyzzyquux_no_match_99999")
+    mcp.snapshot("markland_search", "no_match", _envelope_of_response(r))
+
+
+def test_baseline_markland_search_unauthenticated(mcp):
+    r = mcp.anon().call_raw("markland_search", query="anything")
+    mcp.snapshot("markland_search", "unauthenticated", _envelope_of_response(r))
