@@ -111,3 +111,29 @@ def test_baseline_markland_search_no_match(mcp):
 def test_baseline_markland_search_unauthenticated(mcp):
     r = mcp.anon().call_raw("markland_search", query="anything")
     mcp.snapshot("markland_search", "unauthenticated", _envelope_of_response(r))
+
+
+# ---------------------------------------------------------------------------
+# Task 18: markland_share
+# ---------------------------------------------------------------------------
+
+def test_baseline_markland_share_owner_share(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# Shareable", title="My Share Doc")
+    r = alice.call_raw("markland_share", doc_id=pub["id"])
+    mcp.snapshot("markland_share", "owner_share", _envelope_of_response(r))
+
+
+def test_baseline_markland_share_not_found(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    r = alice.call_raw("markland_share", doc_id="doc_does_not_exist")
+    mcp.snapshot("markland_share", "not_found", _envelope_of_response(r))
+
+
+def test_baseline_markland_share_forbidden_hidden(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    bob = mcp.as_user(email="bob@example.com")
+    pub = alice.call("markland_publish", content="# Alice private")
+    # Bob has no grant — should get not_found (hidden forbidden)
+    r = bob.call_raw("markland_share", doc_id=pub["id"])
+    mcp.snapshot("markland_share", "forbidden_hidden", _envelope_of_response(r))
