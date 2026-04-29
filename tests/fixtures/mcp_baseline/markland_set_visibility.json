@@ -1,0 +1,23 @@
+{
+  "make_private": {
+    "kind": "ok",
+    "value": {
+      "id": "<DOC_ID>",
+      "is_public": false,
+      "share_url": "<SHARE_URL>"
+    }
+  },
+  "make_public": {
+    "kind": "ok",
+    "value": {
+      "id": "<DOC_ID>",
+      "is_public": true,
+      "share_url": "<SHARE_URL>"
+    }
+  },
+  "non_owner_forbidden": {
+    "code": "not_found",
+    "data": {},
+    "kind": "error"
+  }
+}
