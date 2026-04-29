@@ -511,3 +511,22 @@ def test_baseline_markland_set_status_forbidden_hidden(mcp):
     pub = alice.call("markland_publish", content="# private")
     r = bob.call_raw("markland_set_status", doc_id=pub["id"], status="reading")
     mcp.snapshot("markland_set_status", "forbidden_hidden", _envelope_of_response(r))
+
+
+# ---------------------------------------------------------------------------
+# Task 31: markland_clear_status
+# ---------------------------------------------------------------------------
+
+def test_baseline_markland_clear_status_existing(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# t")
+    alice.call("markland_set_status", doc_id=pub["id"], status="reading")
+    r = alice.call_raw("markland_clear_status", doc_id=pub["id"])
+    mcp.snapshot("markland_clear_status", "existing", _envelope_of_response(r))
+
+
+def test_baseline_markland_clear_status_idempotent_no_existing(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# t")
+    r = alice.call_raw("markland_clear_status", doc_id=pub["id"])
+    mcp.snapshot("markland_clear_status", "idempotent_no_existing", _envelope_of_response(r))

@@ -1,0 +1,14 @@
+{
+  "existing": {
+    "kind": "ok",
+    "value": {
+      "ok": true
+    }
+  },
+  "idempotent_no_existing": {
+    "kind": "ok",
+    "value": {
+      "ok": true
+    }
+  }
+}
