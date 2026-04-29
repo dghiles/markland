@@ -194,3 +194,76 @@ def test_baseline_markland_update_forbidden_hidden(mcp):
         content="# Bob tries to update",
     )
     mcp.snapshot("markland_update", "forbidden_hidden", _envelope_of_response(r))
+
+
+# ---------------------------------------------------------------------------
+# Task 20: markland_delete
+# ---------------------------------------------------------------------------
+
+def test_baseline_markland_delete_success(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# To be deleted")
+    r = alice.call_raw("markland_delete", doc_id=pub["id"])
+    mcp.snapshot("markland_delete", "success", _envelope_of_response(r))
+
+
+def test_baseline_markland_delete_not_found(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    r = alice.call_raw("markland_delete", doc_id="doc_does_not_exist")
+    mcp.snapshot("markland_delete", "not_found", _envelope_of_response(r))
+
+
+def test_baseline_markland_delete_non_owner_forbidden_hidden(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    bob = mcp.as_user(email="bob@example.com")
+    pub = alice.call("markland_publish", content="# Alice private doc")
+    # Per spec §12.5: deny-as-NotFound for non-owners on hidden docs.
+    r = bob.call_raw("markland_delete", doc_id=pub["id"])
+    mcp.snapshot("markland_delete", "non_owner_forbidden_hidden", _envelope_of_response(r))
+
+
+# ---------------------------------------------------------------------------
+# Task 21: markland_set_visibility
+# ---------------------------------------------------------------------------
+
+def test_baseline_markland_set_visibility_make_public(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# Private doc", public=False)
+    r = alice.call_raw("markland_set_visibility", doc_id=pub["id"], public=True)
+    mcp.snapshot("markland_set_visibility", "make_public", _envelope_of_response(r))
+
+
+def test_baseline_markland_set_visibility_make_private(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# Public doc", public=True)
+    r = alice.call_raw("markland_set_visibility", doc_id=pub["id"], public=False)
+    mcp.snapshot("markland_set_visibility", "make_private", _envelope_of_response(r))
+
+
+def test_baseline_markland_set_visibility_non_owner_forbidden(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    bob = mcp.as_user(email="bob@example.com")
+    pub = alice.call("markland_publish", content="# Alice doc")
+    # Per spec §12.5: deny-as-NotFound for non-owners on hidden docs.
+    r = bob.call_raw("markland_set_visibility", doc_id=pub["id"], public=True)
+    mcp.snapshot("markland_set_visibility", "non_owner_forbidden", _envelope_of_response(r))
+
+
+# ---------------------------------------------------------------------------
+# Task 22: markland_feature
+# ---------------------------------------------------------------------------
+
+def test_baseline_markland_feature_admin_feature(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    admin = mcp.as_admin()
+    pub = alice.call("markland_publish", content="# Featured doc", public=True)
+    r = admin.call_raw("markland_feature", doc_id=pub["id"], featured=True)
+    mcp.snapshot("markland_feature", "admin_feature", _envelope_of_response(r))
+
+
+def test_baseline_markland_feature_non_admin_forbidden(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# Not featured", public=True)
+    # alice is a regular user (not admin) — server returns {"error": "forbidden"}
+    r = alice.call_raw("markland_feature", doc_id=pub["id"], featured=True)
+    mcp.snapshot("markland_feature", "non_admin_forbidden", _envelope_of_response(r))
