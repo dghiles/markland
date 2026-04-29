@@ -1,0 +1,19 @@
+{
+  "existing": {
+    "kind": "ok",
+    "value": {
+      "invite_id": "<INVITE_ID>",
+      "revoked": true
+    }
+  },
+  "non_owner_forbidden": {
+    "code": "not_found",
+    "data": {},
+    "kind": "error"
+  },
+  "not_found": {
+    "code": "not_found",
+    "data": {},
+    "kind": "error"
+  }
+}

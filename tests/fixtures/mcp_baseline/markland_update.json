@@ -1,0 +1,34 @@
+{
+  "forbidden_hidden": {
+    "code": "not_found",
+    "data": {},
+    "kind": "error"
+  },
+  "http_conflict": {
+    "code": "internal_error",
+    "data": {
+      "raw": "Error executing tool markland_update: conflict: document was modified by another caller"
+    },
+    "kind": "error"
+  },
+  "not_found": {
+    "code": "not_found",
+    "data": {},
+    "kind": "error"
+  },
+  "stale_version_conflict": {
+    "code": "conflict",
+    "data": {},
+    "kind": "error"
+  },
+  "success": {
+    "kind": "ok",
+    "value": {
+      "id": "<DOC_ID>",
+      "share_url": "<SHARE_URL>",
+      "title": "Updated",
+      "updated_at": "<TIMESTAMP>",
+      "version": 2
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "anon": {
+    "kind": "ok",
+    "value": {
+      "display_name": null,
+      "principal_id": "anonymous",
+      "principal_type": "user"
+    }
+  },
+  "as_agent": {
+    "kind": "ok",
+    "value": {
+      "display_name": "bot",
+      "principal_id": "<AGT_ID>",
+      "principal_type": "agent"
+    }
+  },
+  "as_user": {
+    "kind": "ok",
+    "value": {
+      "display_name": null,
+      "principal_id": "<USR_ID>",
+      "principal_type": "user"
+    }
+  },
+  "http_as_user": {
+    "kind": "ok",
+    "value": {
+      "display_name": null,
+      "principal_id": "<USR_ID>",
+      "principal_type": "user"
+    }
+  }
+}

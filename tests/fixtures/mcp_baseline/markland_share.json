@@ -1,0 +1,19 @@
+{
+  "forbidden_hidden": {
+    "code": "not_found",
+    "data": {},
+    "kind": "error"
+  },
+  "not_found": {
+    "code": "not_found",
+    "data": {},
+    "kind": "error"
+  },
+  "owner_share": {
+    "kind": "ok",
+    "value": {
+      "share_url": "<SHARE_URL>",
+      "title": "My Share Doc"
+    }
+  }
+}

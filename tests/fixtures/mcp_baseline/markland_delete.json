@@ -1,0 +1,19 @@
+{
+  "non_owner_forbidden_hidden": {
+    "code": "not_found",
+    "data": {},
+    "kind": "error"
+  },
+  "not_found": {
+    "code": "not_found",
+    "data": {},
+    "kind": "error"
+  },
+  "success": {
+    "kind": "ok",
+    "value": {
+      "deleted": true,
+      "id": "<DOC_ID>"
+    }
+  }
+}

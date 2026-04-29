@@ -1,0 +1,26 @@
+{
+  "match": {
+    "kind": "ok",
+    "value": [
+      {
+        "id": "<DOC_ID>",
+        "is_featured": false,
+        "is_public": false,
+        "owner_id": "<USR_ID>",
+        "title": "SearchableDoc",
+        "updated_at": "<TIMESTAMP>"
+      }
+    ]
+  },
+  "no_match": {
+    "kind": "ok",
+    "value": []
+  },
+  "unauthenticated": {
+    "code": "internal_error",
+    "data": {
+      "raw": "RuntimeError('no principal on context \u2014 PrincipalMiddleware missing?')"
+    },
+    "kind": "error"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "admin_feature": {
+    "kind": "ok",
+    "value": {
+      "id": "<DOC_ID>",
+      "is_featured": true,
+      "is_public": true
+    }
+  },
+  "non_admin_forbidden": {
+    "code": "forbidden",
+    "data": {},
+    "kind": "error"
+  }
+}

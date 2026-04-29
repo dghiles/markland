@@ -1,0 +1,39 @@
+{
+  "http_minimal": {
+    "kind": "ok",
+    "value": {
+      "id": "<DOC_ID>",
+      "is_public": false,
+      "owner_id": "<USR_ID>",
+      "share_url": "<SHARE_URL>",
+      "title": "hi"
+    }
+  },
+  "minimal": {
+    "kind": "ok",
+    "value": {
+      "id": "<DOC_ID>",
+      "is_public": false,
+      "owner_id": "<USR_ID>",
+      "share_url": "<SHARE_URL>",
+      "title": "Hello"
+    }
+  },
+  "unauthenticated": {
+    "code": "internal_error",
+    "data": {
+      "raw": "RuntimeError('no principal on context \u2014 PrincipalMiddleware missing?')"
+    },
+    "kind": "error"
+  },
+  "with_title_public": {
+    "kind": "ok",
+    "value": {
+      "id": "<DOC_ID>",
+      "is_public": true,
+      "owner_id": "<USR_ID>",
+      "share_url": "<SHARE_URL>",
+      "title": "My Title"
+    }
+  }
+}
