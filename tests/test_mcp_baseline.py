@@ -530,3 +530,29 @@ def test_baseline_markland_clear_status_idempotent_no_existing(mcp):
     pub = alice.call("markland_publish", content="# t")
     r = alice.call_raw("markland_clear_status", doc_id=pub["id"])
     mcp.snapshot("markland_clear_status", "idempotent_no_existing", _envelope_of_response(r))
+
+
+# ---------------------------------------------------------------------------
+# Task 32: markland_audit
+# ---------------------------------------------------------------------------
+
+def test_baseline_markland_audit_admin_no_filter(mcp):
+    admin = mcp.as_admin()
+    alice = mcp.as_user(email="alice@example.com")
+    alice.call("markland_publish", content="# t")  # seed an audit row
+    r = admin.call_raw("markland_audit")
+    mcp.snapshot("markland_audit", "admin_no_filter", _envelope_of_response(r))
+
+
+def test_baseline_markland_audit_admin_with_doc_filter(mcp):
+    admin = mcp.as_admin()
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# t")
+    r = admin.call_raw("markland_audit", doc_id=pub["id"])
+    mcp.snapshot("markland_audit", "admin_with_doc_filter", _envelope_of_response(r))
+
+
+def test_baseline_markland_audit_non_admin_forbidden(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    r = alice.call_raw("markland_audit")
+    mcp.snapshot("markland_audit", "non_admin_forbidden", _envelope_of_response(r))

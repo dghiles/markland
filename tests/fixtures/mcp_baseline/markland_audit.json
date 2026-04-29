@@ -1,0 +1,41 @@
+{
+  "admin_no_filter": {
+    "kind": "ok",
+    "value": [
+      {
+        "action": "publish",
+        "created_at": "<TIMESTAMP>",
+        "doc_id": "<DOC_ID>",
+        "id": "<ID>",
+        "metadata": {
+          "is_public": false,
+          "title": "t"
+        },
+        "principal_id": "<USR_ID>",
+        "principal_type": "user"
+      }
+    ]
+  },
+  "admin_with_doc_filter": {
+    "kind": "ok",
+    "value": [
+      {
+        "action": "publish",
+        "created_at": "<TIMESTAMP>",
+        "doc_id": "<DOC_ID>",
+        "id": "<ID>",
+        "metadata": {
+          "is_public": false,
+          "title": "t"
+        },
+        "principal_id": "<USR_ID>",
+        "principal_type": "user"
+      }
+    ]
+  },
+  "non_admin_forbidden": {
+    "code": "forbidden",
+    "data": {},
+    "kind": "error"
+  }
+}
