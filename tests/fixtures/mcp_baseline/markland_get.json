@@ -1,0 +1,27 @@
+{
+  "forbidden_hidden": {
+    "code": "not_found",
+    "data": {},
+    "kind": "error"
+  },
+  "not_found": {
+    "code": "not_found",
+    "data": {},
+    "kind": "error"
+  },
+  "owner_view": {
+    "kind": "ok",
+    "value": {
+      "active_principals": [],
+      "content": "# Hello",
+      "id": "<DOC_ID>",
+      "is_featured": false,
+      "is_public": false,
+      "owner_id": "<USR_ID>",
+      "share_url": "<SHARE_URL>",
+      "title": "Hello",
+      "updated_at": "<TIMESTAMP>",
+      "version": 1
+    }
+  }
+}
