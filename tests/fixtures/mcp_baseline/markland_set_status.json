@@ -2,7 +2,7 @@
   "bad_status_invalid_argument": {
     "code": "invalid_argument",
     "data": {
-      "reason": "status must be 'reading' or 'editing'"
+      "reason": "status_must_be_reading_or_editing"
     },
     "kind": "error"
   },
