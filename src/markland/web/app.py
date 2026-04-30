@@ -17,9 +17,11 @@ from markland.db import (
     list_featured_and_recent_public,
     list_public_documents,
 )
+from markland.service.users import get_user
 from markland.web.competitors import COMPETITORS, MARKLAND, get_competitor
 from markland.web.renderer import make_excerpt, render_markdown
 from markland.web.seo import build_sitemap_xml, render_robots_txt
+from markland.web.session_principal import session_principal
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -456,12 +458,19 @@ def create_app(
         docs = list_featured_and_recent_public(db_conn, limit=4)
         cards = [_doc_to_card(d) for d in docs]
         signup_state = signup if signup in ("ok", "invalid") else None
+        signed_in_user = None
+        principal = session_principal(request, db_conn, secret=session_secret)
+        if principal is not None:
+            user = get_user(db_conn, principal.principal_id)
+            if user is not None:
+                signed_in_user = {"email": user.email}
         return HTMLResponse(
             landing_tpl.render(
                 **_seo_ctx(request, base_url, page_template=landing_tpl),
                 docs=cards,
                 mcp_config_json=mcp_snippet_json,
                 signup=signup_state,
+                signed_in_user=signed_in_user,
             )
         )
 

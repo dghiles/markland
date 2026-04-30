@@ -24,9 +24,16 @@ from markland.service.users import get_user
 def session_principal(
     request: Request,
     conn: sqlite3.Connection,
+    *,
+    secret: str | None = None,
 ) -> Principal | None:
-    """Return a Principal for the request's session cookie, or None."""
-    info = get_session(request)
+    """Return a Principal for the request's session cookie, or None.
+
+    Pass ``secret`` explicitly when the session secret is not available via the
+    ``MARKLAND_SESSION_SECRET`` environment variable (e.g. in tests or when the
+    app is started with an in-process secret).
+    """
+    info = get_session(request, secret=secret)
     if info is None:
         return None
     user = get_user(conn, info.user_id)

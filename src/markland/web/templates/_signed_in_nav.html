@@ -1,0 +1,9 @@
+{% if signed_in_user %}
+<span class="signed-in-nav" style="display:inline-flex; align-items:center; gap:0.6rem; font-size:0.85rem; color:var(--muted, #666); margin-left:0.5rem;">
+  <span>Signed in as <strong style="color:var(--text, #111); font-weight:600;">{{ signed_in_user.email }}</strong></span>
+  <a href="/explore?view=mine" style="color:var(--text, #111); text-decoration:underline; text-underline-offset:2px;">Your docs</a>
+  <form method="post" action="/api/auth/logout" style="margin:0; display:inline;">
+    <button type="submit" style="background:none; border:0; padding:0; font:inherit; color:var(--text, #111); text-decoration:underline; text-underline-offset:2px; cursor:pointer;">Sign out</button>
+  </form>
+</span>
+{% endif %}
