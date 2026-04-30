@@ -648,7 +648,7 @@ def build_mcp(
 
     @mcp.tool()
     def markland_revoke(ctx: Context, doc_id: str, principal: str) -> dict:
-        """Revoke an existing grant. Owner only. Idempotent.
+        """Revoke an existing grant. Owner only.
 
         `principal` accepts the same forms as `markland_grant`: an email
         address (resolved to a user id) or a `usr_…`/`agt_…` id passed
@@ -739,7 +739,7 @@ def build_mcp(
 
     @mcp.tool()
     def markland_revoke_invite(ctx: Context, invite_id: str) -> dict:
-        """Revoke an outstanding invite. Owner only. Idempotent.
+        """Revoke an outstanding invite. Owner only.
 
         Sets `revoked_at` on the invite so the URL stops resolving. Already
         revoked invites are a no-op.
@@ -805,6 +805,7 @@ def build_mcp(
         Raises:
             not_found: Document does not exist.
             forbidden: Caller lacks view access.
+            invalid_argument: status not in {reading, editing}.
 
         Idempotency: Idempotent — calling with the same status updates the
             heartbeat without creating a duplicate row.
