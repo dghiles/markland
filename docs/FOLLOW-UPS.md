@@ -128,6 +128,13 @@ post-launch sprint should pick up.
   workflow into the deploy job's `needs:` so a failing pytest blocks
   auto-deploy. Manual `workflow_dispatch` runs can keep the existing path or
   add a `if: github.event_name == 'workflow_dispatch'` bypass.
+- **Add `paths-ignore` to `.github/workflows/deploy.yml`** — every push to
+  `main` triggers a deploy, including docs-only commits. The deploy itself
+  is harmless (machine rolls in place with byte-equivalent image) but
+  wasteful (Fly build + push + machine restart for no behavior change).
+  Add `paths-ignore: ['docs/**', '*.md', '.github/**']` to the `push:`
+  trigger so docs-only changes skip the deploy. Test workflow should
+  still run (test.yml has its own trigger).
 - **Revisit `--strategy immediate` once Fly's launch-group lookup bug is
   fixed** — we use `--strategy immediate` to work around the orphan-machine
   bug (default `rolling` strategy hits a flyctl lookup path that creates
