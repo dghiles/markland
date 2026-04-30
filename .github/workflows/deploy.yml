@@ -1,18 +1,21 @@
 name: Deploy to Fly
 
-# DISABLED: `flyctl deploy` currently creates an orphan machine + volume on
-# every run instead of updating the existing machine in place — see
-# docs/FOLLOW-UPS.md ("Fly launch-group registration"). Until that's
-# resolved, deploys are operator-driven via `flyctl machine update`.
+# Auto-deploys main to Fly via `flyctl deploy --remote-only --strategy immediate`.
+# Verified 2026-04-30 to update the existing machine 185191df264378 in place
+# without creating an orphan sibling. The default rolling strategy hit a
+# launch-group lookup bug ("Your app doesn't have any Fly Launch machines, so
+# we'll create one now") that produced an orphan on every run; --strategy
+# immediate uses a different code path inside flyctl that correctly finds the
+# existing machine. See docs/plans/2026-04-29-fix-fly-deploy-launch-group.md
+# for the full diagnostic.
 #
-# The workflow is left here (a) as a build-the-image side effect — pushing
-# a deployment-tagged image to registry.fly.io that an operator can then
-# point a machine at — and (b) so the bug stays visible.
-#
-# Re-enable by restoring the `push:` trigger below once the launch-group
-# bug is fixed and a single fresh deploy is verified to update in place.
+# If a future deploy creates an orphan machine again (visible in
+# `flyctl machine list -a markland`), disable the push: trigger below and
+# reopen that plan.
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -24,6 +27,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@v1
       - name: Deploy
-        run: flyctl deploy --remote-only
+        run: flyctl deploy --remote-only --strategy immediate
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
