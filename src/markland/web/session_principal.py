@@ -64,3 +64,20 @@ def session_principal(
         is_admin=user.is_admin,
         user_id=None,
     )
+
+
+def signed_in_user_ctx(
+    request: Request,
+    conn: sqlite3.Connection,
+    *,
+    secret: str | None = None,
+) -> dict | None:
+    """Return ``{"email": <email>}`` for use as a template context, or None.
+
+    Templates that include ``_signed_in_nav.html`` expect a ``signed_in_user``
+    dict in the render context. Three handlers (landing, view_document,
+    explore) all build the same shape — this helper centralizes the contract
+    so future shape changes (e.g. adding ``display_name``) live in one place.
+    """
+    user = session_user(request, conn, secret=secret)
+    return {"email": user.email} if user else None

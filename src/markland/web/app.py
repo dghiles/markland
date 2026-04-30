@@ -20,7 +20,10 @@ from markland.db import (
 from markland.web.competitors import COMPETITORS, MARKLAND, get_competitor
 from markland.web.renderer import make_excerpt, render_markdown
 from markland.web.seo import build_sitemap_xml, render_robots_txt
-from markland.web.session_principal import session_user
+from markland.web.session_principal import (
+    session_principal,
+    signed_in_user_ctx,
+)
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -457,8 +460,7 @@ def create_app(
         docs = list_featured_and_recent_public(db_conn, limit=4)
         cards = [_doc_to_card(d) for d in docs]
         signup_state = signup if signup in ("ok", "invalid") else None
-        user = session_user(request, db_conn, secret=session_secret)
-        signed_in_user = {"email": user.email} if user else None
+        signed_in_user = signed_in_user_ctx(request, db_conn, secret=session_secret)
         return HTMLResponse(
             landing_tpl.render(
                 **_seo_ctx(request, base_url, page_template=landing_tpl),
@@ -472,16 +474,17 @@ def create_app(
     @app.get("/explore", response_class=HTMLResponse)
     def explore(request: Request, q: str | None = None, view: str | None = None):
         principal = getattr(request.state, "principal", None)
+        # Cookie-auth'd browser users don't get request.state.principal —
+        # only Bearer paths do. Fall back to the session cookie so view=mine
+        # is reachable from the UI. The next call (signed_in_user_ctx) will
+        # do its own session lookup; that's an accepted small redundancy
+        # because the two helpers serve different needs and live in the same
+        # module — see docs/plans/2026-04-29-signed-in-account-discovery.md.
         if principal is None:
-            from markland.web.session_principal import session_principal
             principal = session_principal(request, db_conn, secret=session_secret)
         query = (q or "").strip() or None
         show_mine = view == "mine" and principal is not None
-        signed_in_user = None
-        if principal is not None:
-            signed_in = session_user(request, db_conn, secret=session_secret)
-            if signed_in is not None:
-                signed_in_user = {"email": signed_in.email}
+        signed_in_user = signed_in_user_ctx(request, db_conn, secret=session_secret)
 
         if show_mine:
             from markland.service import docs as docs_svc_local
@@ -597,8 +600,7 @@ def create_app(
                     ).fetchone()
                     forked_from_visible = grant_row is not None
         content_html = render_markdown(doc.content)
-        signed_in = session_user(request, db_conn, secret=session_secret)
-        signed_in_user = {"email": signed_in.email} if signed_in else None
+        signed_in_user = signed_in_user_ctx(request, db_conn, secret=session_secret)
         html = document_tpl.render(
             **_seo_ctx(request, base_url),
             title=doc.title,

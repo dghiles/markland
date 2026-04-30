@@ -86,6 +86,9 @@ def test_signed_in_doc_page_shows_banner(harness):
 
 
 def test_anon_doc_page_has_no_banner(harness):
+    """Belt-and-suspenders: also drop the cookie mid-fixture and confirm the
+    banner disappears, so a future bug that leaks signed-in state across an
+    anon visit gets caught."""
     client, conn = harness
     user = create_user(conn, email="bob@example.com")
     conn.execute(
@@ -97,9 +100,24 @@ def test_anon_doc_page_has_no_banner(harness):
     )
     conn.commit()
 
+    # Anon hit — banner must NOT render.
     r = client.get("/d/tok_y")
     assert r.status_code == 200
     assert "Signed in as" not in r.text
+
+    # Sign in, confirm the banner appears.
+    cookie = issue_session(user.id, secret=SECRET)
+    client.cookies.set(SESSION_COOKIE_NAME, cookie)
+    r2 = client.get("/d/tok_y")
+    assert r2.status_code == 200
+    assert "Signed in as" in r2.text
+
+    # Clear cookies, confirm the banner disappears again — guards against any
+    # caching or state-leak regressions.
+    client.cookies.clear()
+    r3 = client.get("/d/tok_y")
+    assert r3.status_code == 200
+    assert "Signed in as" not in r3.text
 
 
 def test_signed_in_explore_view_mine_lists_user_docs(harness):
