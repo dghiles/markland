@@ -17,10 +17,8 @@
     "value": []
   },
   "unauthenticated": {
-    "code": "internal_error",
-    "data": {
-      "raw": "RuntimeError('no principal on context \u2014 PrincipalMiddleware missing?')"
-    },
+    "code": "unauthenticated",
+    "data": {},
     "kind": "error"
   }
 }

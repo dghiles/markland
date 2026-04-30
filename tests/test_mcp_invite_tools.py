@@ -1,6 +1,7 @@
 """End-to-end tests for the invite MCP tools via the in-process handler map."""
 
 import pytest
+from mcp.server.fastmcp.exceptions import ToolError
 
 from markland.db import init_db
 from markland.server import build_mcp
@@ -62,10 +63,11 @@ def test_markland_create_invite_non_owner_denied(harness):
     _, h = harness
     # Non-owner cannot see the (private) doc, so it's masked as not_found
     # per spec §12.5 — identical to how other owner-only tools mask.
-    out = h["markland_create_invite"](
-        _Ctx(_user("usr_mallory")), doc_id="doc_a", level="view"
-    )
-    assert out == {"error": "not_found"}
+    with pytest.raises(ToolError) as exc_info:
+        h["markland_create_invite"](
+            _Ctx(_user("usr_mallory")), doc_id="doc_a", level="view"
+        )
+    assert exc_info.value.data["code"] == "not_found"
 
 
 def test_markland_create_invite_viewer_forbidden(harness):
@@ -78,10 +80,11 @@ def test_markland_create_invite_viewer_forbidden(harness):
         "VALUES ('doc_a', 'usr_mallory', 'user', 'view', 'usr_alice', '2026-01-02T00:00:00+00:00')"
     )
     conn.commit()
-    out = h["markland_create_invite"](
-        _Ctx(_user("usr_mallory")), doc_id="doc_a", level="view"
-    )
-    assert out == {"error": "forbidden"}
+    with pytest.raises(ToolError) as exc_info:
+        h["markland_create_invite"](
+            _Ctx(_user("usr_mallory")), doc_id="doc_a", level="view"
+        )
+    assert exc_info.value.data["code"] == "forbidden"
 
 
 def test_markland_create_invite_bad_level_rejected(harness):
@@ -112,10 +115,11 @@ def test_markland_revoke_invite_non_owner_denied(harness):
     r = h["markland_create_invite"](
         _Ctx(_user("usr_alice")), doc_id="doc_a", level="view"
     )
-    out = h["markland_revoke_invite"](
-        _Ctx(_user("usr_mallory")), invite_id=r["invite_id"]
-    )
-    assert out == {"error": "not_found"}
+    with pytest.raises(ToolError) as exc_info:
+        h["markland_revoke_invite"](
+            _Ctx(_user("usr_mallory")), invite_id=r["invite_id"]
+        )
+    assert exc_info.value.data["code"] == "not_found"
 
 
 def test_markland_create_invite_expires_in_days(harness):

@@ -108,20 +108,21 @@ def test_mcp_tool_translates_conflict_to_tool_error(tmp_path):
     )
     assert happy["version"] == 2
 
-    # Second call with stale if_version → handler returns conflict dict,
-    # which the decorated tool converts to ToolError. Exercise the
-    # decorated tool path via the FastMCP tool manager.
+    # Second call with stale if_version → handler raises ToolError directly
+    # (the helper itself raises after axis-3; the wrapper just propagates).
     from mcp.server.fastmcp.exceptions import ToolError
 
-    # The raw handler surfaces a conflict dict.
-    raw = mcp.markland_handlers["markland_update"](
-        _Ctx(principal), doc_id=doc_id, if_version=1, content="stale"
-    )
-    assert raw["error"] == "conflict"
-    assert raw["current_version"] == 2
-    assert raw["current_content"] == "v2"
+    with pytest.raises(ToolError) as ei:
+        mcp.markland_handlers["markland_update"](
+            _Ctx(principal), doc_id=doc_id, if_version=1, content="stale"
+        )
+    data = getattr(ei.value, "data", None) or {}
+    assert data.get("code") == "conflict"
+    assert data.get("current_version") == 2
+    assert data.get("current_content") == "v2"
+    assert data.get("current_title") == "T"
 
-    # The decorated tool must raise ToolError with `conflict` in message + data.
+    # The decorated tool path must also raise ToolError with the same shape.
     tool = None
     for name in ("_tool_manager",):
         mgr = getattr(mcp, name, None)
@@ -132,11 +133,11 @@ def test_mcp_tool_translates_conflict_to_tool_error(tmp_path):
                     break
     assert tool is not None, "markland_update tool not found"
 
-    # Invoke the tool's fn directly with a fake ctx carrying the principal.
     with pytest.raises(ToolError) as ei:
         tool.fn(_Ctx(principal), doc_id=doc_id, if_version=1, content="stale")
     assert "conflict" in str(ei.value).lower()
     data = getattr(ei.value, "data", None) or {}
+    assert data.get("code") == "conflict"
     assert data.get("current_version") == 2
     assert data.get("current_content") == "v2"
     assert data.get("current_title") == "T"

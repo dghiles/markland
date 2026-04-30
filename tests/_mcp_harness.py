@@ -321,55 +321,18 @@ def _normalize_direct(value: Any, exc: BaseException | None) -> "Response":
 
         if isinstance(exc, ToolError):
             data = getattr(exc, "data", None) or {}
-            code = data.get("code") if isinstance(data, dict) else None
-            if code is None:
-                # Today's only ToolError carries "conflict: …" with data fields.
-                code = "conflict" if "conflict" in str(exc) else "internal_error"
-            return Response(
-                ok=False,
-                value=None,
-                error_code=code,
-                error_data={k: v for k, v in (data or {}).items() if k != "code"},
-                raw=exc,
-            )
-        if isinstance(exc, PermissionError):
-            return Response(
-                ok=False,
-                value=None,
-                error_code="forbidden",
-                error_data={},
-                raw=exc,
-            )
-        if isinstance(exc, ValueError):
-            # Today's tools raise ValueError on bad status enum etc.
-            return Response(
-                ok=False,
-                value=None,
-                error_code="invalid_argument",
-                error_data={"reason": str(exc)},
-                raw=exc,
-            )
+            code = data.get("code", "internal_error")
+            payload = {k: v for k, v in data.items() if k != "code"}
+            return Response(False, None, code, payload, exc)
+
+        # No tool should raise raw exceptions any more — anything that does
+        # is a regression. Surface as internal_error to keep tests informative.
         return Response(
-            ok=False,
-            value=None,
-            error_code="internal_error",
-            error_data={"raw": repr(exc)},
-            raw=exc,
+            False, None, "internal_error",
+            {"raw": repr(exc)}, exc,
         )
 
-    # No exception. Inspect the returned value.
-    if isinstance(value, dict) and "error" in value:
-        err = value["error"]
-        if err == "not_found":
-            return Response(False, None, "not_found", {}, value)
-        if err == "forbidden":
-            return Response(False, None, "forbidden", {}, value)
-        if err == "invalid_argument":
-            reason = value.get("reason", "")
-            return Response(False, None, "invalid_argument", {"reason": reason}, value)
-        # Unknown error string — surface as-is.
-        return Response(False, None, str(err), {}, value)
-
+    # Successful tool calls always return a dict (or list).
     return Response(True, value, None, {}, value)
 
 
@@ -458,27 +421,58 @@ def _http_call(
     # tools/call success — extract structured content.
     result = data.get("result", {})
     contents = result.get("content", [])
-    if contents and contents[0].get("type") == "text":
-        try:
-            value = json.loads(contents[0]["text"])
-        except (json.JSONDecodeError, KeyError):
-            value = contents[0]["text"]
-    else:
-        value = result
+    text = contents[0]["text"] if contents and contents[0].get("type") == "text" else None
 
-    # tools/call may also flag isError + structured error.
     if result.get("isError"):
-        if isinstance(value, dict) and "code" in value:
+        # FastMCP wraps ToolError messages as "Error executing tool <name>: <msg>".
+        # tool_error() puts JSON in <msg>, so strip the prefix and parse.
+        decoded = _decode_tool_error_text(text)
+        if decoded is not None and "code" in decoded:
             return Response(
                 False,
                 None,
-                value["code"],
-                {k: v for k, v in value.items() if k != "code"},
+                decoded["code"],
+                {k: v for k, v in decoded.items() if k != "code"},
                 resp,
             )
-        return Response(False, None, "internal_error", {"raw": value}, resp)
+        return Response(False, None, "internal_error", {"raw": text or result}, resp)
 
+    if text is not None:
+        try:
+            value = json.loads(text)
+        except json.JSONDecodeError:
+            value = text
+    else:
+        value = result
     return Response(True, value, None, {}, resp)
+
+
+def _decode_tool_error_text(text):
+    """Pull the JSON payload out of a FastMCP-wrapped ToolError message.
+
+    FastMCP serializes a raised ToolError as
+        "Error executing tool <tool_name>: <message>"
+    where <message> is whatever the ToolError was constructed with. Our
+    `tool_error()` factory uses a JSON dump as that message, so we just need
+    to strip the prefix and parse.
+    """
+    if not isinstance(text, str):
+        return None
+    # First try parsing the whole thing as JSON.
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    # Then try stripping the FastMCP prefix.
+    marker = ": "
+    idx = text.find(marker)
+    if idx == -1:
+        return None
+    payload = text[idx + len(marker):]
+    try:
+        return json.loads(payload)
+    except json.JSONDecodeError:
+        return None
 
 
 def _http_initialize(harness: "MCPHarness", caller: "Caller") -> None:

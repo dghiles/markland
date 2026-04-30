@@ -2,6 +2,9 @@
 
 from unittest.mock import MagicMock
 
+import pytest
+from mcp.server.fastmcp.exceptions import ToolError
+
 from markland.db import init_db
 from markland.server import build_mcp
 
@@ -50,10 +53,14 @@ def test_two_user_share_flow(tmp_path):
     doc_id = doc["id"]
 
     # 2. Bob cannot see or modify
-    assert h["markland_get"](_Ctx(bob), doc_id=doc_id) == {"error": "not_found"}
-    assert h["markland_update"](
-        _Ctx(bob), doc_id=doc_id, if_version=1, content="hacked"
-    ) == {"error": "not_found"}
+    with pytest.raises(ToolError) as exc_info:
+        h["markland_get"](_Ctx(bob), doc_id=doc_id)
+    assert exc_info.value.data["code"] == "not_found"
+    with pytest.raises(ToolError) as exc_info:
+        h["markland_update"](
+            _Ctx(bob), doc_id=doc_id, if_version=1, content="hacked"
+        )
+    assert exc_info.value.data["code"] == "not_found"
 
     # 3. Alice grants view
     grant_out = h["markland_grant"](
@@ -65,9 +72,11 @@ def test_two_user_share_flow(tmp_path):
     # 4. Bob can now read but not write
     view = h["markland_get"](_Ctx(bob), doc_id=doc_id)
     assert view["content"] == "# Draft\nv1"
-    assert h["markland_update"](
-        _Ctx(bob), doc_id=doc_id, if_version=1, content="hacked"
-    ) == {"error": "forbidden"}
+    with pytest.raises(ToolError) as exc_info:
+        h["markland_update"](
+            _Ctx(bob), doc_id=doc_id, if_version=1, content="hacked"
+        )
+    assert exc_info.value.data["code"] == "forbidden"
 
     # 5. Alice upgrades Bob to edit
     h["markland_grant"](
@@ -84,4 +93,6 @@ def test_two_user_share_flow(tmp_path):
 
     # 7. Alice revokes -- Bob is locked out
     h["markland_revoke"](_Ctx(alice), doc_id=doc_id, principal="usr_bob")
-    assert h["markland_get"](_Ctx(bob), doc_id=doc_id) == {"error": "not_found"}
+    with pytest.raises(ToolError) as exc_info:
+        h["markland_get"](_Ctx(bob), doc_id=doc_id)
+    assert exc_info.value.data["code"] == "not_found"

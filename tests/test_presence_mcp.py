@@ -6,6 +6,7 @@ import sqlite3
 from types import SimpleNamespace
 
 import pytest
+from mcp.server.fastmcp.exceptions import ToolError
 
 from markland.db import init_db
 from markland.server import build_mcp
@@ -74,9 +75,10 @@ def test_set_status_returns_doc_id_status_expires_at(conn):
 def test_set_status_rejects_invalid_status(conn):
     mcp = build_mcp(conn, base_url="http://localhost:8950")
     alice = _principal("usr_alice")
-    with pytest.raises(ValueError):
+    with pytest.raises(ToolError) as exc_info:
         _call(mcp, "markland_set_status", alice,
               doc_id="doc_1", status="done", note=None)
+    assert exc_info.value.data["code"] == "invalid_argument"
 
 
 def test_clear_status_removes_row(conn):
@@ -99,9 +101,10 @@ def test_set_status_requires_view_access(conn):
     )
     conn.commit()
     chuck = _principal("usr_chuck", "Chuck")
-    result = _call(mcp, "markland_set_status", chuck,
-                   doc_id="doc_1", status="editing", note=None)
-    assert isinstance(result, dict) and result.get("error") in ("forbidden", "not_found")
+    with pytest.raises(ToolError) as exc_info:
+        _call(mcp, "markland_set_status", chuck,
+              doc_id="doc_1", status="editing", note=None)
+    assert exc_info.value.data["code"] in ("forbidden", "not_found")
 
 
 def test_get_shows_two_active_principals_then_one_after_clear(conn):

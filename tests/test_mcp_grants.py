@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock
 
 import pytest
+from mcp.server.fastmcp.exceptions import ToolError
 
 from markland.db import init_db
 from markland.server import build_mcp
@@ -71,8 +72,9 @@ def test_get_denies_stranger_as_not_found(harness):
     alice = _user("usr_alice")
     bob = _user("usr_bob")
     a = h["markland_publish"](_Ctx(alice), content="secret", title="A")
-    out = h["markland_get"](_Ctx(bob), doc_id=a["id"])
-    assert out == {"error": "not_found"}
+    with pytest.raises(ToolError) as exc_info:
+        h["markland_get"](_Ctx(bob), doc_id=a["id"])
+    assert exc_info.value.data["code"] == "not_found"
 
 
 def test_update_requires_edit(harness):
@@ -80,8 +82,9 @@ def test_update_requires_edit(harness):
     alice = _user("usr_alice")
     bob = _user("usr_bob")
     a = h["markland_publish"](_Ctx(alice), content="x", title="A")
-    out = h["markland_update"](_Ctx(bob), doc_id=a["id"], if_version=1, content="new")
-    assert out == {"error": "not_found"}
+    with pytest.raises(ToolError) as exc_info:
+        h["markland_update"](_Ctx(bob), doc_id=a["id"], if_version=1, content="new")
+    assert exc_info.value.data["code"] == "not_found"
 
 
 def test_delete_requires_owner(harness):
@@ -90,8 +93,9 @@ def test_delete_requires_owner(harness):
     bob = _user("usr_bob")
     a = h["markland_publish"](_Ctx(alice), content="x", title="A")
     h["markland_grant"](_Ctx(alice), doc_id=a["id"], principal="b@x", level="edit")
-    out = h["markland_delete"](_Ctx(bob), doc_id=a["id"])
-    assert out == {"error": "forbidden"}
+    with pytest.raises(ToolError) as exc_info:
+        h["markland_delete"](_Ctx(bob), doc_id=a["id"])
+    assert exc_info.value.data["code"] == "forbidden"
     out = h["markland_delete"](_Ctx(alice), doc_id=a["id"])
     assert out["deleted"] is True
 
@@ -122,27 +126,31 @@ def test_non_owner_cannot_grant(harness):
     bob = _user("usr_bob")
     a = h["markland_publish"](_Ctx(alice), content="x", title="A")
     h["markland_grant"](_Ctx(alice), doc_id=a["id"], principal="b@x", level="edit")
-    out = h["markland_grant"](
-        _Ctx(bob), doc_id=a["id"], principal="b@x", level="edit"
-    )
-    assert out == {"error": "forbidden"}
+    with pytest.raises(ToolError) as exc_info:
+        h["markland_grant"](
+            _Ctx(bob), doc_id=a["id"], principal="b@x", level="edit"
+        )
+    assert exc_info.value.data["code"] == "forbidden"
 
 
 def test_grant_with_unknown_email_returns_invalid_argument(harness):
     _, h, _ = harness
     alice = _user("usr_alice")
     a = h["markland_publish"](_Ctx(alice), content="x", title="A")
-    out = h["markland_grant"](
-        _Ctx(alice), doc_id=a["id"], principal="nobody@x", level="view"
-    )
-    assert out == {"error": "invalid_argument", "reason": "target_not_found"}
+    with pytest.raises(ToolError) as exc_info:
+        h["markland_grant"](
+            _Ctx(alice), doc_id=a["id"], principal="nobody@x", level="view"
+        )
+    assert exc_info.value.data["code"] == "invalid_argument"
+    assert exc_info.value.data["reason"] == "target_not_found"
 
 
 def test_grant_with_unknown_agent_id_returns_not_found(harness):
     _, h, _ = harness
     alice = _user("usr_alice")
     a = h["markland_publish"](_Ctx(alice), content="x", title="A")
-    out = h["markland_grant"](
-        _Ctx(alice), doc_id=a["id"], principal="agt_future", level="view"
-    )
-    assert out == {"error": "not_found"}
+    with pytest.raises(ToolError) as exc_info:
+        h["markland_grant"](
+            _Ctx(alice), doc_id=a["id"], principal="agt_future", level="view"
+        )
+    assert exc_info.value.data["code"] == "not_found"
