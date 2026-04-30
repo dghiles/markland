@@ -321,55 +321,18 @@ def _normalize_direct(value: Any, exc: BaseException | None) -> "Response":
 
         if isinstance(exc, ToolError):
             data = getattr(exc, "data", None) or {}
-            code = data.get("code") if isinstance(data, dict) else None
-            if code is None:
-                # Today's only ToolError carries "conflict: …" with data fields.
-                code = "conflict" if "conflict" in str(exc) else "internal_error"
-            return Response(
-                ok=False,
-                value=None,
-                error_code=code,
-                error_data={k: v for k, v in (data or {}).items() if k != "code"},
-                raw=exc,
-            )
-        if isinstance(exc, PermissionError):
-            return Response(
-                ok=False,
-                value=None,
-                error_code="forbidden",
-                error_data={},
-                raw=exc,
-            )
-        if isinstance(exc, ValueError):
-            # Today's tools raise ValueError on bad status enum etc.
-            return Response(
-                ok=False,
-                value=None,
-                error_code="invalid_argument",
-                error_data={"reason": str(exc)},
-                raw=exc,
-            )
+            code = data.get("code", "internal_error")
+            payload = {k: v for k, v in data.items() if k != "code"}
+            return Response(False, None, code, payload, exc)
+
+        # No tool should raise raw exceptions any more — anything that does
+        # is a regression. Surface as internal_error to keep tests informative.
         return Response(
-            ok=False,
-            value=None,
-            error_code="internal_error",
-            error_data={"raw": repr(exc)},
-            raw=exc,
+            False, None, "internal_error",
+            {"raw": repr(exc)}, exc,
         )
 
-    # No exception. Inspect the returned value.
-    if isinstance(value, dict) and "error" in value:
-        err = value["error"]
-        if err == "not_found":
-            return Response(False, None, "not_found", {}, value)
-        if err == "forbidden":
-            return Response(False, None, "forbidden", {}, value)
-        if err == "invalid_argument":
-            reason = value.get("reason", "")
-            return Response(False, None, "invalid_argument", {"reason": reason}, value)
-        # Unknown error string — surface as-is.
-        return Response(False, None, str(err), {}, value)
-
+    # Successful tool calls always return a dict (or list).
     return Response(True, value, None, {}, value)
 
 
