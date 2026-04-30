@@ -191,7 +191,11 @@ All lifecycle-managed by the single unified FastAPI `lifespan` inside
   `logger.info(..., extra={...})`. Metrics in `service/metrics.py` write JSON
   lines to stdout for Fly log scraping.
 - **CI/CD** — `.github/workflows/test.yml` runs pytest on every push;
-  `.github/workflows/deploy.yml` runs `flyctl deploy` on push to `main`.
+  `.github/workflows/deploy.yml` runs `flyctl deploy --remote-only
+  --strategy immediate` on push to `main`. `--strategy immediate` is a
+  workaround for a flyctl launch-group lookup bug — the default rolling
+  strategy creates orphan sibling machines instead of updating in place.
+  See `docs/plans/2026-04-29-fix-fly-deploy-launch-group.md`.
 
 ## How the 10 plans stacked
 

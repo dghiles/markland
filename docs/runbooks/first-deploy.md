@@ -190,8 +190,22 @@ Expected: all 6 secret names appear (5 if you skipped `SENTRY_DSN`).
 ## 8. First deploy
 
 ```bash
-flyctl deploy
+flyctl deploy --strategy immediate
 ```
+
+`--strategy immediate` is required: as of flyctl 0.4.41, the default
+`rolling` strategy hits a launch-group lookup bug on this app and creates
+a sibling orphan machine + volume on every run instead of updating the
+existing machine in place (deploy log says *"Your app doesn't have any
+Fly Launch machines, so we'll create one now"* even when the machine
+exists with correct metadata). `immediate` uses a different code path
+inside flyctl that finds the existing machine. Tradeoff: it skips per-
+instance health-check waits, so a bad image ships as "deploy succeeded"
+even when the new machine fails `/health` — there is no automatic
+rollback. See `docs/plans/2026-04-29-fix-fly-deploy-launch-group.md` for
+the full diagnostic. If a future flyctl release fixes the underlying
+bug, revert to `--strategy rolling` to recover automatic stop-on-
+unhealthy semantics.
 
 This builds the Dockerfile remotely, pushes the image, and boots one
 machine. Watch the build and boot logs:
@@ -309,8 +323,12 @@ API token.
    ```
 
 4. Watch the Actions tab - `.github/workflows/deploy.yml` runs
-   `flyctl deploy --remote-only`. From now on every push to `main`
-   auto-deploys.
+   `flyctl deploy --remote-only --strategy immediate` (see section 8 for
+   why `--strategy immediate`). From now on every push to `main`
+   auto-deploys. If a CI run produces a sibling orphan machine (visible
+   in `flyctl machine list -a markland`), disable the workflow's `push:`
+   trigger and reopen `docs/plans/2026-04-29-fix-fly-deploy-launch-
+   group.md`.
 
 ---
 
@@ -389,14 +407,30 @@ Expected: `All hosted smoke checks passed.`
 
 ```bash
 # List recent releases with image digests
-flyctl releases
+flyctl releases --image
 
 # Redeploy a specific prior image
-flyctl deploy --image registry.fly.io/markland:deployment-<timestamp>
+flyctl deploy --strategy immediate \
+  --image registry.fly.io/markland:deployment-<timestamp>
 ```
 
-`flyctl releases` prints each release's image tag. Grab the one from
-the last-known-good deploy.
+`flyctl releases --image` prints each release's image tag. Grab the one
+from the last-known-good deploy. `--strategy immediate` is required for
+the same reason as section 8.
+
+Alternative: bypass the deploy command entirely and roll the existing
+machine in place via `flyctl machine update`:
+
+```bash
+flyctl machine update 185191df264378 \
+  --image registry.fly.io/markland:deployment-<timestamp> \
+  -a markland --yes
+```
+
+This is what the workaround used before `--strategy immediate` was
+identified. Both paths produce the same end state; `flyctl deploy
+--strategy immediate` is now preferred because it advances the release
+counter cleanly and matches what CI does.
 
 ### Restore the database from Litestream
 
