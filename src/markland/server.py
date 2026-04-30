@@ -104,9 +104,9 @@ def build_mcp(
         try:
             body = docs_svc.get(db_conn, p, doc_id, base_url=base_url)
         except NotFound:
-            return {"error": "not_found"}
+            raise tool_error("not_found")
         except PermissionDenied:
-            return {"error": "forbidden"}
+            raise tool_error("forbidden")
         # Embed non-expired presence rows. Principals who lack view access
         # never reach this branch because the check_permission call in
         # docs_svc.get raised above.
@@ -133,9 +133,9 @@ def build_mcp(
         try:
             return docs_svc.share_link(db_conn, base_url, p, doc_id)
         except NotFound:
-            return {"error": "not_found"}
+            raise tool_error("not_found")
         except PermissionDenied:
-            return {"error": "forbidden"}
+            raise tool_error("forbidden")
 
     def _update(
         ctx,
@@ -150,18 +150,18 @@ def build_mcp(
                 db_conn, doc_id, p, content=content, title=title, if_version=if_version
             )
         except NotFound:
-            return {"error": "not_found"}
+            raise tool_error("not_found")
         except PermissionDenied:
-            return {"error": "forbidden"}
+            raise tool_error("forbidden")
         except ValueError:
-            return {"error": "not_found"}
+            raise tool_error("not_found")
         except docs_svc.ConflictError as exc:
-            return {
-                "error": "conflict",
-                "current_version": exc.current_version,
-                "current_content": exc.current_content,
-                "current_title": exc.current_title,
-            }
+            raise tool_error(
+                "conflict",
+                current_version=exc.current_version,
+                current_content=exc.current_content,
+                current_title=exc.current_title,
+            )
         return {
             "id": doc.id,
             "title": doc.title,
@@ -175,18 +175,18 @@ def build_mcp(
         try:
             return docs_svc.delete(db_conn, p, doc_id)
         except NotFound:
-            return {"error": "not_found"}
+            raise tool_error("not_found")
         except PermissionDenied:
-            return {"error": "forbidden"}
+            raise tool_error("forbidden")
 
     def _set_visibility(ctx, doc_id: str, public: bool):
         p = _require_principal(ctx)
         try:
             return docs_svc.set_visibility(db_conn, base_url, p, doc_id, public)
         except NotFound:
-            return {"error": "not_found"}
+            raise tool_error("not_found")
         except PermissionDenied:
-            return {"error": "forbidden"}
+            raise tool_error("forbidden")
 
     def _feature(ctx, doc_id: str, featured: bool = True):
         p = _require_principal(ctx)
@@ -194,11 +194,11 @@ def build_mcp(
             "SELECT is_admin FROM users WHERE id = ?", (p.principal_id,)
         ).fetchone()
         if not row or not row[0]:
-            return {"error": "forbidden"}
+            raise tool_error("forbidden")
         try:
             return docs_svc.feature(db_conn, p, doc_id, featured)
         except NotFound:
-            return {"error": "not_found"}
+            raise tool_error("not_found")
 
     def _grant(
         ctx,
@@ -211,10 +211,7 @@ def build_mcp(
         p = _require_principal(ctx)
         chosen_target = target if target is not None else principal
         if chosen_target is None:
-            return {
-                "error": "invalid_argument",
-                "reason": "target is required",
-            }
+            raise tool_error("invalid_argument", reason="target is required")
         try:
             return grants_svc.grant(
                 db_conn,
@@ -226,15 +223,15 @@ def build_mcp(
                 email_client=email_client,
             )
         except NotFound:
-            return {"error": "not_found"}
+            raise tool_error("not_found")
         except PermissionDenied:
-            return {"error": "forbidden"}
+            raise tool_error("forbidden")
         except grants_svc.GrantTargetNotFound:
-            return {"error": "invalid_argument", "reason": "target_not_found"}
+            raise tool_error("invalid_argument", reason="target_not_found")
         except grants_svc.AgentGrantsNotSupported:
-            return {"error": "invalid_argument", "reason": "agent_grants_not_supported"}
+            raise tool_error("invalid_argument", reason="agent_grants_not_supported")
         except grants_svc.InvalidGrantLevel:
-            return {"error": "invalid_argument", "reason": "invalid_level"}
+            raise tool_error("invalid_argument", reason="invalid_level")
 
     def _revoke(ctx, doc_id: str, principal: str):
         p = _require_principal(ctx)
@@ -244,25 +241,25 @@ def build_mcp(
                 "SELECT id FROM users WHERE lower(email) = lower(?)", (pid,)
             ).fetchone()
             if row is None:
-                return {"error": "invalid_argument", "reason": "target_not_found"}
+                raise tool_error("invalid_argument", reason="target_not_found")
             pid = row[0]
         try:
             return grants_svc.revoke(
                 db_conn, principal=p, doc_id=doc_id, principal_id=pid
             )
         except NotFound:
-            return {"error": "not_found"}
+            raise tool_error("not_found")
         except PermissionDenied:
-            return {"error": "forbidden"}
+            raise tool_error("forbidden")
 
     def _list_grants(ctx, doc_id: str):
         p = _require_principal(ctx)
         try:
             return grants_svc.list_grants(db_conn, principal=p, doc_id=doc_id)
         except NotFound:
-            return {"error": "not_found"}
+            raise tool_error("not_found")
         except PermissionDenied:
-            return {"error": "forbidden"}
+            raise tool_error("forbidden")
 
     def _create_invite(
         ctx,
@@ -275,9 +272,9 @@ def build_mcp(
         try:
             check_permission(db_conn, p, doc_id, "owner")
         except NotFound:
-            return {"error": "not_found"}
+            raise tool_error("not_found")
         except PermissionDenied:
-            return {"error": "forbidden"}
+            raise tool_error("forbidden")
         result = invites_svc.create_invite(
             db_conn,
             doc_id=doc_id,
@@ -300,13 +297,13 @@ def build_mcp(
             "SELECT doc_id FROM invites WHERE id = ?", (invite_id,)
         ).fetchone()
         if row is None:
-            return {"error": "not_found"}
+            raise tool_error("not_found")
         try:
             check_permission(db_conn, p, row[0], "owner")
         except NotFound:
-            return {"error": "not_found"}
+            raise tool_error("not_found")
         except PermissionDenied:
-            return {"error": "forbidden"}
+            raise tool_error("forbidden")
         invites_svc.revoke_invite(
             db_conn, invite_id=invite_id, owner_user_id=p.principal_id
         )
@@ -315,13 +312,15 @@ def build_mcp(
     def _set_status(ctx, doc_id: str, status: str, note: str | None = None):
         p = _require_principal(ctx)
         if status not in ("reading", "editing"):
-            raise ValueError("status must be 'reading' or 'editing'")
+            raise tool_error(
+                "invalid_argument", reason="status_must_be_reading_or_editing"
+            )
         try:
             check_permission(db_conn, p, doc_id, "view")
         except NotFound:
-            return {"error": "not_found"}
+            raise tool_error("not_found")
         except PermissionDenied:
-            return {"error": "forbidden"}
+            raise tool_error("forbidden")
         try:
             return presence_svc.set_status(
                 db_conn,
@@ -331,7 +330,7 @@ def build_mcp(
                 note=note,
             )
         except presence_svc.PresenceError:
-            return {"error": "not_found"}
+            raise tool_error("not_found")
 
     def _clear_status(ctx, doc_id: str):
         p = _require_principal(ctx)
@@ -549,19 +548,7 @@ def build_mcp(
         Idempotency: Not idempotent — each successful call increments
             version and writes a revision row.
         """
-        from mcp.server.fastmcp.exceptions import ToolError
-
-        result = _update(ctx, doc_id, if_version, content=content, title=title)
-        if isinstance(result, dict) and result.get("error") == "conflict":
-            err = ToolError("conflict: document was modified by another caller")
-            err.data = {
-                "code": "conflict",
-                "current_version": result["current_version"],
-                "current_content": result["current_content"],
-                "current_title": result["current_title"],
-            }
-            raise err
-        return result
+        return _update(ctx, doc_id, if_version, content=content, title=title)
 
     @mcp.tool()
     def markland_delete(ctx: Context, doc_id: str) -> dict:
@@ -838,7 +825,7 @@ def build_mcp(
     def _audit(ctx, doc_id: str | None = None, limit: int = 100):
         p = _require_principal(ctx)
         if not p.is_admin:
-            raise PermissionError("markland_audit requires admin")
+            raise tool_error("forbidden")
         from markland.service import audit as audit_svc
 
         return audit_svc.list_recent(db_conn, doc_id=doc_id, limit=int(limit))
