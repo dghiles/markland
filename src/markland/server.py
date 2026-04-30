@@ -199,15 +199,28 @@ def build_mcp(
         except NotFound:
             return {"error": "not_found"}
 
-    def _grant(ctx, doc_id: str, principal: str, level: str):
+    def _grant(
+        ctx,
+        doc_id: str,
+        target: str | None = None,
+        level: str = "view",
+        *,
+        principal: str | None = None,  # Deprecated alias for `target`.
+    ):
         p = _require_principal(ctx)
+        chosen_target = target if target is not None else principal
+        if chosen_target is None:
+            return {
+                "error": "invalid_argument",
+                "reason": "target is required",
+            }
         try:
             return grants_svc.grant(
                 db_conn,
                 base_url=base_url,
                 principal=p,
                 doc_id=doc_id,
-                target=principal,
+                target=chosen_target,
                 level=level,
                 email_client=email_client,
             )
@@ -618,18 +631,27 @@ def build_mcp(
         return _feature(ctx, doc_id, featured)
 
     @mcp.tool()
-    def markland_grant(ctx: Context, doc_id: str, principal: str, level: str) -> dict:
+    def markland_grant(
+        ctx: Context,
+        doc_id: str,
+        target: str | None = None,
+        level: str = "view",
+        *,
+        principal: str | None = None,  # Deprecated alias for `target`.
+    ) -> dict:
         """Grant view or edit access to a user or agent. Owner only.
 
-        `principal` accepts an email address (resolves to a user, creating
+        `target` accepts an email address (resolves to a user, creating
         a placeholder row if needed) or an `agt_…` id (agent grant). A
         best-effort notification email is sent for user grants when an
         EmailClient was wired into `build_mcp`.
 
         Args:
             doc_id: Document id.
-            principal: Email address or `agt_…` agent id.
-            level: `"view"` or `"edit"`.
+            target: Email address or `agt_…` agent id. Replaces the
+                `principal` keyword (deprecated; removed in the release
+                scheduled 30 days after this one).
+            level: `"view"` or `"edit"`. Defaults to `"view"`.
 
         Returns:
             Grant row dict `{doc_id, principal_id, principal_type, level,
@@ -644,7 +666,7 @@ def build_mcp(
         Idempotency: Idempotent (upsert) — re-granting the same target is a
             no-op; re-granting at a different level updates the row.
         """
-        return _grant(ctx, doc_id, principal, level)
+        return _grant(ctx, doc_id, target, level, principal=principal)
 
     @mcp.tool()
     def markland_revoke(ctx: Context, doc_id: str, principal: str) -> dict:
