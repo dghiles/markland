@@ -5,9 +5,11 @@
     "kind": "error"
   },
   "http_conflict": {
-    "code": "internal_error",
+    "code": "conflict",
     "data": {
-      "raw": "Error executing tool markland_update: conflict"
+      "current_content": "# v1",
+      "current_title": "v1",
+      "current_version": 1
     },
     "kind": "error"
   },

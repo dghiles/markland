@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from mcp.server.fastmcp.exceptions import ToolError
 
 ERROR_CODES: frozenset[str] = frozenset({
@@ -16,14 +18,22 @@ ERROR_CODES: frozenset[str] = frozenset({
 
 
 def tool_error(code: str, **data) -> ToolError:
-    """Build a ToolError with `data = {"code": code, **data}`.
+    """Build a ToolError with structured `code` and optional `data` fields.
+
+    The structured payload is exposed two ways:
+
+    - `err.data` — a Python attribute readable by direct-mode callers (the
+      harness reads this for `mode="direct"`).
+    - The `ToolError`'s message is a JSON dump of the same payload, so when
+      FastMCP serializes the error onto the wire (which only carries the
+      message string and an `isError: true` flag — `err.data` is lost),
+      HTTP clients can recover the structured shape by parsing the text.
 
     Use this everywhere a tool needs to surface an error to the MCP client.
-    The harness's Response wrapper normalizes against the same shape.
     """
     if code not in ERROR_CODES:
         raise ValueError(f"{code!r} not in ERROR_CODES")
-    msg = code.replace("_", " ")
-    err = ToolError(msg)
-    err.data = {"code": code, **data}
+    payload = {"code": code, **data}
+    err = ToolError(json.dumps(payload, sort_keys=True))
+    err.data = payload
     return err

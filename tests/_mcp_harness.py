@@ -421,27 +421,58 @@ def _http_call(
     # tools/call success — extract structured content.
     result = data.get("result", {})
     contents = result.get("content", [])
-    if contents and contents[0].get("type") == "text":
-        try:
-            value = json.loads(contents[0]["text"])
-        except (json.JSONDecodeError, KeyError):
-            value = contents[0]["text"]
-    else:
-        value = result
+    text = contents[0]["text"] if contents and contents[0].get("type") == "text" else None
 
-    # tools/call may also flag isError + structured error.
     if result.get("isError"):
-        if isinstance(value, dict) and "code" in value:
+        # FastMCP wraps ToolError messages as "Error executing tool <name>: <msg>".
+        # tool_error() puts JSON in <msg>, so strip the prefix and parse.
+        decoded = _decode_tool_error_text(text)
+        if decoded is not None and "code" in decoded:
             return Response(
                 False,
                 None,
-                value["code"],
-                {k: v for k, v in value.items() if k != "code"},
+                decoded["code"],
+                {k: v for k, v in decoded.items() if k != "code"},
                 resp,
             )
-        return Response(False, None, "internal_error", {"raw": value}, resp)
+        return Response(False, None, "internal_error", {"raw": text or result}, resp)
 
+    if text is not None:
+        try:
+            value = json.loads(text)
+        except json.JSONDecodeError:
+            value = text
+    else:
+        value = result
     return Response(True, value, None, {}, resp)
+
+
+def _decode_tool_error_text(text):
+    """Pull the JSON payload out of a FastMCP-wrapped ToolError message.
+
+    FastMCP serializes a raised ToolError as
+        "Error executing tool <tool_name>: <message>"
+    where <message> is whatever the ToolError was constructed with. Our
+    `tool_error()` factory uses a JSON dump as that message, so we just need
+    to strip the prefix and parse.
+    """
+    if not isinstance(text, str):
+        return None
+    # First try parsing the whole thing as JSON.
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    # Then try stripping the FastMCP prefix.
+    marker = ": "
+    idx = text.find(marker)
+    if idx == -1:
+        return None
+    payload = text[idx + len(marker):]
+    try:
+        return json.loads(payload)
+    except json.JSONDecodeError:
+        return None
 
 
 def _http_initialize(harness: "MCPHarness", caller: "Caller") -> None:
