@@ -121,6 +121,24 @@ post-launch sprint should pick up.
   `location.href = '/login'`. Cookie deletion happens correctly but the
   browser does an unnecessary GET. Add `headers: {'Accept':
   'application/json'}` (or `redirect: 'manual'`) to the fetch.
+- **Add `needs: [test]` gate to `.github/workflows/deploy.yml`** — currently
+  `needs: []` (intentionally), so a red test run does not block deploy. For a
+  1-machine app with no automatic rollback (we use `--strategy immediate`,
+  see next entry), this is the cheapest meaningful safety net. Wire the test
+  workflow into the deploy job's `needs:` so a failing pytest blocks
+  auto-deploy. Manual `workflow_dispatch` runs can keep the existing path or
+  add a `if: github.event_name == 'workflow_dispatch'` bypass.
+- **Revisit `--strategy immediate` once Fly's launch-group lookup bug is
+  fixed** — we use `--strategy immediate` to work around the orphan-machine
+  bug (default `rolling` strategy hits a flyctl lookup path that creates
+  sibling machines instead of updating in place). `immediate` skips per-
+  instance health-check waits, so a bad image ships as "deploy succeeded"
+  even when the new machine fails `/health` — there is no automatic rollback
+  to the previous image. Once Fly fixes the underlying bug (file a support
+  ticket, or test new flyctl versions), revert to `--strategy rolling` to
+  get back automatic stop-on-unhealthy semantics. Detection: orphan in
+  `flyctl machine list -a markland` returns → revert and reopen
+  `docs/plans/2026-04-29-fix-fly-deploy-launch-group.md`.
 
 ## Test coverage
 
@@ -166,19 +184,17 @@ post-launch sprint should pick up.
   below is fixed. `.github/workflows/deploy.yml` only runs on
   `workflow_dispatch` for now; deploys are operator-driven via
   `flyctl machine update`.
-- **Fly launch-group registration is broken.** `flyctl deploy` (and the CI
-  workflow that calls it) creates a fresh sibling machine + volume on every
-  run instead of updating the existing machine `185191df264378` in place.
-  The deploy log says *"Your app doesn't have any Fly Launch machines, so
-  we'll create one now"* despite `flyctl machine list` showing the machine
-  with correct `fly_process_group: app` metadata. Workaround in use:
-  `flyctl deploy --build-only` (or rely on CI to push the image), then
-  `flyctl machine update <id> --image <tag>` to roll the existing machine
-  in place. Permanent fix probably needs a Fly support ticket — try
-  `flyctl deploy --strategy immediate` first, or `flyctl scale count 1`
-  to re-register the machine with the launch group, before opening the
-  ticket. While this is unfixed, every accidental `flyctl deploy` creates
-  an orphan that has to be manually destroyed.
+- **~~Fly launch-group registration is broken.~~** Worked around 2026-04-30
+  with `flyctl deploy --strategy immediate`, which uses a different deploy
+  code path inside flyctl that correctly finds the existing machine.
+  Verified by running `flyctl deploy --remote-only --strategy immediate`
+  against prod and observing machine `185191df264378` update in place with
+  no orphan sibling. CI auto-deploy re-enabled in PR #31 with the same
+  flag. The underlying flyctl bug is not fixed (default `rolling` strategy
+  still produces orphans), so see the related entry above about reverting
+  to `rolling` once Fly fixes it. Full diagnostic with `flyctl scale count`
+  and metadata-edit attempts: `docs/plans/2026-04-29-fix-fly-deploy-launch-
+  group.md`.
 - **Submit `/sitemap.xml` to Google Search Console** — deferred until the
   canonical domain is live. Submitting under `markland.fly.dev` now would
   burn the property on a host we plan to abandon, and Search Console does
