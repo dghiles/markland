@@ -368,39 +368,137 @@ def build_mcp(
 
     @mcp.tool()
     def markland_whoami(ctx: Context) -> dict:
-        """Return the caller's identity."""
+        """Return the caller's identity.
+
+        Useful for confirming which principal an MCP token resolves to before
+        running other tools. Anonymous callers get back a synthetic
+        `principal_id="anonymous"` row instead of an error.
+
+        Args:
+            ctx: FastMCP request context. The principal is resolved from
+                `ctx.request_context.request.state.principal` (set by
+                PrincipalMiddleware) or `ctx.principal` in tests.
+
+        Returns:
+            `{principal_id, principal_type, display_name}`. `principal_type`
+            is `"user"` or `"agent"`; for anonymous callers `principal_id`
+            is `"anonymous"` and `display_name` is `None`.
+
+        Idempotency: Read-only.
+        """
         return _whoami(ctx)
 
     @mcp.tool()
     def markland_publish(
         ctx: Context, content: str, title: str | None = None, public: bool = False
     ) -> dict:
-        """Publish a markdown document owned by the current principal."""
+        """Publish a markdown document owned by the current principal.
+
+        Each call creates a fresh document with a new id and share token —
+        there is no upsert. Service-owned agents (no `user_id`) cannot
+        publish; use a user-owned agent token instead.
+
+        Args:
+            content: Raw markdown body. No length limit enforced here.
+            title: Optional title. When omitted, the title is extracted from
+                the first markdown heading in `content`, falling back to a
+                placeholder.
+            public: If `True`, the document is listed on /explore. Default
+                `False` (unlisted — visible only to grantees and via share
+                link).
+
+        Returns:
+            `{id, title, share_url, is_public, owner_id}`.
+
+        Raises:
+            invalid_argument: When called by a service-owned agent
+                (`service_agent_cannot_publish`).
+
+        Idempotency: Not idempotent — each call creates a new document.
+        """
         return _publish(ctx, content, title=title, public=public)
 
     @mcp.tool()
     def markland_list(ctx: Context) -> list[dict]:
-        """List docs where the current principal is owner or has a grant."""
+        """List documents the current principal can view.
+
+        Returns documents the principal owns plus those reached via a
+        `view`/`edit` grant. Public-but-ungranted documents are not
+        included — use `markland_search` for discovery.
+
+        Args:
+            ctx: FastMCP request context (principal resolved from state).
+
+        Returns:
+            List of document summary dicts (id, title, share_url, is_public,
+            owner_id, updated_at). Newest first.
+
+        Idempotency: Read-only.
+        """
         return _list(ctx)
 
     @mcp.tool()
     def markland_get(ctx: Context, doc_id: str) -> dict:
-        """Get a document. Requires view access.
+        """Get a document with embedded active-presence rows.
 
-        Response includes `version: int` — pass this value back as
-        `if_version` to markland_update so your update is rejected if
-        anyone else wrote in the meantime.
+        The response includes `version: int` — pass this value back as
+        `if_version` to `markland_update` so your write is rejected if
+        anyone else committed a revision in the meantime.
+
+        Args:
+            doc_id: Document id (e.g. `doc_…`).
+
+        Returns:
+            Full document dict including `id, title, content, share_url,
+            is_public, version, owner_id, updated_at` plus
+            `active_principals: list[dict]` — the non-expired presence rows
+            for this doc (each `{principal_id, principal_type, display_name,
+            status, note, updated_at}`).
+
+        Raises:
+            not_found: Document does not exist.
+            forbidden: Caller lacks view access.
+
+        Idempotency: Read-only.
         """
         return _get(ctx, doc_id)
 
     @mcp.tool()
     def markland_search(ctx: Context, query: str) -> list[dict]:
-        """Search docs the current principal can view."""
+        """Search documents the current principal can view.
+
+        Searches title and content with a simple LIKE match; only documents
+        the principal owns or has a grant on are returned.
+
+        Args:
+            query: Free-text query. Empty strings match nothing.
+
+        Returns:
+            List of document summary dicts (same shape as `markland_list`).
+
+        Idempotency: Read-only.
+        """
         return _search(ctx, query)
 
     @mcp.tool()
     def markland_share(ctx: Context, doc_id: str) -> dict:
-        """Get the shareable link for a document. Requires view access."""
+        """Get a document's shareable URL.
+
+        Anyone with the URL who also has view access can open the doc. For
+        public docs the URL works without authentication.
+
+        Args:
+            doc_id: Document id.
+
+        Returns:
+            `{share_url, title}`.
+
+        Raises:
+            not_found: Document does not exist.
+            forbidden: Caller lacks view access.
+
+        Idempotency: Read-only.
+        """
         return _share(ctx, doc_id)
 
     @mcp.tool()
@@ -411,18 +509,31 @@ def build_mcp(
         content: str | None = None,
         title: str | None = None,
     ) -> dict:
-        """Update a document's content or title with optimistic concurrency control.
+        """Update a document's content or title with optimistic concurrency.
+
+        Compare-and-swap on `if_version`: if the server's current version
+        does not match, the call raises a `conflict` ToolError carrying the
+        current state so the caller can re-fetch, merge, and retry.
 
         Args:
-            doc_id: The document ID to update.
+            doc_id: Document id to update.
             if_version: REQUIRED. The version number you last saw from
-                markland_get. If it does not match the server's current
-                version, the update is rejected with a `conflict` error
-                whose payload includes `current_version`, `current_content`,
-                and `current_title`. Re-fetch, merge, and retry with the
-                fresh version number.
-            content: New markdown content (optional).
-            title: New title (optional).
+                `markland_get`. Used as the CAS token.
+            content: New markdown body. Omit to leave content unchanged.
+            title: New title. Omit to leave title unchanged.
+
+        Returns:
+            `{id, title, share_url, updated_at, version}` on success, with
+            `version` bumped by 1.
+
+        Raises:
+            not_found: Document does not exist (or was deleted).
+            forbidden: Caller lacks edit access.
+            conflict: ToolError with `data={code, current_version,
+                current_content, current_title}` — re-fetch and retry.
+
+        Idempotency: Not idempotent — each successful call increments
+            version and writes a revision row.
         """
         from mcp.server.fastmcp.exceptions import ToolError
 
@@ -440,32 +551,148 @@ def build_mcp(
 
     @mcp.tool()
     def markland_delete(ctx: Context, doc_id: str) -> dict:
-        """Delete a document. Owner only."""
+        """Delete a document. Owner only.
+
+        Removes the document, its grants, invites, and revisions. There is
+        no undo — re-publish from a backup if the content is needed again.
+
+        Args:
+            doc_id: Document id to delete.
+
+        Returns:
+            `{deleted: bool, id}`. `deleted` is `False` only if the row had
+            already been removed before the call landed.
+
+        Raises:
+            not_found: Document does not exist.
+            forbidden: Caller is not the owner.
+
+        Idempotency: Not idempotent — first call deletes, second returns
+            `not_found`.
+        """
         return _delete(ctx, doc_id)
 
     @mcp.tool()
     def markland_set_visibility(ctx: Context, doc_id: str, public: bool) -> dict:
-        """Promote to /explore (public) or demote to unlisted. Owner only."""
+        """Promote or demote a document's public visibility. Owner only.
+
+        Public docs appear on /explore and can be opened by anyone with the
+        share URL. Unlisted docs are visible only to the owner and grantees.
+
+        Args:
+            doc_id: Document id.
+            public: `True` to publish to /explore, `False` to unlist.
+
+        Returns:
+            `{id, is_public, share_url}`.
+
+        Raises:
+            not_found: Document does not exist.
+            forbidden: Caller is not the owner.
+
+        Idempotency: Idempotent — calling with the same flag is a no-op.
+        """
         return _set_visibility(ctx, doc_id, public)
 
     @mcp.tool()
     def markland_feature(ctx: Context, doc_id: str, featured: bool = True) -> dict:
-        """Pin or unpin a doc on the landing page hero. Admin only."""
+        """Pin or unpin a document on the landing hero. Admin only.
+
+        The featured slot drives which document the marketing landing page
+        showcases. Only one document is rendered, but the flag itself is
+        per-doc — flipping a new doc to featured does not auto-clear the old.
+
+        Args:
+            doc_id: Document id.
+            featured: `True` to pin, `False` to unpin. Default `True`.
+
+        Returns:
+            `{id, is_featured, is_public}`.
+
+        Raises:
+            forbidden: Caller is not an admin.
+            not_found: Document does not exist.
+
+        Idempotency: Idempotent — calling with the same flag is a no-op.
+        """
         return _feature(ctx, doc_id, featured)
 
     @mcp.tool()
     def markland_grant(ctx: Context, doc_id: str, principal: str, level: str) -> dict:
-        """Grant view or edit access. Owner only. `principal` is an email."""
+        """Grant view or edit access to a user or agent. Owner only.
+
+        `principal` accepts an email address (resolves to a user, creating
+        a placeholder row if needed) or an `agt_…` id (agent grant). A
+        best-effort notification email is sent for user grants when an
+        EmailClient was wired into `build_mcp`.
+
+        Args:
+            doc_id: Document id.
+            principal: Email address or `agt_…` agent id.
+            level: `"view"` or `"edit"`.
+
+        Returns:
+            Grant row dict `{doc_id, principal_id, principal_type, level,
+            granted_by, granted_at}`.
+
+        Raises:
+            not_found: Document does not exist.
+            forbidden: Caller is not the owner.
+            invalid_argument: `target_not_found`, `invalid_level`, or
+                `agent_grants_not_supported`.
+
+        Idempotency: Idempotent (upsert) — re-granting the same target is a
+            no-op; re-granting at a different level updates the row.
+        """
         return _grant(ctx, doc_id, principal, level)
 
     @mcp.tool()
     def markland_revoke(ctx: Context, doc_id: str, principal: str) -> dict:
-        """Revoke a grant. Owner only. `principal` may be an email or usr_ id."""
+        """Revoke an existing grant. Owner only. Idempotent.
+
+        `principal` accepts the same forms as `markland_grant`: an email
+        address (resolved to a user id) or a `usr_…`/`agt_…` id passed
+        through directly.
+
+        Args:
+            doc_id: Document id.
+            principal: Email, `usr_…`, or `agt_…` identifier of the grantee
+                to remove.
+
+        Returns:
+            `{revoked: bool, doc_id, principal_id}`. `revoked` is `False`
+            when no matching grant row existed.
+
+        Raises:
+            not_found: Document does not exist.
+            forbidden: Caller is not the owner.
+            invalid_argument: `target_not_found` if an email cannot be
+                resolved to a user.
+
+        Idempotency: Not idempotent — current behavior raises not_found if
+            target is missing. Plan 5 will flip to idempotent success.
+        """
         return _revoke(ctx, doc_id, principal)
 
     @mcp.tool()
     def markland_list_grants(ctx: Context, doc_id: str) -> list[dict]:
-        """List grants on a document. Requires edit or owner."""
+        """List all grants on a document.
+
+        Visible to the owner and any principal with edit access.
+
+        Args:
+            doc_id: Document id.
+
+        Returns:
+            List of grant dicts `{doc_id, principal_id, principal_type,
+            level, granted_by, granted_at}`.
+
+        Raises:
+            not_found: Document does not exist.
+            forbidden: Caller lacks edit access.
+
+        Idempotency: Read-only.
+        """
         return _list_grants(ctx, doc_id)
 
     @mcp.tool()
@@ -476,7 +703,32 @@ def build_mcp(
         single_use: bool = True,
         expires_in_days: int | None = None,
     ) -> dict:
-        """Owner-only. Create an invite link for a doc."""
+        """Create an invite link with a pre-set access level. Owner only.
+
+        The plaintext invite token is returned only in the URL; only its
+        argon2id hash is persisted. Show the URL to the recipient — there
+        is no way to recover it later.
+
+        Args:
+            doc_id: Document id to invite to.
+            level: `"view"` or `"edit"` — access level granted on accept.
+            single_use: When `True` (default) the invite consumes itself on
+                first accept; when `False` the invite remains usable until
+                explicitly revoked.
+            expires_in_days: Optional integer — sets `expires_at` to N days
+                from now. `None` means no expiry.
+
+        Returns:
+            `{invite_id, url, level, expires_at}`. `url` is the only place
+            the plaintext token appears.
+
+        Raises:
+            not_found: Document does not exist.
+            forbidden: Caller is not the owner.
+
+        Idempotency: Not idempotent — each call creates a new invite row
+            with a fresh token.
+        """
         return _create_invite(
             ctx,
             doc_id,
@@ -487,15 +739,42 @@ def build_mcp(
 
     @mcp.tool()
     def markland_revoke_invite(ctx: Context, invite_id: str) -> dict:
-        """Owner-only. Revoke an invite so the URL stops working."""
+        """Revoke an outstanding invite. Owner only. Idempotent.
+
+        Sets `revoked_at` on the invite so the URL stops resolving. Already
+        revoked invites are a no-op.
+
+        Args:
+            invite_id: Invite id (e.g. `inv_…`).
+
+        Returns:
+            `{revoked: True, invite_id}`.
+
+        Raises:
+            not_found: Invite or its document does not exist.
+            forbidden: Caller is not the document owner.
+
+        Idempotency: Not idempotent — current behavior raises not_found if
+            target is missing. Plan 5 will flip to idempotent success.
+        """
         return _revoke_invite(ctx, invite_id)
 
     @mcp.tool()
     def markland_list_my_agents(ctx: Context) -> list[dict]:
-        """List agents visible to the caller.
+        """List agents owned by the current user.
 
-        User tokens see all of that user's agents. Agent tokens see only themselves
-        (service-owned agents see an empty list).
+        User tokens see all agents they own. Agent tokens see only
+        themselves (service-owned agents — those without a `user_id` —
+        return an empty list).
+
+        Args:
+            ctx: FastMCP request context (principal resolved from state).
+
+        Returns:
+            List of agent dicts `{id, display_name, owner_type, owner_id,
+            created_at}`.
+
+        Idempotency: Read-only.
         """
         return _list_my_agents(ctx)
 
@@ -508,12 +787,27 @@ def build_mcp(
     ) -> dict:
         """Announce that you are reading or editing a document.
 
-        Advisory — does NOT lock the document. Other principals may still edit.
-        The announcement expires after 10 minutes; re-call this tool every ~5
-        minutes to remain visible (heartbeat). Valid statuses: 'reading',
-        'editing'. To stop announcing, call `markland_clear_status`.
+        Advisory — does NOT lock the document. Other principals may still
+        edit. The announcement expires after 10 minutes; re-call every ~5
+        minutes to remain visible (heartbeat). To stop announcing, call
+        `markland_clear_status`.
 
-        Returns `{doc_id, status, expires_at}`.
+        Args:
+            doc_id: Document id.
+            status: `"reading"` or `"editing"`. Other values raise
+                ValueError.
+            note: Optional free-text note shown alongside your presence
+                row (e.g. "fixing typos in §3").
+
+        Returns:
+            `{doc_id, status, expires_at}`. `expires_at` is ISO-8601 UTC.
+
+        Raises:
+            not_found: Document does not exist.
+            forbidden: Caller lacks view access.
+
+        Idempotency: Idempotent — calling with the same status updates the
+            heartbeat without creating a duplicate row.
         """
         return _set_status(ctx, doc_id, status, note=note)
 
@@ -529,16 +823,42 @@ def build_mcp(
     def markland_audit(
         ctx: Context, doc_id: str | None = None, limit: int = 100
     ) -> list[dict]:
-        """Admin-only: recent audit entries across the system."""
+        """Read recent audit-log entries. Admin only.
+
+        Surfaces the system audit trail — publish, update, delete, grant,
+        revoke, invite_create events — for forensic and compliance use.
+
+        Args:
+            doc_id: Optional filter — when set, only entries for this
+                document are returned. Default `None` (all docs).
+            limit: Max number of rows. Clamped to [1, 1000]. Default 100.
+
+        Returns:
+            List of audit row dicts `{id, doc_id, action, principal_id,
+            principal_type, metadata, created_at}`. Newest first.
+
+        Raises:
+            PermissionError: Caller is not an admin.
+
+        Idempotency: Read-only.
+        """
         return _audit(ctx, doc_id=doc_id, limit=limit)
 
     @mcp.tool()
     def markland_clear_status(ctx: Context, doc_id: str) -> dict:
-        """Remove your presence announcement from a document.
+        """Clear your presence announcement on a document. Idempotent.
 
-        Idempotent — safe to call even if you hadn't set a status. Equivalent
-        to letting the announcement expire naturally after 10 minutes, but
-        immediate.
+        Equivalent to letting the announcement expire naturally after
+        10 minutes, but immediate.
+
+        Args:
+            doc_id: Document id whose presence row should be removed.
+
+        Returns:
+            `{ok: True}`.
+
+        Idempotency: Idempotent — safe to call even if no presence row
+            exists.
         """
         return _clear_status(ctx, doc_id)
 
