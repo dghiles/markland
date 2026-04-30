@@ -2,8 +2,9 @@
 
 Every tool resolves the current principal from request state (set by Plan 2's
 PrincipalMiddleware) and calls into `service/docs.py` / `service/grants.py`.
-Errors are mapped to MCP-friendly dicts: {"error": "not_found" | "forbidden" |
-"invalid_argument", "reason": ...}.
+Errors are surfaced via `markland._mcp_errors.tool_error(code, **data)` (axis
+3) — the closed code set is `{unauthenticated, forbidden, not_found, conflict,
+invalid_argument, rate_limited, internal_error}`.
 
 `build_mcp` also exposes `.markland_handlers` — a dict of handler callables —
 so unit tests can exercise tool logic without standing up an MCP session.
@@ -849,7 +850,7 @@ def build_mcp(
             principal_type, metadata, created_at}`. Newest first.
 
         Raises:
-            PermissionError: Caller is not an admin.
+            forbidden: Caller is not an admin.
 
         Idempotency: Read-only.
         """
