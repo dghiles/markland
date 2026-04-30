@@ -253,6 +253,7 @@
                 <a href="/">Markland</a>
             </span>
             <span>Published {{ created_at[:10] }}</span>
+            {% include "_signed_in_nav.html" %}
             {% if forked_from %}
             <span class="forked-from" style="font-family: var(--font-display); font-size: 0.78rem; color: var(--muted);">
               Forked from

@@ -68,12 +68,28 @@ def test_verify_with_bad_token_returns_400(client_and_conn):
     assert r.status_code == 400
 
 
-def test_logout_clears_session_cookie(client_and_conn):
+def test_logout_json_api_returns_ok(client_and_conn):
+    """JSON callers (e.g. settings page JS) keep getting JSON {"ok": true}."""
     client, _, _ = client_and_conn
     token = issue_magic_link_token("alice@example.com", secret="test-secret")
     client.post("/api/auth/verify", json={"token": token})
-    r = client.post("/api/auth/logout")
+    r = client.post("/api/auth/logout", headers={"accept": "application/json"})
     assert r.status_code == 200
+    assert r.json() == {"ok": True}
+    # After logout, /api/me should be 401
+    r2 = client.get("/api/me")
+    assert r2.status_code == 401
+
+
+def test_logout_form_post_redirects_to_root(client_and_conn):
+    """Real <form method=post> submits (no JSON Accept) get a 303 redirect home,
+    not raw {"ok":true}."""
+    client, _, _ = client_and_conn
+    token = issue_magic_link_token("alice@example.com", secret="test-secret")
+    client.post("/api/auth/verify", json={"token": token})
+    r = client.post("/api/auth/logout", follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"] == "/"
     # After logout, /api/me should be 401
     r2 = client.get("/api/me")
     assert r2.status_code == 401

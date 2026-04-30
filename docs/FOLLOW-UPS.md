@@ -94,6 +94,33 @@ post-launch sprint should pick up.
 - **Back-compat `email_client=` kwargs** — `create_app`, `grants.grant()`,
   `invite_routes._notify_creator` all still accept the pre-Plan-7 `email_client=`
   parameter. Remove once all internal callers use `dispatcher=`.
+- **Signed-in nav banner missing on secondary pages** — `_signed_in_nav.html`
+  renders on `/`, `/d/<token>`, and `/explore` because those handlers pass
+  `signed_in_user_ctx(...)` into the render context. Other base.html-extending
+  pages (`/quickstart`, `/about`, `/security`, `/competitors/...`, etc.) inherit
+  the include but their handlers don't pass the dict, so the banner silently
+  disappears when a signed-in user navigates to them via the top-nav and
+  reappears when they come back. Either factor a tiny `_render_with_nav(...)`
+  helper that injects `signed_in_user` for every base.html render, or extract a
+  middleware that hangs `signed_in_user` off `request.state` so all templates
+  can pull from there. Cosmetic but visible.
+- **`view_document` cookie/Bearer split for owner controls** — the handler at
+  `src/markland/web/app.py` renders the "Signed in as <email>" banner via
+  `signed_in_user_ctx` (cookie-aware) but still computes `is_owner` from
+  `request.state.principal` (Bearer-only). A cookie-auth'd owner viewing their
+  own private doc sees the banner but is treated as anonymous for owner
+  controls (share dialog, etc.). Fix: replace the `getattr(request.state,
+  "principal", None)` with a fallback to `session_principal(...)` like
+  `/explore` does. Pre-existing inconsistency that became visibly weird now
+  that the banner advertises the signed-in state.
+- **`settings_tokens.html` logout fetch is wasteful but not broken** —
+  `templates/settings_tokens.html:79` calls `fetch('/api/auth/logout',
+  {method:'POST'})` with no `Accept` header. After PR #28 the server returns
+  a 303 redirect to `/` for non-JSON callers, so fetch transparently follows
+  the redirect → fetches `/` → JS discards the body and forces
+  `location.href = '/login'`. Cookie deletion happens correctly but the
+  browser does an unnecessary GET. Add `headers: {'Accept':
+  'application/json'}` (or `redirect: 'manual'`) to the fetch.
 
 ## Test coverage
 

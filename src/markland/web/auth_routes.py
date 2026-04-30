@@ -169,8 +169,13 @@ def build_auth_router(
         return resp
 
     @router.post("/api/auth/logout")
-    def logout() -> JSONResponse:
-        resp = JSONResponse({"ok": True})
+    def logout(request: Request):
+        accept = request.headers.get("accept", "")
+        wants_json = "application/json" in accept
+        if wants_json:
+            resp: Response = JSONResponse({"ok": True})
+        else:
+            resp = RedirectResponse("/", status_code=303)
         resp.delete_cookie(SESSION_COOKIE_NAME, path="/")
         return resp
 
