@@ -24,6 +24,7 @@ from markland.service import invites as invites_svc
 from markland.service import presence as presence_svc
 from markland.service.auth import Principal
 from markland.service.email import EmailClient
+from markland._mcp_errors import tool_error
 from markland.service.permissions import NotFound, PermissionDenied, check_permission
 
 logging.basicConfig(
@@ -72,7 +73,7 @@ def _principal_from_ctx(ctx) -> Principal | None:
 def _require_principal(ctx) -> Principal:
     p = _principal_from_ctx(ctx)
     if p is None:
-        raise RuntimeError("no principal on context — PrincipalMiddleware missing?")
+        raise tool_error("unauthenticated")
     return p
 
 

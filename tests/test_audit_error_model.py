@@ -24,3 +24,12 @@ def test_tool_error_carries_code_and_data():
 def test_tool_error_rejects_unknown_code():
     with pytest.raises(ValueError, match="not in ERROR_CODES"):
         tool_error("teapot")
+
+
+from tests._mcp_harness import MCPHarness
+
+
+def test_anon_publish_is_unauthenticated(tmp_path):
+    h = MCPHarness.create(tmp_path, mode="direct")
+    r = h.anon().call_raw("markland_publish", content="x")
+    r.assert_error("unauthenticated")
