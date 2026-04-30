@@ -15,7 +15,10 @@ def test_grant_uses_target_param(mcp):
     tool = mcp._tool_manager.get_tool("markland_grant")
     sig_params = list(tool.parameters.get("properties", {}).keys())
     assert "target" in sig_params, sig_params
-    # `principal` is also accepted as deprecated alias — but not advertised in the schema.
+    # `principal` is also accepted as a deprecated alias. FastMCP's pydantic
+    # schema generator treats keyword-only params identically to positional
+    # ones, so `principal` still appears in `properties`. Clients should
+    # prefer `target`; the alias is removed in Phase B (plan 7).
 
 
 def test_boolean_inputs_drop_is_prefix(mcp):
