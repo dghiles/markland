@@ -94,6 +94,16 @@ post-launch sprint should pick up.
 - **Back-compat `email_client=` kwargs** — `create_app`, `grants.grant()`,
   `invite_routes._notify_creator` all still accept the pre-Plan-7 `email_client=`
   parameter. Remove once all internal callers use `dispatcher=`.
+- **Signed-in nav banner missing on secondary pages** — `_signed_in_nav.html`
+  renders on `/`, `/d/<token>`, and `/explore` because those handlers pass
+  `signed_in_user_ctx(...)` into the render context. Other base.html-extending
+  pages (`/quickstart`, `/about`, `/security`, `/competitors/...`, etc.) inherit
+  the include but their handlers don't pass the dict, so the banner silently
+  disappears when a signed-in user navigates to them via the top-nav and
+  reappears when they come back. Either factor a tiny `_render_with_nav(...)`
+  helper that injects `signed_in_user` for every base.html render, or extract a
+  middleware that hangs `signed_in_user` off `request.state` so all templates
+  can pull from there. Cosmetic but visible.
 
 ## Test coverage
 

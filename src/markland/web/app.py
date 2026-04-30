@@ -476,10 +476,9 @@ def create_app(
         principal = getattr(request.state, "principal", None)
         # Cookie-auth'd browser users don't get request.state.principal —
         # only Bearer paths do. Fall back to the session cookie so view=mine
-        # is reachable from the UI. The next call (signed_in_user_ctx) will
-        # do its own session lookup; that's an accepted small redundancy
-        # because the two helpers serve different needs and live in the same
-        # module — see docs/plans/2026-04-29-signed-in-account-discovery.md.
+        # is reachable from the UI. signed_in_user_ctx below does its own
+        # session lookup; the small redundancy is intentional — the two
+        # helpers serve different needs and the cost is microseconds.
         if principal is None:
             principal = session_principal(request, db_conn, secret=session_secret)
         query = (q or "").strip() or None
