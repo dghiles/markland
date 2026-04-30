@@ -61,3 +61,70 @@ def test_signed_in_landing_shows_email_and_links(harness):
     assert "alice@example.com" in r.text
     assert 'href="/explore?view=mine"' in r.text
     assert 'action="/api/auth/logout"' in r.text
+
+
+def test_signed_in_doc_page_shows_banner(harness):
+    client, conn = harness
+    user = create_user(conn, email="bob@example.com")
+    cookie = issue_session(user.id, secret=SECRET)
+    client.cookies.set(SESSION_COOKIE_NAME, cookie)
+
+    # Insert a public doc the user can view.
+    conn.execute(
+        "INSERT INTO documents (id, title, content, share_token, created_at, "
+        "updated_at, is_public, is_featured, owner_id) VALUES "
+        "('doc_x', 'Hello', '# hi', 'tok_x', '2026-01-01T00:00:00+00:00', "
+        "'2026-01-01T00:00:00+00:00', 1, 0, ?)",
+        (user.id,),
+    )
+    conn.commit()
+
+    r = client.get("/d/tok_x")
+    assert r.status_code == 200
+    assert "Signed in as" in r.text
+    assert "bob@example.com" in r.text
+
+
+def test_anon_doc_page_has_no_banner(harness):
+    client, conn = harness
+    user = create_user(conn, email="bob@example.com")
+    conn.execute(
+        "INSERT INTO documents (id, title, content, share_token, created_at, "
+        "updated_at, is_public, is_featured, owner_id) VALUES "
+        "('doc_y', 'Public', '# hi', 'tok_y', '2026-01-01T00:00:00+00:00', "
+        "'2026-01-01T00:00:00+00:00', 1, 0, ?)",
+        (user.id,),
+    )
+    conn.commit()
+
+    r = client.get("/d/tok_y")
+    assert r.status_code == 200
+    assert "Signed in as" not in r.text
+
+
+def test_signed_in_explore_view_mine_lists_user_docs(harness):
+    """The 'Your docs' link must actually work for cookie-auth'd users.
+
+    This is the reachability bug: today /explore?view=mine returns the
+    public list because principal is None for cookie users.
+    """
+    client, conn = harness
+    user = create_user(conn, email="carol@example.com")
+    cookie = issue_session(user.id, secret=SECRET)
+    client.cookies.set(SESSION_COOKIE_NAME, cookie)
+
+    # Carol has one private doc.
+    conn.execute(
+        "INSERT INTO documents (id, title, content, share_token, created_at, "
+        "updated_at, is_public, is_featured, owner_id) VALUES "
+        "('doc_carol', 'Carol Plan', 'secret', 'tok_c', "
+        "'2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00', 0, 0, ?)",
+        (user.id,),
+    )
+    conn.commit()
+
+    r = client.get("/explore?view=mine")
+    assert r.status_code == 200
+    assert "Carol Plan" in r.text  # would fail before fix — view=mine returned
+                                   # public list for cookie users
+    assert "Signed in as" in r.text

@@ -472,8 +472,16 @@ def create_app(
     @app.get("/explore", response_class=HTMLResponse)
     def explore(request: Request, q: str | None = None, view: str | None = None):
         principal = getattr(request.state, "principal", None)
+        if principal is None:
+            from markland.web.session_principal import session_principal
+            principal = session_principal(request, db_conn, secret=session_secret)
         query = (q or "").strip() or None
         show_mine = view == "mine" and principal is not None
+        signed_in_user = None
+        if principal is not None:
+            signed_in = session_user(request, db_conn, secret=session_secret)
+            if signed_in is not None:
+                signed_in_user = {"email": signed_in.email}
 
         if show_mine:
             from markland.service import docs as docs_svc_local
@@ -499,6 +507,7 @@ def create_app(
                     total=len(cards),
                     view="mine",
                     authed=True,
+                    signed_in_user=signed_in_user,
                 )
             )
 
@@ -513,6 +522,7 @@ def create_app(
                 total=len(total_docs),
                 view="public",
                 authed=principal is not None,
+                signed_in_user=signed_in_user,
             )
         )
 
@@ -587,6 +597,8 @@ def create_app(
                     ).fetchone()
                     forked_from_visible = grant_row is not None
         content_html = render_markdown(doc.content)
+        signed_in = session_user(request, db_conn, secret=session_secret)
+        signed_in_user = {"email": signed_in.email} if signed_in else None
         html = document_tpl.render(
             **_seo_ctx(request, base_url),
             title=doc.title,
@@ -599,6 +611,7 @@ def create_app(
             active_principals=active_principals,
             forked_from=forked_from,
             forked_from_visible=forked_from_visible,
+            signed_in_user=signed_in_user,
         )
         return HTMLResponse(html)
 
