@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Refuse commits on non-main branches in the PRIMARY worktree.
+#
+# Why: parallel agent sessions share /Users/daveyhiles/Developer/markland.
+# When one agent runs `git checkout -b feat/foo` here (instead of using
+# `git worktree add .worktrees/foo -b feat/foo`), the next session inherits
+# the wrong HEAD and accidentally lands commits on the feature branch.
+# Linked worktrees (.worktrees/*, .claude/worktrees/*) skip this check.
+#
+# Activate (one-time, per clone):
+#     ln -s ../../scripts/git-hooks/pre-commit .git/hooks/pre-commit
+#
+# Bypass (when you genuinely want a non-main commit in primary):
+#     BYPASS_BRANCH_CHECK=1 git commit ...
+
+set -e
+
+# Detect linked worktree by inspecting the resolved git-dir.
+# Primary worktree: <repo>/.git
+# Linked worktree:  <repo>/.git/worktrees/<name>
+git_dir=$(git rev-parse --git-dir)
+case "$git_dir" in
+  */worktrees/*)
+    exit 0
+    ;;
+esac
+
+if [ "${BYPASS_BRANCH_CHECK:-}" = "1" ]; then
+  exit 0
+fi
+
+branch=$(git symbolic-ref --short HEAD 2>/dev/null || true)
+
+# Detached HEAD (rebase, cherry-pick, bisect): let it through.
+if [ -z "$branch" ]; then
+  exit 0
+fi
+
+if [ "$branch" != "main" ]; then
+  cat >&2 <<EOF
+✗ Refusing commit on '$branch' in the primary worktree.
+
+The primary worktree should stay on main. Feature work belongs in an
+isolated worktree:
+
+    git worktree add .worktrees/<name> -b <branch>
+    cd .worktrees/<name>
+
+If you genuinely meant to commit on '$branch' here, either switch back
+to main first (git checkout main) or bypass the hook for this commit:
+
+    BYPASS_BRANCH_CHECK=1 git commit ...
+EOF
+  exit 1
+fi
+
+exit 0
