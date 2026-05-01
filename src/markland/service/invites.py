@@ -261,11 +261,61 @@ def list_invites(conn, *, doc_id: str, include_revoked: bool = False) -> list[In
     return [_row_to_invite(r) for r in rows]
 
 
+def list_for_doc_paginated(
+    conn, doc_id: str, *, limit: int = 50, cursor: str | None = None,
+):
+    """Paginated list of outstanding (non-revoked) invites for a doc.
+
+    Returns (items, next_cursor) using (created_at, id) DESC keyset
+    pagination. Plaintext tokens are NEVER returned — only the hash is
+    persisted, so they are unrecoverable after create_invite.
+    """
+    from markland._mcp_envelopes import decode_cursor, encode_cursor
+
+    limit = min(max(1, int(limit)), 200)
+    where = ["doc_id = ?", "revoked_at IS NULL"]
+    params: list = [doc_id]
+    if cursor:
+        last_id, last_created_at = decode_cursor(cursor)
+        where.append("(created_at, id) < (?, ?)")
+        params.extend([last_created_at, last_id])
+    sql = (
+        "SELECT id, doc_id, level, uses_remaining, expires_at, created_at "
+        "FROM invites "
+        f"WHERE {' AND '.join(where)} "
+        "ORDER BY created_at DESC, id DESC "
+        "LIMIT ?"
+    )
+    params.append(limit + 1)
+    cursor_obj = conn.execute(sql, params)
+    cols = [c[0] for c in cursor_obj.description]
+    rows = [dict(zip(cols, r)) for r in cursor_obj.fetchall()]
+    has_more = len(rows) > limit
+    page = rows[:limit]
+    next_cursor = None
+    if has_more and page:
+        next_cursor = encode_cursor(
+            last_id=page[-1]["id"], last_updated_at=page[-1]["created_at"],
+        )
+    items = [
+        {
+            "invite_id": r["id"],
+            "level": r["level"],
+            "uses_remaining": r["uses_remaining"],
+            "expires_at": r["expires_at"],
+            "created_at": r["created_at"],
+        }
+        for r in page
+    ]
+    return items, next_cursor
+
+
 __all__ = [
     "CreatedInvite",
     "accept_invite",
     "create_invite",
     "list_invites",
+    "list_for_doc_paginated",
     "resolve_invite",
     "revoke_invite",
 ]

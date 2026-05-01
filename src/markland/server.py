@@ -372,6 +372,21 @@ def build_mcp(
             "expires_at": result.expires_at,
         }
 
+    def _list_invites(
+        ctx, doc_id: str, limit: int = 50, cursor: str | None = None,
+    ):
+        p = _require_principal(ctx)
+        try:
+            check_permission(db_conn, p, doc_id, "owner")
+        except NotFound:
+            raise tool_error("not_found")
+        except PermissionDenied:
+            raise tool_error("forbidden")
+        items, next_cursor = invites_svc.list_for_doc_paginated(
+            db_conn, doc_id, limit=limit, cursor=cursor,
+        )
+        return list_envelope(items=items, next_cursor=next_cursor)
+
     def _revoke_invite(ctx, invite_id: str):
         p = _require_principal(ctx)
         row = db_conn.execute(
@@ -914,6 +929,36 @@ def build_mcp(
         )
 
     @mcp.tool()
+    def markland_list_invites(
+        ctx: Context,
+        doc_id: str,
+        limit: int = 50,
+        cursor: str | None = None,
+    ) -> dict:
+        """List outstanding invites for a document. Owner only.
+
+        Plaintext invite tokens are NEVER returned — the original tokens are
+        only available at create-time. Use this tool to inspect and revoke
+        existing invites.
+
+        Args:
+            doc_id: The document.
+            limit: Max invites per page (1-200, default 50).
+            cursor: Pagination cursor.
+
+        Returns:
+            list_envelope of invite summaries:
+                {invite_id, level, uses_remaining, expires_at, created_at}
+
+        Raises:
+            not_found: doc does not exist or caller cannot see it.
+            forbidden: caller is not the owner.
+
+        Idempotency: Read-only.
+        """
+        return _list_invites(ctx, doc_id, limit=limit, cursor=cursor)
+
+    @mcp.tool()
     def markland_revoke_invite(ctx: Context, invite_id: str) -> dict:
         """Revoke an outstanding invite. Owner only.
 
@@ -1110,6 +1155,7 @@ def build_mcp(
         markland_list_grants=_list_grants,
         markland_list_my_agents=_list_my_agents,
         markland_create_invite=_create_invite,
+        markland_list_invites=_list_invites,
         markland_revoke_invite=_revoke_invite,
         markland_set_status=lambda ctx, doc_id, status, note=None: _status(
             ctx, doc_id, status=status, note=note
