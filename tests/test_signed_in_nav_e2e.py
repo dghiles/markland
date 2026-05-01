@@ -190,3 +190,21 @@ def test_verify_sent_page_shows_banner(harness):
     assert "alice@example.com" in body
     # Inherits base.html chrome
     assert 'href="/explore"' in body  # site-nav links
+
+
+def test_settings_tokens_page_shows_banner_and_drops_bespoke_signout(harness):
+    """Settings page should use the shared signed-in banner, not its own
+    bespoke 'Sign out' fetch link."""
+    client, conn = harness
+    user = create_user(conn, email="bob@example.com")
+    cookie = issue_session(user.id, secret=SECRET)
+    client.cookies.set(SESSION_COOKIE_NAME, cookie)
+
+    r = client.get("/settings/tokens")
+    assert r.status_code == 200
+    body = r.text
+    # Banner present
+    assert "Signed in as" in body
+    assert "bob@example.com" in body
+    # Bespoke sign-out fetch JS removed.
+    assert "fetch('/api/auth/logout'" not in body

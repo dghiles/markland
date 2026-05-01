@@ -25,6 +25,7 @@ from markland.service.sessions import (
     read_session,
 )
 from markland.service.users import User, get_user
+from markland.web.render_helpers import render_with_nav
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 
@@ -53,6 +54,7 @@ def build_identity_router(
     *,
     db_conn: sqlite3.Connection,
     session_secret: str,
+    base_url: str = "",
 ) -> APIRouter:
     router = APIRouter()
     env = Environment(
@@ -112,6 +114,13 @@ def build_identity_router(
         if user is None:
             return RedirectResponse("/login", status_code=303)
         tokens = list_tokens(db_conn, user_id=user.id)
-        return HTMLResponse(settings_tpl.render(user=user, tokens=tokens))
+        return HTMLResponse(
+            render_with_nav(
+                settings_tpl, request, db_conn,
+                base_url=base_url, secret=session_secret,
+                user=user, tokens=tokens,
+                signed_in_user={"email": user.email},
+            )
+        )
 
     return router

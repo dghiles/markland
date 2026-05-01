@@ -646,6 +646,7 @@ def create_app(
         build_identity_router(
             db_conn=db_conn,
             session_secret=session_secret,
+            base_url=base_url,
         )
     )
 
