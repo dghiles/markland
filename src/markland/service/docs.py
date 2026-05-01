@@ -363,10 +363,9 @@ def fork(
     except PermissionError:
         # Caller cannot view the source — deny-as-not-found.
         raise NotFound(f"document {source_doc_id}")
-    except ValueError:
-        # Same owner — surface as NotFound to keep the contract narrow; the
-        # MCP layer maps this to `not_found`. (Rare in practice.)
-        raise NotFound(f"document {source_doc_id}")
+    # ValueError("cannot_fork_own_doc") is allowed to propagate; the MCP
+    # layer translates it to invalid_argument so a confused agent can see
+    # the actual reason rather than a misleading not_found.
 
     # Apply optional title override.
     new_title = title if title else f"Fork of {src.title}"

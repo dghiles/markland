@@ -156,3 +156,14 @@ def test_revisions_forbidden_for_non_viewer(tmp_path):
     pub = alice.call("markland_publish", content="# v1")
     r = bob.call_raw("markland_revisions", doc_id=pub["id"])
     r.assert_error("not_found")
+
+
+def test_fork_self_returns_invalid_argument(tmp_path):
+    """Self-fork (alice forks her own doc) should surface as invalid_argument
+    with a debuggable reason — not as not_found, which would mask the bug."""
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# mine", public=True)
+    r = alice.call_raw("markland_fork", doc_id=pub["id"])
+    r.assert_error("invalid_argument")
+    assert "cannot_fork_own_doc" in r.error_data.get("reason", "")

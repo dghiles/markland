@@ -172,6 +172,11 @@ def build_mcp(
             raise tool_error("not_found")
         except PermissionDenied:
             raise tool_error("forbidden")
+        except ValueError as exc:
+            # Service layer signals fork-specific argument errors (e.g.
+            # cannot_fork_own_doc) via ValueError. Surface as invalid_argument
+            # so callers see the real reason instead of a misleading not_found.
+            raise tool_error("invalid_argument", reason=str(exc))
         full = docs_svc.get(db_conn, p, raw["id"], base_url=base_url)
         return doc_envelope(full)
 
