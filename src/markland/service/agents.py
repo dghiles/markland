@@ -103,6 +103,66 @@ def list_agents(conn: sqlite3.Connection, owner_user_id: str) -> list[Agent]:
     return [_row_to_agent(r) for r in rows]
 
 
+def list_paginated(
+    conn: sqlite3.Connection,
+    owner_user_id: str,
+    *,
+    limit: int = 50,
+    cursor: str | None = None,
+    cap: int = 200,
+) -> tuple[list[dict], str | None]:
+    """Paginated list of active user-owned agents.
+
+    Returns (rows, next_cursor) ordered by (created_at DESC, id DESC).
+    The cursor's `last_updated_at` field carries the `created_at` value.
+    """
+    from markland._mcp_envelopes import decode_cursor, encode_cursor
+
+    limit = min(max(1, int(limit)), cap)
+
+    where_clauses = [
+        "owner_type = 'user'",
+        "owner_id = ?",
+        "revoked_at IS NULL",
+    ]
+    params: list = [owner_user_id]
+
+    if cursor:
+        last_id, last_created_at = decode_cursor(cursor)
+        where_clauses.append("(created_at, id) < (?, ?)")
+        params.extend([last_created_at, last_id])
+
+    sql = (
+        f"SELECT {_AGENT_COLUMNS} FROM agents "
+        f"WHERE {' AND '.join(where_clauses)} "
+        "ORDER BY created_at DESC, id DESC LIMIT ?"
+    )
+    params.append(limit + 1)
+
+    rows = conn.execute(sql, params).fetchall()
+    has_more = len(rows) > limit
+    page = rows[:limit]
+
+    items = [
+        {
+            "id": r[0],
+            "display_name": r[1],
+            "owner_type": r[2],
+            "owner_id": r[3],
+            "created_at": r[4],
+        }
+        for r in page
+    ]
+
+    next_cursor = None
+    if has_more and items:
+        last = items[-1]
+        next_cursor = encode_cursor(
+            last_id=last["id"], last_updated_at=last["created_at"]
+        )
+    return items, next_cursor
+
+
 def revoke_agent(
     conn: sqlite3.Connection,
     agent_id: str,
@@ -129,5 +189,6 @@ __all__ = [
     "create_agent",
     "create_service_agent",
     "list_agents",
+    "list_paginated",
     "revoke_agent",
 ]

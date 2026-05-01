@@ -117,3 +117,39 @@ def test_list_grants_pagination_limit_and_cursor(tmp_path):
         for item in page1["items"] + page2["items"] + page3["items"]
     }
     assert len(seen) == 5
+
+
+def test_list_my_agents_pagination_limit_and_cursor(tmp_path):
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    from markland.service.agents import create_agent
+
+    for i in range(5):
+        create_agent(
+            h.db,
+            owner_user_id=alice.principal.principal_id,
+            display_name=f"agent-{i}",
+        )
+
+    page1 = alice.call("markland_list_my_agents", limit=2)
+    assert "items" in page1
+    assert "next_cursor" in page1
+    assert len(page1["items"]) == 2
+    assert page1["next_cursor"] is not None
+
+    page2 = alice.call(
+        "markland_list_my_agents", limit=2, cursor=page1["next_cursor"]
+    )
+    assert len(page2["items"]) == 2
+
+    page3 = alice.call(
+        "markland_list_my_agents", limit=2, cursor=page2["next_cursor"]
+    )
+    assert len(page3["items"]) == 1
+    assert page3["next_cursor"] is None
+
+    seen = {
+        item["id"]
+        for item in page1["items"] + page2["items"] + page3["items"]
+    }
+    assert len(seen) == 5

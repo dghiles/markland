@@ -353,38 +353,39 @@ def build_mcp(
         p = _require_principal(ctx)
         return presence_svc.clear_status(db_conn, doc_id=doc_id, principal=p)
 
-    def _list_my_agents(ctx):
+    def _list_my_agents(ctx, limit: int = 50, cursor: str | None = None):
         p = _require_principal(ctx)
         if p.principal_type == "agent":
+            # Special-cases: agents always see at most one row (themselves),
+            # so pagination is a no-op — always returns next_cursor=None.
             if p.user_id is None:
-                return []  # service-owned agent — no self-lookup exposed
+                return list_envelope(items=[], next_cursor=None)
             row = db_conn.execute(
                 "SELECT id, display_name, owner_type, owner_id, created_at "
                 "FROM agents WHERE id = ?",
                 (p.principal_id,),
             ).fetchone()
             if row is None:
-                return []
-            return [
-                {
-                    "id": row[0],
-                    "display_name": row[1],
-                    "owner_type": row[2],
-                    "owner_id": row[3],
-                    "created_at": row[4],
-                }
-            ]
-        agents = agents_svc.list_agents(db_conn, owner_user_id=p.principal_id)
-        return [
-            {
-                "id": a.id,
-                "display_name": a.display_name,
-                "owner_type": a.owner_type,
-                "owner_id": a.owner_id,
-                "created_at": a.created_at,
-            }
-            for a in agents
-        ]
+                return list_envelope(items=[], next_cursor=None)
+            return list_envelope(
+                items=[
+                    {
+                        "id": row[0],
+                        "display_name": row[1],
+                        "owner_type": row[2],
+                        "owner_id": row[3],
+                        "created_at": row[4],
+                    }
+                ],
+                next_cursor=None,
+            )
+        rows, next_cursor = agents_svc.list_paginated(
+            db_conn,
+            owner_user_id=p.principal_id,
+            limit=limit,
+            cursor=cursor,
+        )
+        return list_envelope(items=rows, next_cursor=next_cursor)
 
     def _whoami(ctx):
         principal = _principal_from_ctx(ctx)
@@ -816,23 +817,30 @@ def build_mcp(
         return _revoke_invite(ctx, invite_id)
 
     @mcp.tool()
-    def markland_list_my_agents(ctx: Context) -> list[dict]:
-        """List agents owned by the current user.
+    def markland_list_my_agents(
+        ctx: Context, limit: int = 50, cursor: str | None = None
+    ) -> dict:
+        """List agents owned by the current user, paginated.
 
         User tokens see all agents they own. Agent tokens see only
         themselves (service-owned agents — those without a `user_id` —
-        return an empty list).
+        return an empty list). Agent callers always get next_cursor=None.
 
         Args:
             ctx: FastMCP request context (principal resolved from state).
+            limit: Max agents per page (1-200, default 50). Ignored for
+                agent callers.
+            cursor: Opaque token from a previous response's `next_cursor`.
+                Pass to fetch the next page; omit for the first page.
 
         Returns:
-            List of agent dicts `{id, display_name, owner_type, owner_id,
-            created_at}`.
+            list_envelope of agent dicts: {items: [{id, display_name,
+            owner_type, owner_id, created_at}, ...], next_cursor}.
+            Ordering is `(created_at DESC, id DESC)`.
 
         Idempotency: Read-only.
         """
-        return _list_my_agents(ctx)
+        return _list_my_agents(ctx, limit=limit, cursor=cursor)
 
     @mcp.tool()
     def markland_set_status(
