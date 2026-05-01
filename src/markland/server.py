@@ -25,7 +25,7 @@ from markland.service import invites as invites_svc
 from markland.service import presence as presence_svc
 from markland.service.auth import Principal
 from markland.service.email import EmailClient
-from markland._mcp_envelopes import doc_envelope
+from markland._mcp_envelopes import doc_envelope, doc_summary, list_envelope
 from markland._mcp_errors import tool_error
 from markland.service.permissions import NotFound, PermissionDenied, check_permission
 
@@ -100,9 +100,13 @@ def build_mcp(
         full = docs_svc.get(db_conn, p, raw["id"], base_url=base_url)
         return doc_envelope(full)
 
-    def _list(ctx):
+    def _list(ctx, limit: int = 50, cursor: str | None = None):
         p = _require_principal(ctx)
-        return docs_svc.list_for_principal(db_conn, p)
+        rows, next_cursor = docs_svc.list_for_principal_paginated(
+            db_conn, p, limit=limit, cursor=cursor,
+        )
+        items = [doc_summary(r) for r in rows]
+        return list_envelope(items=items, next_cursor=next_cursor)
 
     def _get(ctx, doc_id: str):
         p = _require_principal(ctx)
@@ -432,8 +436,10 @@ def build_mcp(
         return _publish(ctx, content, title=title, public=public)
 
     @mcp.tool()
-    def markland_list(ctx: Context) -> list[dict]:
-        """List documents the current principal can view.
+    def markland_list(
+        ctx: Context, limit: int = 50, cursor: str | None = None
+    ) -> dict:
+        """List documents the current principal can view, paginated.
 
         Returns documents the principal owns plus those reached via a
         `view`/`edit` grant. Public-but-ungranted documents are not
@@ -441,14 +447,21 @@ def build_mcp(
 
         Args:
             ctx: FastMCP request context (principal resolved from state).
+            limit: Max documents per page (1-200, default 50).
+            cursor: Opaque token from a previous response's `next_cursor`.
+                Pass to fetch the next page; omit for the first page.
 
         Returns:
-            List of document summary dicts (id, title, share_url, is_public,
-            owner_id, updated_at). Newest first.
+            list_envelope of doc_summary: {items: [doc_summary, ...],
+            next_cursor}. `next_cursor` is None when there are no more
+            results. Ordering is `(updated_at DESC, id DESC)`.
+
+        Raises:
+            unauthenticated: caller has no principal.
 
         Idempotency: Read-only.
         """
-        return _list(ctx)
+        return _list(ctx, limit=limit, cursor=cursor)
 
     @mcp.tool()
     def markland_get(ctx: Context, doc_id: str) -> dict:
