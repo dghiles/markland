@@ -2,21 +2,31 @@
   "http_minimal": {
     "kind": "ok",
     "value": {
+      "content": "# hi",
+      "created_at": "<TIMESTAMP>",
       "id": "<DOC_ID>",
+      "is_featured": false,
       "is_public": false,
       "owner_id": "<USR_ID>",
       "share_url": "<SHARE_URL>",
-      "title": "hi"
+      "title": "hi",
+      "updated_at": "<TIMESTAMP>",
+      "version": 1
     }
   },
   "minimal": {
     "kind": "ok",
     "value": {
+      "content": "# Hello",
+      "created_at": "<TIMESTAMP>",
       "id": "<DOC_ID>",
+      "is_featured": false,
       "is_public": false,
       "owner_id": "<USR_ID>",
       "share_url": "<SHARE_URL>",
-      "title": "Hello"
+      "title": "Hello",
+      "updated_at": "<TIMESTAMP>",
+      "version": 1
     }
   },
   "unauthenticated": {
@@ -27,11 +37,16 @@
   "with_title_public": {
     "kind": "ok",
     "value": {
+      "content": "body",
+      "created_at": "<TIMESTAMP>",
       "id": "<DOC_ID>",
+      "is_featured": false,
       "is_public": true,
       "owner_id": "<USR_ID>",
       "share_url": "<SHARE_URL>",
-      "title": "My Title"
+      "title": "My Title",
+      "updated_at": "<TIMESTAMP>",
+      "version": 1
     }
   }
 }

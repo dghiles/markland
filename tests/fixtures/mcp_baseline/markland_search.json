@@ -1,20 +1,28 @@
 {
   "match": {
     "kind": "ok",
-    "value": [
-      {
-        "id": "<DOC_ID>",
-        "is_featured": false,
-        "is_public": false,
-        "owner_id": "<USR_ID>",
-        "title": "SearchableDoc",
-        "updated_at": "<TIMESTAMP>"
-      }
-    ]
+    "value": {
+      "items": [
+        {
+          "created_at": "<TIMESTAMP>",
+          "id": "<DOC_ID>",
+          "is_featured": false,
+          "is_public": false,
+          "owner_id": "<USR_ID>",
+          "title": "SearchableDoc",
+          "updated_at": "<TIMESTAMP>",
+          "version": 1
+        }
+      ],
+      "next_cursor": null
+    }
   },
   "no_match": {
     "kind": "ok",
-    "value": []
+    "value": {
+      "items": [],
+      "next_cursor": null
+    }
   },
   "unauthenticated": {
     "code": "unauthenticated",

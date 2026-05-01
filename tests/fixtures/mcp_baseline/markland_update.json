@@ -30,7 +30,12 @@
   "success": {
     "kind": "ok",
     "value": {
+      "content": "# v2 updated",
+      "created_at": "<TIMESTAMP>",
       "id": "<DOC_ID>",
+      "is_featured": false,
+      "is_public": false,
+      "owner_id": "<USR_ID>",
       "share_url": "<SHARE_URL>",
       "title": "Updated",
       "updated_at": "<TIMESTAMP>",

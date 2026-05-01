@@ -2,26 +2,38 @@
   "http_owner_only": {
     "kind": "ok",
     "value": {
-      "id": "<DOC_ID>",
-      "is_featured": false,
-      "is_public": false,
-      "owner_id": "<USR_ID>",
-      "title": "one",
-      "updated_at": "<TIMESTAMP>"
+      "items": [
+        {
+          "created_at": "<TIMESTAMP>",
+          "id": "<DOC_ID>",
+          "is_featured": false,
+          "is_public": false,
+          "owner_id": "<USR_ID>",
+          "title": "one",
+          "updated_at": "<TIMESTAMP>",
+          "version": 1
+        }
+      ],
+      "next_cursor": null
     }
   },
   "owner_only": {
     "kind": "ok",
-    "value": [
-      {
-        "id": "<DOC_ID>",
-        "is_featured": false,
-        "is_public": false,
-        "owner_id": "<USR_ID>",
-        "title": "Only doc",
-        "updated_at": "<TIMESTAMP>"
-      }
-    ]
+    "value": {
+      "items": [
+        {
+          "created_at": "<TIMESTAMP>",
+          "id": "<DOC_ID>",
+          "is_featured": false,
+          "is_public": false,
+          "owner_id": "<USR_ID>",
+          "title": "Only doc",
+          "updated_at": "<TIMESTAMP>",
+          "version": 1
+        }
+      ],
+      "next_cursor": null
+    }
   },
   "unauthenticated": {
     "code": "unauthenticated",
@@ -30,15 +42,20 @@
   },
   "with_grant": {
     "kind": "ok",
-    "value": [
-      {
-        "id": "<DOC_ID>",
-        "is_featured": false,
-        "is_public": false,
-        "owner_id": "<USR_ID>",
-        "title": "Shared with Bob",
-        "updated_at": "<TIMESTAMP>"
-      }
-    ]
+    "value": {
+      "items": [
+        {
+          "created_at": "<TIMESTAMP>",
+          "id": "<DOC_ID>",
+          "is_featured": false,
+          "is_public": false,
+          "owner_id": "<USR_ID>",
+          "title": "Shared with Bob",
+          "updated_at": "<TIMESTAMP>",
+          "version": 1
+        }
+      ],
+      "next_cursor": null
+    }
   }
 }
