@@ -19,6 +19,7 @@ from markland.service.sessions import (
     read_session,
 )
 from markland.service.users import User, get_user
+from markland.web.render_helpers import render_with_nav
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 
@@ -35,6 +36,7 @@ def build_agents_router(
     db_conn: sqlite3.Connection,
     *,
     session_secret: str,
+    base_url: str = "",
 ) -> APIRouter:
     router = APIRouter(prefix="/api/agents", tags=["agents"])
 
@@ -166,9 +168,12 @@ def build_agents_router(
             return RedirectResponse("/login", status_code=303)
         agents = agents_svc.list_agents(db_conn, owner_user_id=user.id)
         return HTMLResponse(
-            settings_tpl.render(
+            render_with_nav(
+                settings_tpl, request, db_conn,
+                base_url=base_url, secret=session_secret,
                 agents=[a.__dict__ for a in agents],
                 new_token=request.query_params.get("new_token"),
+                signed_in_user={"email": user.email},
             )
         )
 

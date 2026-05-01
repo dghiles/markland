@@ -16,9 +16,15 @@ from markland.db import (
 )
 from markland.service.auth import Principal
 from markland.service.sessions import SESSION_COOKIE_NAME, InvalidSession, read_session
+from markland.web.render_helpers import render_with_nav
 
 
-def build_router(*, conn: sqlite3.Connection, session_secret: str) -> APIRouter:
+def build_router(
+    *,
+    conn: sqlite3.Connection,
+    session_secret: str,
+    base_url: str = "",
+) -> APIRouter:
     r = APIRouter()
     env = Environment(
         loader=FileSystemLoader(str(Path(__file__).parent / "templates")),
@@ -90,7 +96,11 @@ def build_router(*, conn: sqlite3.Connection, session_secret: str) -> APIRouter:
             for d in bookmarked_docs
         ]
         return HTMLResponse(
-            tpl.render(owned=owned, shared=shared, bookmarks=bookmarks)
+            render_with_nav(
+                tpl, request, conn,
+                base_url=base_url, secret=session_secret,
+                owned=owned, shared=shared, bookmarks=bookmarks,
+            )
         )
 
     return r

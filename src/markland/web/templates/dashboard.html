@@ -1,79 +1,80 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Markland — Dashboard</title>
-    <style>
-      body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; }
-      h1 { font-size: 1.6rem; }
-      h2 { font-size: 1.2rem; margin-top: 2.5rem; border-bottom: 1px solid #ddd; padding-bottom: .25rem; }
-      ul { list-style: none; padding: 0; }
-      li { padding: .5rem 0; border-bottom: 1px solid #eee; }
-      .empty { color: #888; font-style: italic; }
-      .meta { color: #666; font-size: .85rem; }
-    </style>
-  </head>
-  <body>
-    <h1>Your documents</h1>
+{% extends "base.html" %}
 
-    <h2>My documents</h2>
-    {% if owned %}
-      <ul id="my-docs">
-        {% for d in owned %}
-          <li>
-            <a href="/d/{{ d.share_token }}">{{ d.title }}</a>
-            <span class="meta">· updated {{ d.updated_at }}</span>
-          </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p class="empty">No documents yet. Publish one via MCP or the API.</p>
-    {% endif %}
+{% block title %}Dashboard &middot; Markland{% endblock %}
 
-    <h2 id="shared-with-me">Shared with me</h2>
-    {% if shared %}
-      <ul>
-        {% for d in shared %}
-          <li>
-            <a href="/d/{{ d.share_token }}">{{ d.title }}</a>
-            <span class="meta">· from {{ d.owner_display }} · updated {{ d.updated_at }}</span>
-          </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p class="empty">Nothing here yet. Ask a collaborator to share a doc with you.</p>
-    {% endif %}
+{% block content %}
+<style>
+  .dashboard-section { max-width: 48rem; margin: 3rem auto; padding: 0 1.5rem; }
+  .dashboard-section h1 { font-size: 1.6rem; }
+  .dashboard-section h2 { font-size: 1.2rem; margin-top: 2.5rem; border-bottom: 1px solid var(--outline-hairline); padding-bottom: .25rem; }
+  .dashboard-section ul { list-style: none; padding: 0; }
+  .dashboard-section li { padding: .5rem 0; border-bottom: 1px solid var(--outline-hairline); }
+  .dashboard-section .empty { color: var(--muted); font-style: italic; }
+  .dashboard-section .meta { color: var(--muted); font-size: .85rem; }
+  .dashboard-section a { color: var(--text); }
+  .dashboard-section button { font: inherit; padding: 0.25rem 0.6rem; background: var(--surface-2); color: var(--text); border: 1px solid var(--outline); border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+</style>
+<section class="dashboard-section">
+  <h1>Your documents</h1>
 
-    {% if bookmarks %}
-    <h2>Saved</h2>
-    <ul>
-      {% for b in bookmarks %}
+  <h2>My documents</h2>
+  {% if owned %}
+    <ul id="my-docs">
+      {% for d in owned %}
         <li>
-          <a href="/d/{{ b.share_token }}">{{ b.title }}</a>
-          <span class="meta">· from {{ b.owner_display }} · updated {{ b.updated_at }}</span>
-          <button type="button" data-remove-bookmark="/d/{{ b.share_token }}/bookmark">Remove</button>
+          <a href="/d/{{ d.share_token }}">{{ d.title }}</a>
+          <span class="meta">· updated {{ d.updated_at }}</span>
         </li>
       {% endfor %}
     </ul>
-    <script>
-    (function () {
-      document.querySelectorAll('[data-remove-bookmark]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          fetch(btn.getAttribute('data-remove-bookmark'), {method: 'DELETE'})
-            .then(function (r) {
-              if (r.ok) {
-                window.location.reload();
-              } else {
-                alert('Could not remove bookmark (status ' + r.status + '). Try reloading the page.');
-              }
-            })
-            .catch(function () {
-              alert('Could not remove bookmark. Check your connection and try again.');
-            });
-        });
+  {% else %}
+    <p class="empty">No documents yet. Publish one via MCP or the API.</p>
+  {% endif %}
+
+  <h2 id="shared-with-me">Shared with me</h2>
+  {% if shared %}
+    <ul>
+      {% for d in shared %}
+        <li>
+          <a href="/d/{{ d.share_token }}">{{ d.title }}</a>
+          <span class="meta">· from {{ d.owner_display }} · updated {{ d.updated_at }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="empty">Nothing here yet. Ask a collaborator to share a doc with you.</p>
+  {% endif %}
+
+  {% if bookmarks %}
+  <h2>Saved</h2>
+  <ul>
+    {% for b in bookmarks %}
+      <li>
+        <a href="/d/{{ b.share_token }}">{{ b.title }}</a>
+        <span class="meta">· from {{ b.owner_display }} · updated {{ b.updated_at }}</span>
+        <button type="button" data-remove-bookmark="/d/{{ b.share_token }}/bookmark">Remove</button>
+      </li>
+    {% endfor %}
+  </ul>
+  <script>
+  (function () {
+    document.querySelectorAll('[data-remove-bookmark]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        fetch(btn.getAttribute('data-remove-bookmark'), {method: 'DELETE'})
+          .then(function (r) {
+            if (r.ok) {
+              window.location.reload();
+            } else {
+              alert('Could not remove bookmark (status ' + r.status + '). Try reloading the page.');
+            }
+          })
+          .catch(function () {
+            alert('Could not remove bookmark. Check your connection and try again.');
+          });
       });
-    })();
-    </script>
-    {% endif %}
-  </body>
-</html>
+    });
+  })();
+  </script>
+  {% endif %}
+</section>
+{% endblock %}

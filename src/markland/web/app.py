@@ -660,7 +660,11 @@ def create_app(
 
     from markland.web.dashboard import build_router as build_dashboard_router
     app.include_router(
-        build_dashboard_router(conn=db_conn, session_secret=session_secret)
+        build_dashboard_router(
+            conn=db_conn,
+            session_secret=session_secret,
+            base_url=base_url,
+        )
     )
 
     from markland.web.save_routes import build_router as build_save_router
@@ -677,7 +681,9 @@ def create_app(
 
     from markland.web.routes_agents import build_agents_router
     agents_api_router, agents_html_router = build_agents_router(
-        db_conn, session_secret=session_secret
+        db_conn,
+        session_secret=session_secret,
+        base_url=base_url,
     )
     app.include_router(agents_api_router)
     app.include_router(agents_html_router)
