@@ -81,8 +81,10 @@ def test_markland_audit_tool_admin_allowed(ctx):
     from markland.server import build_mcp
 
     handlers = build_mcp(ctx["conn"], base_url="http://t").markland_handlers
-    rows = handlers["markland_audit"](_Ctx(ctx["admin_p"]), doc_id=None, limit=100)
-    actions = [r["action"] for r in rows]
+    result = handlers["markland_audit"](_Ctx(ctx["admin_p"]), doc_id=None, limit=100)
+    assert isinstance(result, dict)
+    assert isinstance(result["items"], list)
+    actions = [r["action"] for r in result["items"]]
     assert "publish" in actions
     assert "grant" in actions
 
@@ -104,6 +106,9 @@ def test_markland_audit_tool_filters_by_doc(ctx):
 
     a.record(ctx["conn"], action="update", principal=ctx["admin_p"], doc_id="doc_y")
     handlers = build_mcp(ctx["conn"], base_url="http://t").markland_handlers
-    rows = handlers["markland_audit"](_Ctx(ctx["admin_p"]), doc_id="doc_y", limit=100)
+    result = handlers["markland_audit"](_Ctx(ctx["admin_p"]), doc_id="doc_y", limit=100)
+    assert isinstance(result, dict)
+    assert isinstance(result["items"], list)
+    rows = result["items"]
     assert all(r["doc_id"] == "doc_y" for r in rows)
     assert len(rows) == 1
