@@ -287,24 +287,34 @@ def build_mcp(
         except grants_svc.InvalidGrantLevel:
             raise tool_error("invalid_argument", reason="invalid_level")
 
-    def _revoke(ctx, doc_id: str, principal: str):
+    def _revoke(ctx, doc_id: str, target: str):
         p = _require_principal(ctx)
-        pid = principal.strip()
+        pid = target.strip()
         if "@" in pid:
             row = db_conn.execute(
                 "SELECT id FROM users WHERE lower(email) = lower(?)", (pid,)
             ).fetchone()
             if row is None:
-                raise tool_error("invalid_argument", reason="target_not_found")
+                # Idempotent: target doesn't exist as a user → return success no-op.
+                return {"revoked": False, "doc_id": doc_id, "target": target}
             pid = row[0]
+
+        # Owner check still applies — non-owner shouldn't probe arbitrary docs.
         try:
-            return grants_svc.revoke(
-                db_conn, principal=p, doc_id=doc_id, principal_id=pid
-            )
+            check_permission(db_conn, p, doc_id, "owner")
         except NotFound:
             raise tool_error("not_found")
         except PermissionDenied:
             raise tool_error("forbidden")
+
+        try:
+            result = grants_svc.revoke(
+                db_conn, principal=p, doc_id=doc_id, principal_id=pid,
+            )
+        except NotFound:
+            # Grant didn't exist on this owner-readable doc. Idempotent.
+            return {"revoked": False, "doc_id": doc_id, "target": target}
+        return result
 
     def _list_grants(
         ctx, doc_id: str, limit: int = 50, cursor: str | None = None
@@ -360,7 +370,8 @@ def build_mcp(
             "SELECT doc_id FROM invites WHERE id = ?", (invite_id,)
         ).fetchone()
         if row is None:
-            raise tool_error("not_found")
+            # Idempotent: invite never existed.
+            return {"revoked": True, "invite_id": invite_id}
         try:
             check_permission(db_conn, p, row[0], "owner")
         except NotFound:
@@ -765,32 +776,40 @@ def build_mcp(
         return _grant(ctx, doc_id, target, level, principal=principal)
 
     @mcp.tool()
-    def markland_revoke(ctx: Context, doc_id: str, principal: str) -> dict:
+    def markland_revoke(
+        ctx: Context,
+        doc_id: str,
+        target: str | None = None,
+        *,
+        principal: str | None = None,  # Deprecated alias for `target`.
+    ) -> dict:
         """Revoke an existing grant. Owner only.
 
-        `principal` accepts the same forms as `markland_grant`: an email
+        `target` accepts the same forms as `markland_grant`: an email
         address (resolved to a user id) or a `usr_…`/`agt_…` id passed
         through directly.
 
         Args:
             doc_id: Document id.
-            principal: Email, `usr_…`, or `agt_…` identifier of the grantee
-                to remove.
+            target: Email, `usr_…`, or `agt_…` identifier of the grantee
+                to remove. Replaces the `principal` keyword (deprecated;
+                removed in the release scheduled 30 days after this one).
 
         Returns:
-            `{revoked: bool, doc_id, principal_id}`. `revoked` is `False`
-            when no matching grant row existed.
+            `{revoked: bool, doc_id, target}`. `revoked` is `False`
+            when no matching grant row existed (idempotent no-op).
 
         Raises:
             not_found: Document does not exist.
             forbidden: Caller is not the owner.
-            invalid_argument: `target_not_found` if an email cannot be
-                resolved to a user.
 
-        Idempotency: Not idempotent — current behavior raises not_found if
-            target is missing. Plan 5 will flip to idempotent success.
+        Idempotency: Idempotent — calling on a non-existent target/grant
+            is a no-op success.
         """
-        return _revoke(ctx, doc_id, principal)
+        chosen_target = target if target is not None else principal
+        if chosen_target is None:
+            raise tool_error("invalid_argument", reason="target is required")
+        return _revoke(ctx, doc_id, chosen_target)
 
     @mcp.tool()
     def markland_list_grants(
@@ -870,7 +889,8 @@ def build_mcp(
         """Revoke an outstanding invite. Owner only.
 
         Sets `revoked_at` on the invite so the URL stops resolving. Already
-        revoked invites are a no-op.
+        revoked invites and non-existent invite ids are both treated as
+        successful no-ops.
 
         Args:
             invite_id: Invite id (e.g. `inv_…`).
@@ -879,11 +899,11 @@ def build_mcp(
             `{revoked: True, invite_id}`.
 
         Raises:
-            not_found: Invite or its document does not exist.
+            not_found: The invite's document does not exist.
             forbidden: Caller is not the document owner.
 
-        Idempotency: Not idempotent — current behavior raises not_found if
-            target is missing. Plan 5 will flip to idempotent success.
+        Idempotency: Idempotent — calling on a non-existent invite is a
+            no-op success.
         """
         return _revoke_invite(ctx, invite_id)
 
@@ -1054,7 +1074,9 @@ def build_mcp(
         ),
         markland_doc_meta=_doc_meta,
         markland_grant=_grant,
-        markland_revoke=_revoke,
+        markland_revoke=lambda ctx, doc_id, target=None, *, principal=None: _revoke(
+            ctx, doc_id, target if target is not None else principal
+        ),
         markland_list_grants=_list_grants,
         markland_list_my_agents=_list_my_agents,
         markland_create_invite=_create_invite,
