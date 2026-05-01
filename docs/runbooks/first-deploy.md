@@ -7,12 +7,21 @@ every subsequent deploy is automatic.
 This runbook unblocks Plan 1 tasks 11-12 of
 `docs/plans/2026-04-19-hosted-infra.md` (human-gated Fly deploy).
 
-## Current deploy state (2026-04-20)
+## Current deploy state
+
+> **Updated 2026-05-01:** Cutover to `https://markland.dev` complete. All
+> rows below that say "pending" or "blocked" are now done — see
+> `docs/plans/2026-04-29-cutover-to-markland-dev.md` for the full sequence
+> (dedicated IPs, DNS, TLS cert, base-URL flip, redirect, Resend verify,
+> GSC submission). The notes below preserve the 2026-04-20 first-deploy
+> snapshot for historical reference.
+
+## Deploy state snapshot (2026-04-20, historical)
 
 The initial deploy ran on 2026-04-20 against the Fly-assigned hostname because
-`markland.dev` isn't owned yet. Running this runbook top-to-bottom from a clean
-slate is still the right path; the checklist below is what's **already done**
-vs. what remains:
+`markland.dev` wasn't owned yet. Running this runbook top-to-bottom from a clean
+slate is still the right path; the checklist below is what was **already done**
+vs. what remained at the time of the initial deploy:
 
 | Step | Status |
 |------|--------|
@@ -29,9 +38,10 @@ vs. what remains:
 | 11. Sign in, mint smoke token | **pending** (blocked on Resend for magic-link email; dev fallback via `flyctl logs` is available) |
 | 12. CI deploy token | **pending** |
 
-Current public URL: `https://markland.fly.dev/`. `fly.toml` has
-`MARKLAND_BASE_URL = 'https://markland.fly.dev'` — flip back to
-`https://markland.dev` and redeploy once DNS + cert land.
+As of the 2026-04-20 snapshot, the public URL was `https://markland.fly.dev/`
+and `fly.toml` had `MARKLAND_BASE_URL = 'https://markland.fly.dev'`. The
+2026-05-01 cutover flipped both to `https://markland.dev` and added a
+301 redirect from `markland.fly.dev` (see plan above).
 
 ---
 

@@ -35,15 +35,18 @@ per-plan reviews. None block v1; all are first-sprint-after-launch candidates.
 
 ### Deployed
 - First Fly.io deploy on 2026-04-20 — app `markland` (org `personal`, iad),
-  1 GB volume, shared-cpu-1x machine. Live at `https://markland.fly.dev/`.
-  `MARKLAND_SESSION_SECRET` set. Custom domain `markland.dev` and Resend /
-  R2 secrets deferred (see `docs/execution/status.md`).
+  1 GB volume, shared-cpu-1x machine. Initially live at
+  `https://markland.fly.dev/`. `MARKLAND_SESSION_SECRET` set.
+- Cutover to `https://markland.dev` on 2026-05-01 — dedicated Fly IPv4 +
+  IPv6, Porkbun-direct A/AAAA at apex, Fly TLS cert issued,
+  `MARKLAND_BASE_URL` flipped, `FlyDevRedirectMiddleware` 301s the old
+  fly.dev origin, Resend domain verified end-to-end (real magic-link
+  sign-ins working from `notifications@markland.dev`), Google Search
+  Console domain property added + sitemap submitted. R2 + Litestream
+  backups already in place (2026-04-28).
+  Plan: `docs/plans/2026-04-29-cutover-to-markland-dev.md`.
 
 ### Human gates remaining
-- Buy `markland.dev`, re-allocate dedicated IPv4, point Cloudflare DNS, cert, flip `MARKLAND_BASE_URL`.
-- Resend signup + DNS verification (currently blocks magic-link email).
-- R2 bucket + Litestream keys (currently no backups).
-- CI deploy token (`flyctl tokens create deploy` → `FLY_API_TOKEN` GitHub secret).
 - Claude Code device-flow walkthrough.
 - Phase 0 dogfooding (see `docs/runbooks/phase-0-checklist.md`).
 - Sentry wiring (see `docs/runbooks/sentry-setup.md`).

@@ -3,8 +3,8 @@
 ## Plan 1 — Hosted Infrastructure
 
 - **Tasks 1-10: COMPLETE** (2026-04-19).
-- **Task 11: PARTIAL** (2026-04-20). Fly app `markland` created (org `personal`, region `iad`), 1 GB volume `data` mounted at `/data`, `MARKLAND_SESSION_SECRET` set, first machine `185191df264378` (shared-cpu-1x / 1 GB) deployed and serving `https://markland.fly.dev/` (custom domain `markland.dev` not yet owned; `MARKLAND_BASE_URL` pinned to fly.dev hostname in `fly.toml`). Still deferred: Resend signup + DNS (blocks magic-link email), R2 bucket + Litestream keys (no backups), `FLY_API_TOKEN` GitHub secret (CI auto-deploy).
-- **Task 12: CODE-COMPLETE, NOT RUN** (2026-04-19). `scripts/hosted_smoke.sh` exists; needs a valid user API token to exercise, which needs magic-link email, which needs Resend — so blocked on Task 11 completion or on using the stdlib dev fallback that logs magic-link URLs to `flyctl logs`.
+- **Task 11: COMPLETE** (cutover finished 2026-05-01). Fly app `markland` deployed (org `personal`, region `iad`), 1 GB volume `data` mounted at `/data`, all required secrets set (`MARKLAND_SESSION_SECRET`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `LITESTREAM_*`). Machine `185191df264378` (shared-cpu-1x / 1 GB) updates in place via CI auto-deploy (`flyctl deploy --strategy immediate`). Live at `https://markland.dev` since 2026-05-01 — dedicated Fly IPv4 (149.248.214.141) + IPv6, Porkbun-direct A/AAAA at apex, Fly TLS cert issued, `MARKLAND_BASE_URL` set to `https://markland.dev`, `FlyDevRedirectMiddleware` 301s the old `markland.fly.dev` origin. R2 + Litestream backups in place since 2026-04-28. Cutover plan: `docs/plans/2026-04-29-cutover-to-markland-dev.md`.
+- **Task 12: COMPLETE** (2026-05-01). `scripts/hosted_smoke.sh` runs against `https://markland.dev` and exercises /health, landing, MCP unauth-401, MCP auth-200, and `markland_whoami` tool/call. Cutover-relevant checks all green; one residual grep-on-escaped-JSON false-positive in the whoami assertion is logged in `docs/FOLLOW-UPS.md` for separate fix.
 
 ## Plan 2 — Users and Tokens
 
@@ -126,11 +126,15 @@ Test suite: `uv run pytest tests/` -> **500 passed** (up from 455; +45 tests acr
 
 ### Human gates not executed
 
-- Phase 0 dogfooding walkthrough against live Fly deploy (checklist in `docs/runbooks/phase-0-checklist.md`) — blocked on Resend so magic-link sign-in can complete.
+- Phase 0 dogfooding walkthrough against live deploy (checklist in `docs/runbooks/phase-0-checklist.md`).
 - Sentry DSN + alert wiring (runbook in `docs/runbooks/sentry-setup.md`).
-- Resend signup + DNS verification once `markland.dev` is owned; then `flyctl secrets set RESEND_API_KEY=...`.
-- Cloudflare R2 bucket + S3 API token; then `flyctl secrets set LITESTREAM_*` + restart so Litestream starts backing up.
-- `flyctl tokens create deploy` + GitHub `FLY_API_TOKEN` secret for CI auto-deploy.
-- Buying / re-pointing `markland.dev` — see `docs/FOLLOW-UPS.md` for the re-allocation steps (dedicated IPv4, DNS, cert, flip `MARKLAND_BASE_URL`).
 
-All plans (1-10) are code-complete and the app is live at `https://markland.fly.dev/`. Phase 1 invites can go out once Resend is wired and the Phase 0 walkthrough passes.
+### Human gates completed
+
+- ~~Buying `markland.dev` and pointing DNS at Fly.~~ Done 2026-04-29 (registration) + 2026-05-01 (cutover). Plan: `docs/plans/2026-04-29-cutover-to-markland-dev.md`.
+- ~~Resend signup + DNS verification.~~ Done 2026-05-01 — verified end-to-end via real magic-link sign-in.
+- ~~Cloudflare R2 bucket + Litestream keys.~~ Done 2026-04-28 — backups running every 10s with 6h snapshot interval and 72h retention.
+- ~~CI auto-deploy.~~ Done 2026-04-30 — `FLY_API_TOKEN` secret set, `.github/workflows/deploy.yml` runs `flyctl deploy --strategy immediate` on push to `main`.
+- ~~Google Search Console sitemap submission.~~ Done 2026-05-01 — domain property verified via DNS TXT, `sitemap.xml` accepted.
+
+All plans (1-10) are code-complete and the app is live at `https://markland.dev`. Phase 1 invites can go out once the Phase 0 walkthrough passes.
