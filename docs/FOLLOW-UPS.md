@@ -94,16 +94,16 @@ post-launch sprint should pick up.
 - **Back-compat `email_client=` kwargs** — `create_app`, `grants.grant()`,
   `invite_routes._notify_creator` all still accept the pre-Plan-7 `email_client=`
   parameter. Remove once all internal callers use `dispatcher=`.
-- **Signed-in nav banner missing on secondary pages** — `_signed_in_nav.html`
-  renders on `/`, `/d/<token>`, and `/explore` because those handlers pass
-  `signed_in_user_ctx(...)` into the render context. Other base.html-extending
-  pages (`/quickstart`, `/about`, `/security`, `/competitors/...`, etc.) inherit
-  the include but their handlers don't pass the dict, so the banner silently
-  disappears when a signed-in user navigates to them via the top-nav and
-  reappears when they come back. Either factor a tiny `_render_with_nav(...)`
-  helper that injects `signed_in_user` for every base.html render, or extract a
-  middleware that hangs `signed_in_user` off `request.state` so all templates
-  can pull from there. Cosmetic but visible.
+- **~~Signed-in nav banner missing on secondary pages~~** — Fixed 2026-05-01.
+  Added `markland.web.render_helpers.render_with_nav(tpl, request, conn, *,
+  base_url, secret, **ctx)` that auto-injects `signed_in_user`, `request`,
+  and `canonical_host` (the three context kwargs every base.html render
+  needs). Routed every base.html render in app.py + auth_routes.py +
+  identity_routes.py + routes_agents.py + dashboard.py through it. Banner
+  now shows on `/`, `/d/<token>`, `/explore`, `/quickstart`, `/about`,
+  `/security`, `/privacy`, `/terms`, `/alternatives`, `/alternatives/<slug>`,
+  `/verify_sent`, `/settings/tokens`, `/settings/agents`, and `/dashboard`.
+  Plan: `docs/plans/2026-05-01-signed-in-banner-coverage-and-overflow.md`.
 - **`view_document` cookie/Bearer split for owner controls** — the handler at
   `src/markland/web/app.py` renders the "Signed in as <email>" banner via
   `signed_in_user_ctx` (cookie-aware) but still computes `is_owner` from
@@ -113,14 +113,11 @@ post-launch sprint should pick up.
   "principal", None)` with a fallback to `session_principal(...)` like
   `/explore` does. Pre-existing inconsistency that became visibly weird now
   that the banner advertises the signed-in state.
-- **`settings_tokens.html` logout fetch is wasteful but not broken** —
-  `templates/settings_tokens.html:79` calls `fetch('/api/auth/logout',
-  {method:'POST'})` with no `Accept` header. After PR #28 the server returns
-  a 303 redirect to `/` for non-JSON callers, so fetch transparently follows
-  the redirect → fetches `/` → JS discards the body and forces
-  `location.href = '/login'`. Cookie deletion happens correctly but the
-  browser does an unnecessary GET. Add `headers: {'Accept':
-  'application/json'}` (or `redirect: 'manual'`) to the fetch.
+- **~~`settings_tokens.html` logout fetch is wasteful but not broken~~** —
+  Fixed 2026-05-01 by deleting the bespoke fetch entirely. The page now
+  extends `base.html` and uses the shared `_signed_in_nav.html` partial's
+  form-POST sign-out. Plan: `docs/plans/2026-05-01-signed-in-banner-coverage-
+  and-overflow.md`.
 - **Add `needs: [test]` gate to `.github/workflows/deploy.yml`** — currently
   `needs: []` (intentionally), so a red test run does not block deploy. For a
   1-machine app with no automatic rollback (we use `--strategy immediate`,
