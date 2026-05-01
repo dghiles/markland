@@ -1,37 +1,43 @@
 {
   "admin_no_filter": {
     "kind": "ok",
-    "value": [
-      {
-        "action": "publish",
-        "created_at": "<TIMESTAMP>",
-        "doc_id": "<DOC_ID>",
-        "id": "<ID>",
-        "metadata": {
-          "is_public": false,
-          "title": "t"
-        },
-        "principal_id": "<USR_ID>",
-        "principal_type": "user"
-      }
-    ]
+    "value": {
+      "items": [
+        {
+          "action": "publish",
+          "created_at": "<TIMESTAMP>",
+          "doc_id": "<DOC_ID>",
+          "id": "<ID>",
+          "metadata": {
+            "is_public": false,
+            "title": "t"
+          },
+          "principal_id": "<USR_ID>",
+          "principal_type": "user"
+        }
+      ],
+      "next_cursor": null
+    }
   },
   "admin_with_doc_filter": {
     "kind": "ok",
-    "value": [
-      {
-        "action": "publish",
-        "created_at": "<TIMESTAMP>",
-        "doc_id": "<DOC_ID>",
-        "id": "<ID>",
-        "metadata": {
-          "is_public": false,
-          "title": "t"
-        },
-        "principal_id": "<USR_ID>",
-        "principal_type": "user"
-      }
-    ]
+    "value": {
+      "items": [
+        {
+          "action": "publish",
+          "created_at": "<TIMESTAMP>",
+          "doc_id": "<DOC_ID>",
+          "id": "<ID>",
+          "metadata": {
+            "is_public": false,
+            "title": "t"
+          },
+          "principal_id": "<USR_ID>",
+          "principal_type": "user"
+        }
+      ],
+      "next_cursor": null
+    }
   },
   "non_admin_forbidden": {
     "code": "forbidden",

@@ -1,7 +1,10 @@
 {
   "no_grants": {
     "kind": "ok",
-    "value": []
+    "value": {
+      "items": [],
+      "next_cursor": null
+    }
   },
   "non_owner_forbidden": {
     "code": "not_found",
@@ -10,15 +13,18 @@
   },
   "with_grants": {
     "kind": "ok",
-    "value": [
-      {
-        "doc_id": "<DOC_ID>",
-        "granted_at": "<TIMESTAMP>",
-        "granted_by": "<USR_ID>",
-        "level": "view",
-        "principal_id": "<USR_ID>",
-        "principal_type": "user"
-      }
-    ]
+    "value": {
+      "items": [
+        {
+          "doc_id": "<DOC_ID>",
+          "granted_at": "<TIMESTAMP>",
+          "granted_by": "<USR_ID>",
+          "level": "view",
+          "principal_id": "<USR_ID>",
+          "principal_type": "user"
+        }
+      ],
+      "next_cursor": null
+    }
   }
 }

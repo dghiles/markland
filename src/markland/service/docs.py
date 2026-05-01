@@ -133,6 +133,78 @@ def list_for_principal(
     return [_doc_to_summary(d) for d in docs]
 
 
+def list_for_principal_paginated(
+    conn: sqlite3.Connection,
+    principal: Principal,
+    *,
+    limit: int = 50,
+    cursor: str | None = None,
+    cap: int = 200,
+) -> tuple[list[dict], str | None]:
+    """Paginated list of docs the principal can view.
+
+    Returns (rows, next_cursor) where rows are doc dicts (full doc fields,
+    not yet projected to envelope shape). Uses (updated_at, id) DESC keyset
+    pagination for stable ordering across rows with equal timestamps.
+    """
+    from markland._mcp_envelopes import decode_cursor, encode_cursor
+
+    limit = min(max(1, int(limit)), cap)
+
+    where_clauses = [
+        "(d.owner_id = ? OR d.id IN "
+        "(SELECT doc_id FROM grants WHERE principal_id = ?))"
+    ]
+    params: list = [principal.principal_id, principal.principal_id]
+
+    if cursor:
+        last_id, last_updated_at = decode_cursor(cursor)
+        where_clauses.append("(d.updated_at, d.id) < (?, ?)")
+        params.extend([last_updated_at, last_id])
+
+    d_prefixed = ", ".join("d." + c for c in db._DOC_COLUMNS.split(", "))
+    sql = (
+        f"SELECT {d_prefixed} FROM documents d "
+        f"WHERE {' AND '.join(where_clauses)} "
+        "ORDER BY d.updated_at DESC, d.id DESC "
+        "LIMIT ?"
+    )
+    params.append(limit + 1)  # over-fetch by one to detect more pages
+
+    rows = conn.execute(sql, params).fetchall()
+    docs = [db._row_to_doc(row) for row in rows]
+
+    has_more = len(docs) > limit
+    page = docs[:limit]
+
+    next_cursor = None
+    if has_more and page:
+        last = page[-1]
+        next_cursor = encode_cursor(
+            last_id=last.id, last_updated_at=last.updated_at
+        )
+
+    # Project to dict form (full doc fields) so the caller can apply
+    # doc_summary / doc_envelope as needed.
+    page_dicts = [
+        {
+            "id": d.id,
+            "title": d.title,
+            "content": d.content,
+            "share_token": d.share_token,
+            "created_at": d.created_at,
+            "updated_at": d.updated_at,
+            "is_public": d.is_public,
+            "is_featured": d.is_featured,
+            "owner_id": d.owner_id,
+            "version": d.version,
+            "forked_from_doc_id": d.forked_from_doc_id,
+        }
+        for d in page
+    ]
+    return page_dicts, next_cursor
+
+
 def list_shared_with(
     conn: sqlite3.Connection, principal: Principal
 ) -> list[dict]:
@@ -179,6 +251,84 @@ def search(
 ) -> list[dict]:
     docs = db.search_documents_for_principal(conn, principal.principal_id, query)
     return [_doc_to_summary(d) for d in docs]
+
+
+def search_paginated(
+    conn: sqlite3.Connection,
+    principal: Principal,
+    query: str,
+    *,
+    limit: int = 50,
+    cursor: str | None = None,
+    cap: int = 200,
+) -> tuple[list[dict], str | None]:
+    """Paginated search of docs the principal can view.
+
+    Returns (rows, next_cursor) using (updated_at, id) DESC keyset
+    pagination for stable ordering across rows with equal timestamps.
+    """
+    from markland._mcp_envelopes import decode_cursor, encode_cursor
+
+    limit = min(max(1, int(limit)), cap)
+    pattern = f"%{query}%"
+    pid = principal.principal_id
+
+    # Mirror search_documents_for_principal's union structure (owner-match
+    # OR grant-match) inside a subquery so keyset pagination can wrap it.
+    sql_inner = (
+        f"SELECT {db._DOC_COLUMNS} FROM documents "
+        "WHERE owner_id = ? AND (title LIKE ? OR content LIKE ?) "
+        "UNION "
+        f"SELECT {', '.join('d.' + c for c in db._DOC_COLUMNS.split(', '))} "
+        "FROM documents d JOIN grants g ON g.doc_id = d.id "
+        "WHERE g.principal_id = ? AND (d.title LIKE ? OR d.content LIKE ?)"
+    )
+    inner_params: list = [pid, pattern, pattern, pid, pattern, pattern]
+
+    outer_where: list[str] = []
+    outer_params: list = []
+    if cursor:
+        last_id, last_updated_at = decode_cursor(cursor)
+        outer_where.append("(updated_at, id) < (?, ?)")
+        outer_params.extend([last_updated_at, last_id])
+
+    where_sql = ("WHERE " + " AND ".join(outer_where)) if outer_where else ""
+    sql = (
+        f"SELECT * FROM ({sql_inner}) {where_sql} "
+        "ORDER BY updated_at DESC, id DESC LIMIT ?"
+    )
+    params = inner_params + outer_params + [limit + 1]
+
+    rows = conn.execute(sql, params).fetchall()
+    docs = [db._row_to_doc(row) for row in rows]
+
+    has_more = len(docs) > limit
+    page = docs[:limit]
+
+    next_cursor = None
+    if has_more and page:
+        last = page[-1]
+        next_cursor = encode_cursor(
+            last_id=last.id, last_updated_at=last.updated_at
+        )
+
+    page_dicts = [
+        {
+            "id": d.id,
+            "title": d.title,
+            "content": d.content,
+            "share_token": d.share_token,
+            "created_at": d.created_at,
+            "updated_at": d.updated_at,
+            "is_public": d.is_public,
+            "is_featured": d.is_featured,
+            "owner_id": d.owner_id,
+            "version": d.version,
+            "forked_from_doc_id": d.forked_from_doc_id,
+        }
+        for d in page
+    ]
+    return page_dicts, next_cursor
 
 
 def share_link(

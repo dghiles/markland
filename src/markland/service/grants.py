@@ -357,6 +357,67 @@ def list_grants(
     ]
 
 
+def list_grants_paginated(
+    conn: sqlite3.Connection,
+    *,
+    principal: Principal,
+    doc_id: str,
+    limit: int = 50,
+    cursor: str | None = None,
+    cap: int = 200,
+) -> tuple[list[dict], str | None]:
+    """Paginated grants for a doc. Returns (rows, next_cursor).
+
+    Order: (granted_at DESC, principal_id DESC). The cursor's
+    `last_updated_at` field carries the `granted_at` timestamp.
+    """
+    from markland._mcp_envelopes import decode_cursor, encode_cursor
+
+    check_permission(conn, principal, doc_id, "edit")
+
+    limit = min(max(1, int(limit)), cap)
+
+    where_clauses = ["doc_id = ?"]
+    params: list = [doc_id]
+    if cursor:
+        last_id, last_granted_at = decode_cursor(cursor)
+        where_clauses.append("(granted_at, principal_id) < (?, ?)")
+        params.extend([last_granted_at, last_id])
+
+    sql = (
+        "SELECT doc_id, principal_id, principal_type, level, "
+        "granted_by, granted_at FROM grants "
+        f"WHERE {' AND '.join(where_clauses)} "
+        "ORDER BY granted_at DESC, principal_id DESC LIMIT ?"
+    )
+    params.append(limit + 1)
+
+    rows = conn.execute(sql, params).fetchall()
+    has_more = len(rows) > limit
+    page = rows[:limit]
+
+    items = [
+        {
+            "doc_id": r[0],
+            "principal_id": r[1],
+            "principal_type": r[2],
+            "level": r[3],
+            "granted_by": r[4],
+            "granted_at": r[5],
+        }
+        for r in page
+    ]
+
+    next_cursor = None
+    if has_more and items:
+        last = items[-1]
+        next_cursor = encode_cursor(
+            last_id=last["principal_id"], last_updated_at=last["granted_at"]
+        )
+
+    return items, next_cursor
+
+
 __all__ = [
     "GrantTargetNotFound",
     "AgentGrantsNotSupported",
@@ -365,4 +426,5 @@ __all__ = [
     "grant_by_principal_id",
     "revoke",
     "list_grants",
+    "list_grants_paginated",
 ]

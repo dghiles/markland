@@ -64,7 +64,9 @@ def test_list_returns_only_visible(harness):
     a = h["markland_publish"](_Ctx(alice), content="a", title="A", public=False)
     h["markland_publish"](_Ctx(bob), content="b", title="B", public=False)
     out = h["markland_list"](_Ctx(alice))
-    assert {d["id"] for d in out} == {a["id"]}
+    assert isinstance(out, dict)
+    assert isinstance(out["items"], list)
+    assert {d["id"] for d in out["items"]} == {a["id"]}
 
 
 def test_get_denies_stranger_as_not_found(harness):
@@ -111,13 +113,16 @@ def test_grant_revoke_list_happy_path(harness):
     ec.send.assert_called_once()
 
     listed = h["markland_list_grants"](_Ctx(alice), doc_id=a["id"])
-    assert len(listed) == 1 and listed[0]["principal_id"] == "usr_bob"
+    assert isinstance(listed, dict)
+    assert isinstance(listed["items"], list)
+    assert len(listed["items"]) == 1 and listed["items"][0]["principal_id"] == "usr_bob"
 
     revoke_out = h["markland_revoke"](
         _Ctx(alice), doc_id=a["id"], principal="usr_bob"
     )
     assert revoke_out["revoked"] is True
-    assert h["markland_list_grants"](_Ctx(alice), doc_id=a["id"]) == []
+    after = h["markland_list_grants"](_Ctx(alice), doc_id=a["id"])
+    assert after["items"] == []
 
 
 def test_non_owner_cannot_grant(harness):

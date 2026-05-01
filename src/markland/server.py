@@ -25,6 +25,7 @@ from markland.service import invites as invites_svc
 from markland.service import presence as presence_svc
 from markland.service.auth import Principal
 from markland.service.email import EmailClient
+from markland._mcp_envelopes import doc_envelope, doc_summary, list_envelope
 from markland._mcp_errors import tool_error
 from markland.service.permissions import NotFound, PermissionDenied, check_permission
 
@@ -94,11 +95,18 @@ def build_mcp(
 
     def _publish(ctx, content: str, title: str | None = None, public: bool = False):
         p = _require_principal(ctx)
-        return docs_svc.publish(db_conn, base_url, p, content, title=title, public=public)
+        raw = docs_svc.publish(db_conn, base_url, p, content, title=title, public=public)
+        # Re-fetch via get() to ensure all doc_envelope fields are populated.
+        full = docs_svc.get(db_conn, p, raw["id"], base_url=base_url)
+        return doc_envelope(full)
 
-    def _list(ctx):
+    def _list(ctx, limit: int = 50, cursor: str | None = None):
         p = _require_principal(ctx)
-        return docs_svc.list_for_principal(db_conn, p)
+        rows, next_cursor = docs_svc.list_for_principal_paginated(
+            db_conn, p, limit=limit, cursor=cursor,
+        )
+        items = [doc_summary(r) for r in rows]
+        return list_envelope(items=items, next_cursor=next_cursor)
 
     def _get(ctx, doc_id: str):
         p = _require_principal(ctx)
@@ -112,7 +120,7 @@ def build_mcp(
         # never reach this branch because the check_permission call in
         # docs_svc.get raised above.
         actives = presence_svc.list_active(db_conn, doc_id=doc_id)
-        body["active_principals"] = [
+        active_principals = [
             {
                 "principal_id": a.principal_id,
                 "principal_type": a.principal_type,
@@ -123,11 +131,15 @@ def build_mcp(
             }
             for a in actives
         ]
-        return body
+        return doc_envelope(body, active_principals=active_principals)
 
-    def _search(ctx, query: str):
+    def _search(ctx, query: str, limit: int = 50, cursor: str | None = None):
         p = _require_principal(ctx)
-        return docs_svc.search(db_conn, p, query)
+        rows, next_cursor = docs_svc.search_paginated(
+            db_conn, p, query, limit=limit, cursor=cursor,
+        )
+        items = [doc_summary(r) for r in rows]
+        return list_envelope(items=items, next_cursor=next_cursor)
 
     def _share(ctx, doc_id: str):
         p = _require_principal(ctx)
@@ -163,13 +175,8 @@ def build_mcp(
                 current_content=exc.current_content,
                 current_title=exc.current_title,
             )
-        return {
-            "id": doc.id,
-            "title": doc.title,
-            "share_url": f"{base_url}/d/{doc.share_token}",
-            "updated_at": doc.updated_at,
-            "version": doc.version,
-        }
+        full = docs_svc.get(db_conn, p, doc.id, base_url=base_url)
+        return doc_envelope(full)
 
     def _delete(ctx, doc_id: str):
         p = _require_principal(ctx)
@@ -253,14 +260,23 @@ def build_mcp(
         except PermissionDenied:
             raise tool_error("forbidden")
 
-    def _list_grants(ctx, doc_id: str):
+    def _list_grants(
+        ctx, doc_id: str, limit: int = 50, cursor: str | None = None
+    ):
         p = _require_principal(ctx)
         try:
-            return grants_svc.list_grants(db_conn, principal=p, doc_id=doc_id)
+            rows, next_cursor = grants_svc.list_grants_paginated(
+                db_conn,
+                principal=p,
+                doc_id=doc_id,
+                limit=limit,
+                cursor=cursor,
+            )
         except NotFound:
             raise tool_error("not_found")
         except PermissionDenied:
             raise tool_error("forbidden")
+        return list_envelope(items=rows, next_cursor=next_cursor)
 
     def _create_invite(
         ctx,
@@ -337,38 +353,39 @@ def build_mcp(
         p = _require_principal(ctx)
         return presence_svc.clear_status(db_conn, doc_id=doc_id, principal=p)
 
-    def _list_my_agents(ctx):
+    def _list_my_agents(ctx, limit: int = 50, cursor: str | None = None):
         p = _require_principal(ctx)
         if p.principal_type == "agent":
+            # Special-cases: agents always see at most one row (themselves),
+            # so pagination is a no-op — always returns next_cursor=None.
             if p.user_id is None:
-                return []  # service-owned agent — no self-lookup exposed
+                return list_envelope(items=[], next_cursor=None)
             row = db_conn.execute(
                 "SELECT id, display_name, owner_type, owner_id, created_at "
                 "FROM agents WHERE id = ?",
                 (p.principal_id,),
             ).fetchone()
             if row is None:
-                return []
-            return [
-                {
-                    "id": row[0],
-                    "display_name": row[1],
-                    "owner_type": row[2],
-                    "owner_id": row[3],
-                    "created_at": row[4],
-                }
-            ]
-        agents = agents_svc.list_agents(db_conn, owner_user_id=p.principal_id)
-        return [
-            {
-                "id": a.id,
-                "display_name": a.display_name,
-                "owner_type": a.owner_type,
-                "owner_id": a.owner_id,
-                "created_at": a.created_at,
-            }
-            for a in agents
-        ]
+                return list_envelope(items=[], next_cursor=None)
+            return list_envelope(
+                items=[
+                    {
+                        "id": row[0],
+                        "display_name": row[1],
+                        "owner_type": row[2],
+                        "owner_id": row[3],
+                        "created_at": row[4],
+                    }
+                ],
+                next_cursor=None,
+            )
+        rows, next_cursor = agents_svc.list_paginated(
+            db_conn,
+            owner_user_id=p.principal_id,
+            limit=limit,
+            cursor=cursor,
+        )
+        return list_envelope(items=rows, next_cursor=next_cursor)
 
     def _whoami(ctx):
         principal = _principal_from_ctx(ctx)
@@ -433,8 +450,10 @@ def build_mcp(
         return _publish(ctx, content, title=title, public=public)
 
     @mcp.tool()
-    def markland_list(ctx: Context) -> list[dict]:
-        """List documents the current principal can view.
+    def markland_list(
+        ctx: Context, limit: int = 50, cursor: str | None = None
+    ) -> dict:
+        """List documents the current principal can view, paginated.
 
         Returns documents the principal owns plus those reached via a
         `view`/`edit` grant. Public-but-ungranted documents are not
@@ -442,14 +461,21 @@ def build_mcp(
 
         Args:
             ctx: FastMCP request context (principal resolved from state).
+            limit: Max documents per page (1-200, default 50).
+            cursor: Opaque token from a previous response's `next_cursor`.
+                Pass to fetch the next page; omit for the first page.
 
         Returns:
-            List of document summary dicts (id, title, share_url, is_public,
-            owner_id, updated_at). Newest first.
+            list_envelope of doc_summary: {items: [doc_summary, ...],
+            next_cursor}. `next_cursor` is None when there are no more
+            results. Ordering is `(updated_at DESC, id DESC)`.
+
+        Raises:
+            unauthenticated: caller has no principal.
 
         Idempotency: Read-only.
         """
-        return _list(ctx)
+        return _list(ctx, limit=limit, cursor=cursor)
 
     @mcp.tool()
     def markland_get(ctx: Context, doc_id: str) -> dict:
@@ -478,21 +504,31 @@ def build_mcp(
         return _get(ctx, doc_id)
 
     @mcp.tool()
-    def markland_search(ctx: Context, query: str) -> list[dict]:
-        """Search documents the current principal can view.
+    def markland_search(
+        ctx: Context,
+        query: str,
+        limit: int = 50,
+        cursor: str | None = None,
+    ) -> dict:
+        """Search documents the current principal can view, paginated.
 
         Searches title and content with a simple LIKE match; only documents
         the principal owns or has a grant on are returned.
 
         Args:
             query: Free-text query. Empty strings match nothing.
+            limit: Max documents per page (1-200, default 50).
+            cursor: Opaque token from a previous response's `next_cursor`.
+                Pass to fetch the next page; omit for the first page.
 
         Returns:
-            List of document summary dicts (same shape as `markland_list`).
+            list_envelope of doc_summary: {items: [doc_summary, ...],
+            next_cursor}. `next_cursor` is None when there are no more
+            results. Ordering is `(updated_at DESC, id DESC)`.
 
         Idempotency: Read-only.
         """
-        return _search(ctx, query)
+        return _search(ctx, query, limit=limit, cursor=cursor)
 
     @mcp.tool()
     def markland_share(ctx: Context, doc_id: str) -> dict:
@@ -686,17 +722,27 @@ def build_mcp(
         return _revoke(ctx, doc_id, principal)
 
     @mcp.tool()
-    def markland_list_grants(ctx: Context, doc_id: str) -> list[dict]:
-        """List all grants on a document.
+    def markland_list_grants(
+        ctx: Context,
+        doc_id: str,
+        limit: int = 50,
+        cursor: str | None = None,
+    ) -> dict:
+        """List grants on a document, paginated.
 
         Visible to the owner and any principal with edit access.
 
         Args:
             doc_id: Document id.
+            limit: Max grants per page (1-200, default 50).
+            cursor: Opaque token from a previous response's `next_cursor`.
+                Pass to fetch the next page; omit for the first page.
 
         Returns:
-            List of grant dicts `{doc_id, principal_id, principal_type,
-            level, granted_by, granted_at}`.
+            list_envelope of grant dicts: {items: [{doc_id, principal_id,
+            principal_type, level, granted_by, granted_at}, ...],
+            next_cursor}. Ordering is `(granted_at DESC, principal_id
+            DESC)`.
 
         Raises:
             not_found: Document does not exist.
@@ -704,7 +750,7 @@ def build_mcp(
 
         Idempotency: Read-only.
         """
-        return _list_grants(ctx, doc_id)
+        return _list_grants(ctx, doc_id, limit=limit, cursor=cursor)
 
     @mcp.tool()
     def markland_create_invite(
@@ -771,23 +817,30 @@ def build_mcp(
         return _revoke_invite(ctx, invite_id)
 
     @mcp.tool()
-    def markland_list_my_agents(ctx: Context) -> list[dict]:
-        """List agents owned by the current user.
+    def markland_list_my_agents(
+        ctx: Context, limit: int = 50, cursor: str | None = None
+    ) -> dict:
+        """List agents owned by the current user, paginated.
 
         User tokens see all agents they own. Agent tokens see only
         themselves (service-owned agents — those without a `user_id` —
-        return an empty list).
+        return an empty list). Agent callers always get next_cursor=None.
 
         Args:
             ctx: FastMCP request context (principal resolved from state).
+            limit: Max agents per page (1-200, default 50). Ignored for
+                agent callers.
+            cursor: Opaque token from a previous response's `next_cursor`.
+                Pass to fetch the next page; omit for the first page.
 
         Returns:
-            List of agent dicts `{id, display_name, owner_type, owner_id,
-            created_at}`.
+            list_envelope of agent dicts: {items: [{id, display_name,
+            owner_type, owner_id, created_at}, ...], next_cursor}.
+            Ordering is `(created_at DESC, id DESC)`.
 
         Idempotency: Read-only.
         """
-        return _list_my_agents(ctx)
+        return _list_my_agents(ctx, limit=limit, cursor=cursor)
 
     @mcp.tool()
     def markland_set_status(
@@ -823,19 +876,30 @@ def build_mcp(
         """
         return _set_status(ctx, doc_id, status, note=note)
 
-    def _audit(ctx, doc_id: str | None = None, limit: int = 100):
+    def _audit(
+        ctx,
+        doc_id: str | None = None,
+        limit: int = 100,
+        cursor: str | None = None,
+    ):
         p = _require_principal(ctx)
         if not p.is_admin:
             raise tool_error("forbidden")
         from markland.service import audit as audit_svc
 
-        return audit_svc.list_recent(db_conn, doc_id=doc_id, limit=int(limit))
+        rows, next_cursor = audit_svc.list_recent_paginated(
+            db_conn, doc_id=doc_id, limit=int(limit), cursor=cursor,
+        )
+        return list_envelope(items=rows, next_cursor=next_cursor)
 
     @mcp.tool()
     def markland_audit(
-        ctx: Context, doc_id: str | None = None, limit: int = 100
-    ) -> list[dict]:
-        """Read recent audit-log entries. Admin only.
+        ctx: Context,
+        doc_id: str | None = None,
+        limit: int = 100,
+        cursor: str | None = None,
+    ) -> dict:
+        """Read recent audit-log entries, paginated. Admin only.
 
         Surfaces the system audit trail — publish, update, delete, grant,
         revoke, invite_create events — for forensic and compliance use.
@@ -843,18 +907,22 @@ def build_mcp(
         Args:
             doc_id: Optional filter — when set, only entries for this
                 document are returned. Default `None` (all docs).
-            limit: Max number of rows. Clamped to [1, 1000]. Default 100.
+            limit: Max rows per page. Clamped to [1, 1000]. Default 100.
+            cursor: Opaque token from a previous response's `next_cursor`.
+                Pass to fetch the next page; omit for the first page.
 
         Returns:
-            List of audit row dicts `{id, doc_id, action, principal_id,
-            principal_type, metadata, created_at}`. Newest first.
+            list_envelope of audit row dicts: {items: [{id, doc_id,
+            action, principal_id, principal_type, metadata, created_at},
+            ...], next_cursor}. Newest first; ordering is `(created_at
+            DESC, id DESC)`.
 
         Raises:
             forbidden: Caller is not an admin.
 
         Idempotency: Read-only.
         """
-        return _audit(ctx, doc_id=doc_id, limit=limit)
+        return _audit(ctx, doc_id=doc_id, limit=limit, cursor=cursor)
 
     @mcp.tool()
     def markland_clear_status(ctx: Context, doc_id: str) -> dict:
