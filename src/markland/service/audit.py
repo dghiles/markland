@@ -107,3 +107,70 @@ def list_recent(
             }
         )
     return rows
+
+
+def list_recent_paginated(
+    conn: sqlite3.Connection,
+    *,
+    doc_id: str | None = None,
+    limit: int = 100,
+    cursor: str | None = None,
+    cap: int = 1000,
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Paginated audit-log read. Returns (rows, next_cursor).
+
+    Audit rows are immutable; we order by (created_at DESC, id DESC) and
+    use keyset pagination on (created_at, id). The cursor's
+    `last_updated_at` field carries the row's `created_at` value.
+    """
+    from markland._mcp_envelopes import decode_cursor, encode_cursor
+
+    limit = min(max(1, int(limit)), cap)
+
+    where_clauses: list[str] = []
+    params: list = []
+    if doc_id is not None:
+        where_clauses.append("doc_id = ?")
+        params.append(doc_id)
+    if cursor:
+        last_id, last_created_at = decode_cursor(cursor)
+        where_clauses.append("(created_at, id) < (?, ?)")
+        params.extend([last_created_at, int(last_id)])
+
+    where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+    sql = (
+        "SELECT id, doc_id, action, principal_id, principal_type, metadata, "
+        f"created_at FROM audit_log {where_sql} "
+        "ORDER BY created_at DESC, id DESC LIMIT ?"
+    )
+    params.append(limit + 1)
+
+    raw_rows = conn.execute(sql, params).fetchall()
+    has_more = len(raw_rows) > limit
+    page = raw_rows[:limit]
+
+    rows: list[dict[str, Any]] = []
+    for r in page:
+        try:
+            meta = json.loads(r[5]) if r[5] else {}
+        except json.JSONDecodeError:
+            meta = {}
+        rows.append(
+            {
+                "id": r[0],
+                "doc_id": r[1],
+                "action": r[2],
+                "principal_id": r[3],
+                "principal_type": r[4],
+                "metadata": meta,
+                "created_at": r[6],
+            }
+        )
+
+    next_cursor = None
+    if has_more and rows:
+        last = rows[-1]
+        next_cursor = encode_cursor(
+            last_id=str(last["id"]), last_updated_at=last["created_at"]
+        )
+    return rows, next_cursor

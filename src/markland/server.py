@@ -876,19 +876,30 @@ def build_mcp(
         """
         return _set_status(ctx, doc_id, status, note=note)
 
-    def _audit(ctx, doc_id: str | None = None, limit: int = 100):
+    def _audit(
+        ctx,
+        doc_id: str | None = None,
+        limit: int = 100,
+        cursor: str | None = None,
+    ):
         p = _require_principal(ctx)
         if not p.is_admin:
             raise tool_error("forbidden")
         from markland.service import audit as audit_svc
 
-        return audit_svc.list_recent(db_conn, doc_id=doc_id, limit=int(limit))
+        rows, next_cursor = audit_svc.list_recent_paginated(
+            db_conn, doc_id=doc_id, limit=int(limit), cursor=cursor,
+        )
+        return list_envelope(items=rows, next_cursor=next_cursor)
 
     @mcp.tool()
     def markland_audit(
-        ctx: Context, doc_id: str | None = None, limit: int = 100
-    ) -> list[dict]:
-        """Read recent audit-log entries. Admin only.
+        ctx: Context,
+        doc_id: str | None = None,
+        limit: int = 100,
+        cursor: str | None = None,
+    ) -> dict:
+        """Read recent audit-log entries, paginated. Admin only.
 
         Surfaces the system audit trail — publish, update, delete, grant,
         revoke, invite_create events — for forensic and compliance use.
@@ -896,18 +907,22 @@ def build_mcp(
         Args:
             doc_id: Optional filter — when set, only entries for this
                 document are returned. Default `None` (all docs).
-            limit: Max number of rows. Clamped to [1, 1000]. Default 100.
+            limit: Max rows per page. Clamped to [1, 1000]. Default 100.
+            cursor: Opaque token from a previous response's `next_cursor`.
+                Pass to fetch the next page; omit for the first page.
 
         Returns:
-            List of audit row dicts `{id, doc_id, action, principal_id,
-            principal_type, metadata, created_at}`. Newest first.
+            list_envelope of audit row dicts: {items: [{id, doc_id,
+            action, principal_id, principal_type, metadata, created_at},
+            ...], next_cursor}. Newest first; ordering is `(created_at
+            DESC, id DESC)`.
 
         Raises:
             forbidden: Caller is not an admin.
 
         Idempotency: Read-only.
         """
-        return _audit(ctx, doc_id=doc_id, limit=limit)
+        return _audit(ctx, doc_id=doc_id, limit=limit, cursor=cursor)
 
     @mcp.tool()
     def markland_clear_status(ctx: Context, doc_id: str) -> dict:
