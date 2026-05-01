@@ -20,10 +20,8 @@ from markland.db import (
 from markland.web.competitors import COMPETITORS, MARKLAND, get_competitor
 from markland.web.renderer import make_excerpt, render_markdown
 from markland.web.seo import build_sitemap_xml, render_robots_txt
-from markland.web.session_principal import (
-    session_principal,
-    signed_in_user_ctx,
-)
+from markland.web.render_helpers import render_with_nav
+from markland.web.session_principal import session_principal
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -100,6 +98,19 @@ def _seo_ctx(
     if page_template is not None:
         ctx["page_last_updated"] = _template_lastmod(page_template)
     return ctx
+
+
+_RENDER_WITH_NAV_AUTO_KEYS = frozenset({"request", "canonical_host", "signed_in_user"})
+
+
+def _seo_extra(request: Request, base_url: str, *, page_template=None) -> dict:
+    """Like _seo_ctx but omits keys that render_with_nav auto-injects.
+
+    Use this instead of _seo_ctx when calling render_with_nav so that
+    Python does not raise 'multiple values for argument request'.
+    """
+    ctx = _seo_ctx(request, base_url, page_template=page_template)
+    return {k: v for k, v in ctx.items() if k not in _RENDER_WITH_NAV_AUTO_KEYS}
 
 
 def _template_lastmod(template) -> str:
@@ -332,16 +343,20 @@ def create_app(
     @app.get("/quickstart", response_class=HTMLResponse)
     def quickstart(request: Request):
         return HTMLResponse(
-            quickstart_tpl.render(
-                **_seo_ctx(request, base_url, page_template=quickstart_tpl),
+            render_with_nav(
+                quickstart_tpl, request, db_conn,
+                base_url=base_url, secret=session_secret,
+                **_seo_extra(request, base_url, page_template=quickstart_tpl),
             )
         )
 
     @app.get("/alternatives", response_class=HTMLResponse)
     def alternatives(request: Request):
         return HTMLResponse(
-            alternatives_tpl.render(
-                **_seo_ctx(request, base_url, page_template=alternatives_tpl),
+            render_with_nav(
+                alternatives_tpl, request, db_conn,
+                base_url=base_url, secret=session_secret,
+                **_seo_extra(request, base_url, page_template=alternatives_tpl),
                 competitors=COMPETITORS,
                 markland=MARKLAND,
             )
@@ -355,8 +370,10 @@ def create_app(
         if competitor is None:
             raise HTTPException(status_code=404)
         return HTMLResponse(
-            alternative_tpl.render(
-                **_seo_ctx(request, base_url, page_template=alternative_tpl),
+            render_with_nav(
+                alternative_tpl, request, db_conn,
+                base_url=base_url, secret=session_secret,
+                **_seo_extra(request, base_url, page_template=alternative_tpl),
                 competitor=competitor,
                 markland=MARKLAND,
             )
@@ -365,25 +382,41 @@ def create_app(
     @app.get("/about", response_class=HTMLResponse)
     def about(request: Request):
         return HTMLResponse(
-            about_tpl.render(**_seo_ctx(request, base_url, page_template=about_tpl))
+            render_with_nav(
+                about_tpl, request, db_conn,
+                base_url=base_url, secret=session_secret,
+                **_seo_extra(request, base_url, page_template=about_tpl),
+            )
         )
 
     @app.get("/security", response_class=HTMLResponse)
     def security(request: Request):
         return HTMLResponse(
-            security_tpl.render(**_seo_ctx(request, base_url, page_template=security_tpl))
+            render_with_nav(
+                security_tpl, request, db_conn,
+                base_url=base_url, secret=session_secret,
+                **_seo_extra(request, base_url, page_template=security_tpl),
+            )
         )
 
     @app.get("/privacy", response_class=HTMLResponse)
     def privacy(request: Request):
         return HTMLResponse(
-            privacy_tpl.render(**_seo_ctx(request, base_url, page_template=privacy_tpl))
+            render_with_nav(
+                privacy_tpl, request, db_conn,
+                base_url=base_url, secret=session_secret,
+                **_seo_extra(request, base_url, page_template=privacy_tpl),
+            )
         )
 
     @app.get("/terms", response_class=HTMLResponse)
     def terms(request: Request):
         return HTMLResponse(
-            terms_tpl.render(**_seo_ctx(request, base_url, page_template=terms_tpl))
+            render_with_nav(
+                terms_tpl, request, db_conn,
+                base_url=base_url, secret=session_secret,
+                **_seo_extra(request, base_url, page_template=terms_tpl),
+            )
         )
 
     @app.get("/admin/waitlist")
@@ -477,14 +510,14 @@ def create_app(
         docs = list_featured_and_recent_public(db_conn, limit=4)
         cards = [_doc_to_card(d) for d in docs]
         signup_state = signup if signup in ("ok", "invalid") else None
-        signed_in_user = signed_in_user_ctx(request, db_conn, secret=session_secret)
         return HTMLResponse(
-            landing_tpl.render(
-                **_seo_ctx(request, base_url, page_template=landing_tpl),
+            render_with_nav(
+                landing_tpl, request, db_conn,
+                base_url=base_url, secret=session_secret,
+                **_seo_extra(request, base_url, page_template=landing_tpl),
                 docs=cards,
                 mcp_config_json=mcp_snippet_json,
                 signup=signup_state,
-                signed_in_user=signed_in_user,
             )
         )
 
@@ -493,14 +526,13 @@ def create_app(
         principal = getattr(request.state, "principal", None)
         # Cookie-auth'd browser users don't get request.state.principal —
         # only Bearer paths do. Fall back to the session cookie so view=mine
-        # is reachable from the UI. signed_in_user_ctx below does its own
-        # session lookup; the small redundancy is intentional — the two
-        # helpers serve different needs and the cost is microseconds.
+        # is reachable from the UI. render_with_nav does its own session
+        # lookup for the banner; the small redundancy is intentional — the
+        # two helpers serve different needs and the cost is microseconds.
         if principal is None:
             principal = session_principal(request, db_conn, secret=session_secret)
         query = (q or "").strip() or None
         show_mine = view == "mine" and principal is not None
-        signed_in_user = signed_in_user_ctx(request, db_conn, secret=session_secret)
 
         if show_mine:
             from markland.service import docs as docs_svc_local
@@ -519,14 +551,15 @@ def create_app(
                     continue
                 cards.append(_doc_to_card(doc))
             return HTMLResponse(
-                explore_tpl.render(
-                    **_seo_ctx(request, base_url, page_template=explore_tpl),
+                render_with_nav(
+                    explore_tpl, request, db_conn,
+                    base_url=base_url, secret=session_secret,
+                    **_seo_extra(request, base_url, page_template=explore_tpl),
                     docs=cards,
                     query=query,
                     total=len(cards),
                     view="mine",
                     authed=True,
-                    signed_in_user=signed_in_user,
                 )
             )
 
@@ -534,14 +567,15 @@ def create_app(
         total_docs = list_public_documents(db_conn, query=query, limit=10_000)
         cards = [_doc_to_card(d) for d in docs]
         return HTMLResponse(
-            explore_tpl.render(
-                **_seo_ctx(request, base_url, page_template=explore_tpl),
+            render_with_nav(
+                explore_tpl, request, db_conn,
+                base_url=base_url, secret=session_secret,
+                **_seo_extra(request, base_url, page_template=explore_tpl),
                 docs=cards,
                 query=query,
                 total=len(total_docs),
                 view="public",
                 authed=principal is not None,
-                signed_in_user=signed_in_user,
             )
         )
 
@@ -616,9 +650,10 @@ def create_app(
                     ).fetchone()
                     forked_from_visible = grant_row is not None
         content_html = render_markdown(doc.content)
-        signed_in_user = signed_in_user_ctx(request, db_conn, secret=session_secret)
-        html = document_tpl.render(
-            **_seo_ctx(request, base_url),
+        html = render_with_nav(
+            document_tpl, request, db_conn,
+            base_url=base_url, secret=session_secret,
+            **_seo_extra(request, base_url),
             title=doc.title,
             content_html=content_html,
             created_at=doc.created_at,
@@ -629,7 +664,6 @@ def create_app(
             active_principals=active_principals,
             forked_from=forked_from,
             forked_from_visible=forked_from_visible,
-            signed_in_user=signed_in_user,
         )
         return HTMLResponse(html)
 

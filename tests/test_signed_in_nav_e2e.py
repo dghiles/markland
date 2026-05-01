@@ -208,3 +208,20 @@ def test_settings_tokens_page_shows_banner_and_drops_bespoke_signout(harness):
     assert "bob@example.com" in body
     # Bespoke sign-out fetch JS removed.
     assert "fetch('/api/auth/logout'" not in body
+
+
+def test_signed_in_static_page_shows_banner(harness):
+    """Static base.html-extending pages (quickstart/about/etc.) inherit the
+    partial via base.html, but their handlers used to forget to pass
+    signed_in_user. After the render_with_nav refactor, they all show the
+    banner."""
+    client, conn = harness
+    user = create_user(conn, email="dan@example.com")
+    cookie = issue_session(user.id, secret=SECRET)
+    client.cookies.set(SESSION_COOKIE_NAME, cookie)
+
+    r = client.get("/quickstart")
+    assert r.status_code == 200
+    body = r.text
+    assert "Signed in as" in body
+    assert "dan@example.com" in body
