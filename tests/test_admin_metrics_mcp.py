@@ -69,3 +69,16 @@ def test_admin_metrics_tool_default_window(ctx):
     handlers = build_mcp(ctx["conn"], base_url="http://t").markland_handlers
     result = handlers["markland_admin_metrics"](_Ctx(ctx["admin_p"]))
     assert result["window_seconds"] == 604800
+
+
+def test_admin_metrics_tool_invalid_window_seconds(ctx):
+    from mcp.server.fastmcp.exceptions import ToolError
+
+    from markland.server import build_mcp
+
+    handlers = build_mcp(ctx["conn"], base_url="http://t").markland_handlers
+    with pytest.raises(ToolError) as exc_info:
+        handlers["markland_admin_metrics"](
+            _Ctx(ctx["admin_p"]), window_seconds="7d"
+        )
+    assert exc_info.value.data["code"] == "invalid_argument"

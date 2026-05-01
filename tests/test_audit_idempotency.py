@@ -79,6 +79,7 @@ READ_ONLY_TOOLS = {
     "markland_list_grants",
     "markland_list_my_agents",
     "markland_audit",
+    "markland_admin_metrics",
 }
 
 

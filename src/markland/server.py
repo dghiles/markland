@@ -1015,7 +1015,14 @@ def build_mcp(
             raise tool_error("forbidden")
         from markland.service.admin_metrics import summary
 
-        capped = max(60, min(int(window_seconds), 30 * 86400))
+        try:
+            ws = int(window_seconds)
+        except (TypeError, ValueError):
+            raise tool_error(
+                "invalid_argument",
+                message="window_seconds must be an integer",
+            )
+        capped = max(60, min(ws, 30 * 86400))
         return summary(db_conn, window_seconds=capped)
 
     @mcp.tool()

@@ -49,6 +49,8 @@ def summary(
         row = conn.execute(query, params).fetchone()
         return int(row[0]) if row else 0
 
+    # Counts user-row inserts, not auth events. Inflated by admin-side seeded
+    # users (e.g., grant targets created via email lookup before they sign up).
     signups = _count(
         "SELECT COUNT(*) FROM users WHERE created_at >= ? AND created_at < ?",
         (start_iso, end_iso),
