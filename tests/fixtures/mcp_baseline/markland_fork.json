@@ -1,0 +1,22 @@
+{
+  "private_hidden": {
+    "code": "not_found",
+    "data": {},
+    "kind": "error"
+  },
+  "public_doc": {
+    "kind": "ok",
+    "value": {
+      "content": "# original",
+      "created_at": "<TIMESTAMP>",
+      "id": "<DOC_ID>",
+      "is_featured": false,
+      "is_public": false,
+      "owner_id": "<USR_ID>",
+      "share_url": "<SHARE_URL>",
+      "title": "Fork of original",
+      "updated_at": "<TIMESTAMP>",
+      "version": 1
+    }
+  }
+}

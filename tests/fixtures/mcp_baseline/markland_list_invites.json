@@ -1,0 +1,22 @@
+{
+  "non_owner_hidden": {
+    "code": "not_found",
+    "data": {},
+    "kind": "error"
+  },
+  "owner": {
+    "kind": "ok",
+    "value": {
+      "items": [
+        {
+          "created_at": "<TIMESTAMP>",
+          "expires_at": "<TIMESTAMP>",
+          "invite_id": "<INVITE_ID>",
+          "level": "view",
+          "uses_remaining": 1
+        }
+      ],
+      "next_cursor": null
+    }
+  }
+}

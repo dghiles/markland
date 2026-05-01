@@ -645,3 +645,85 @@ def test_http_sample_whoami_user(mcp_http):
     alice = mcp_http.as_user(email="alice@example.com")
     r = alice.call_raw("markland_whoami")
     mcp_http.snapshot("markland_whoami", "http_as_user", _envelope_of_response(r))
+
+
+# markland_get_by_share_token
+def test_baseline_get_by_share_token_public(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# Public", public=True)
+    token = pub["share_url"].rsplit("/", 1)[-1]
+    r = mcp.anon().call_raw("markland_get_by_share_token", share_token=token)
+    mcp.snapshot("markland_get_by_share_token", "public", _envelope_of_response(r))
+
+
+def test_baseline_get_by_share_token_unknown(mcp):
+    r = mcp.anon().call_raw(
+        "markland_get_by_share_token", share_token="not_real",
+    )
+    mcp.snapshot("markland_get_by_share_token", "unknown", _envelope_of_response(r))
+
+
+# markland_list_invites
+def test_baseline_list_invites_owner(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# t")
+    alice.call("markland_create_invite", doc_id=pub["id"], level="view")
+    r = alice.call_raw("markland_list_invites", doc_id=pub["id"])
+    mcp.snapshot("markland_list_invites", "owner", _envelope_of_response(r))
+
+
+def test_baseline_list_invites_non_owner(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    bob = mcp.as_user(email="bob@example.com")
+    pub = alice.call("markland_publish", content="# t")
+    r = bob.call_raw("markland_list_invites", doc_id=pub["id"])
+    mcp.snapshot("markland_list_invites", "non_owner_hidden", _envelope_of_response(r))
+
+
+# markland_explore
+def test_baseline_explore_anon(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    alice.call("markland_publish", content="# Public", public=True)
+    r = mcp.anon().call_raw("markland_explore")
+    mcp.snapshot("markland_explore", "anon", _envelope_of_response(r))
+
+
+def test_baseline_explore_empty(mcp):
+    r = mcp.anon().call_raw("markland_explore")
+    mcp.snapshot("markland_explore", "empty", _envelope_of_response(r))
+
+
+# markland_fork
+def test_baseline_fork_public_doc(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    bob = mcp.as_user(email="bob@example.com")
+    pub = alice.call("markland_publish", content="# original", public=True)
+    r = bob.call_raw("markland_fork", doc_id=pub["id"])
+    mcp.snapshot("markland_fork", "public_doc", _envelope_of_response(r))
+
+
+def test_baseline_fork_private_not_found(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    bob = mcp.as_user(email="bob@example.com")
+    pub = alice.call("markland_publish", content="# private", public=False)
+    r = bob.call_raw("markland_fork", doc_id=pub["id"])
+    mcp.snapshot("markland_fork", "private_hidden", _envelope_of_response(r))
+
+
+# markland_revisions
+def test_baseline_revisions_after_update(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# v1")
+    alice.call(
+        "markland_update", doc_id=pub["id"],
+        if_version=pub["version"], content="# v2",
+    )
+    r = alice.call_raw("markland_revisions", doc_id=pub["id"])
+    mcp.snapshot("markland_revisions", "after_one_update", _envelope_of_response(r))
+
+
+def test_baseline_revisions_no_history(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# fresh")
+    r = alice.call_raw("markland_revisions", doc_id=pub["id"])
+    mcp.snapshot("markland_revisions", "no_history", _envelope_of_response(r))
