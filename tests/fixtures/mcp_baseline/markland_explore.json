@@ -1,0 +1,27 @@
+{
+  "anon": {
+    "kind": "ok",
+    "value": {
+      "items": [
+        {
+          "created_at": "<TIMESTAMP>",
+          "id": "<DOC_ID>",
+          "is_featured": false,
+          "is_public": true,
+          "owner_id": "<USR_ID>",
+          "title": "Public",
+          "updated_at": "<TIMESTAMP>",
+          "version": 1
+        }
+      ],
+      "next_cursor": null
+    }
+  },
+  "empty": {
+    "kind": "ok",
+    "value": {
+      "items": [],
+      "next_cursor": null
+    }
+  }
+}

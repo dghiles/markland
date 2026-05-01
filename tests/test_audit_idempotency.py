@@ -68,6 +68,7 @@ NOT_IDEMPOTENT_TOOLS = {
     "markland_update",
     "markland_delete",
     "markland_create_invite",
+    "markland_fork",
 }
 
 READ_ONLY_TOOLS = {
@@ -80,6 +81,10 @@ READ_ONLY_TOOLS = {
     "markland_list_my_agents",
     "markland_audit",
     "markland_admin_metrics",
+    "markland_get_by_share_token",
+    "markland_list_invites",
+    "markland_explore",
+    "markland_revisions",
 }
 
 
@@ -100,5 +105,4 @@ def test_idempotency_catalog_covers_all_current_tools(tmp_path):
     mcp = build_mcp(db, base_url="http://x", email_client=None)
     all_known = IDEMPOTENT_TOOLS | NOT_IDEMPOTENT_TOOLS | READ_ONLY_TOOLS
     extras = set(mcp.markland_handlers) - all_known
-    # Plan 6 will add 5 new tools; this test should be updated then.
     assert not extras, f"unclassified tools: {extras}"
