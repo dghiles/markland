@@ -11,6 +11,7 @@ from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from markland.config import get_config
 from markland.db import (
     add_waitlist_email,
     get_document_by_token,
@@ -236,6 +237,9 @@ def create_app(
         loader=FileSystemLoader(str(_TEMPLATE_DIR)),
         autoescape=select_autoescape(["html"]),
     )
+    _cfg = get_config()
+    env.globals["umami_website_id"] = _cfg.umami_website_id
+    env.globals["umami_script_url"] = _cfg.umami_script_url
     landing_tpl = env.get_template("landing.html")
     explore_tpl = env.get_template("explore.html")
     document_tpl = env.get_template("document.html")
@@ -740,8 +744,14 @@ def create_app(
     from markland.web.rate_limit_middleware import RateLimitMiddleware
     app.add_middleware(RateLimitMiddleware, db_conn=db_conn)
 
-    from markland.web.security_headers_middleware import SecurityHeadersMiddleware
-    app.add_middleware(SecurityHeadersMiddleware)
+    from markland.web.security_headers_middleware import (
+        SecurityHeadersMiddleware,
+        build_csp,
+    )
+    app.add_middleware(
+        SecurityHeadersMiddleware,
+        csp=build_csp(umami_script_url=_cfg.umami_script_url if _cfg.umami_website_id else ""),
+    )
 
     from markland.web.fly_dev_redirect_middleware import FlyDevRedirectMiddleware
     app.add_middleware(FlyDevRedirectMiddleware)

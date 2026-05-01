@@ -47,3 +47,27 @@ def test_session_secret_empty_when_unset(monkeypatch, tmp_path):
     reset_config()
     cfg = get_config()
     assert cfg.session_secret == ""
+
+
+def test_config_reads_umami_website_id(monkeypatch, tmp_path):
+    monkeypatch.setenv("UMAMI_WEBSITE_ID", "abcd-1234")
+    monkeypatch.setenv("MARKLAND_DATA_DIR", str(tmp_path))
+    reset_config()
+    cfg = get_config()
+    assert cfg.umami_website_id == "abcd-1234"
+
+
+def test_config_umami_website_id_defaults_empty(monkeypatch, tmp_path):
+    monkeypatch.delenv("UMAMI_WEBSITE_ID", raising=False)
+    monkeypatch.setenv("MARKLAND_DATA_DIR", str(tmp_path))
+    reset_config()
+    cfg = get_config()
+    assert cfg.umami_website_id == ""
+
+
+def test_config_umami_script_url_default(monkeypatch, tmp_path):
+    monkeypatch.delenv("UMAMI_SCRIPT_URL", raising=False)
+    monkeypatch.setenv("MARKLAND_DATA_DIR", str(tmp_path))
+    reset_config()
+    cfg = get_config()
+    assert cfg.umami_script_url == "https://cloud.umami.is/script.js"

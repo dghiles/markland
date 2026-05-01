@@ -121,3 +121,10 @@ def test_sitemap_includes_trust_pages(client):
     body = r.text
     for path in ["/about", "/security", "/privacy", "/terms"]:
         assert f"<loc>http://testserver{path}</loc>" in body
+
+
+def test_security_page_discloses_umami(client):
+    r = client.get("/security")
+    assert r.status_code == 200
+    assert "Umami" in r.text
+    assert "cookie" in r.text.lower()  # confirms the no-cookie note is present

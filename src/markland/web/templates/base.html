@@ -159,6 +159,9 @@
 
         {% block head_extra %}{% endblock %}
     </style>
+    {% if umami_website_id and request.url.path != '/admin' and not request.url.path.startswith('/admin/') %}
+    <script defer src="{{ umami_script_url }}" data-website-id="{{ umami_website_id }}"></script>
+    {% endif %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
     <header class="site-header">
