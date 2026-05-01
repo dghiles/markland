@@ -36,6 +36,11 @@
     Documents and grants are stored in SQLite on the application server. Markland does not sell your data, share it with advertisers, or train AI models on it. See <a href="/privacy" style="color: var(--blue); border-bottom: 1px solid var(--outline);">/privacy</a> for what is and isn&rsquo;t stored, and how to delete it.
   </p>
 
+  <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">Where the data lives</h2>
+  <p style="margin-bottom: 1rem;">
+    The application runs on Fly.io in the <code>iad</code> region (US-East, Ashburn VA) until the canonical domain cutover; the SQLite database lives on the same machine&rsquo;s persistent volume. The underlying volume storage is encrypted at rest by the host platform; Markland additionally hashes bearer tokens and magic-link codes before they ever touch disk, so a snapshot of the database does not yield usable credentials. Host region and provider may change after general availability &mdash; this page will be updated when they do.
+  </p>
+
   <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">Reporting issues</h2>
   <p style="margin-bottom: 1rem;">
     A dedicated security contact will be published here once <code>markland.dev</code> is live. Until then: reply to any Markland email you&rsquo;ve received and the message reaches a human who reads everything. Please include a description of the issue, reproduction steps if you have them, and an estimate of severity. Reports are not bug-bountied at this stage but they are read and acted on quickly.

@@ -3,6 +3,29 @@
 **Source audit:** `FULL-AUDIT-REPORT.md` (2026-04-24). **Current score:** 77 / 100.
 **Ordered by impact × inverse-effort.** File paths use repo root `/Users/daveyhiles/Developer/markland/`.
 
+## Status snapshot (2026-05-01)
+
+| Item | Status | Landed in |
+|------|:------:|-----------|
+| C1 — `<h2>` per competitor | ✅ done | `feat(seo): batch 1` |
+| C2 — `offers` on SoftwareApplication | ✅ done | `feat(seo): batch 1` |
+| C3 — Branded HTML 404 | ✅ done | `tests/test_404_page.py` |
+| C4 — Trust pages ≥250w + E-E-A-T | ✅ done | commit `48dc2df` |
+| H1 — Author/founder signal | ✅ done | footer + Organization JSON-LD |
+| H2 — `BreadcrumbList` on `/alternatives/{slug}` | ✅ done | `feat(seo): batch 1` |
+| H3 — `sameAs` + `logo` on Organization | ✅ done | `feat(seo): batch 1` |
+| H4 — Above-fold waitlist CTA on `/alternatives/*` | ✅ done | `cmp-hero-cta` in `alternative.html` |
+| H5 — Trust-page titles 40–60 chars | ✅ done | enforced by `test_trust_pages.py` |
+| H6 — `/privacy` + `/terms` meta ≥130 chars | ✅ done | enforced by `test_trust_pages.py` |
+| M1–M10 — GEO polish | ✅ done | commit `87219b0` (#6) |
+| L1 — `size-adjust` fallback `@font-face` | ◻ open | superseded by Task 10 |
+| L2 — `preconnect` for `fonts.gstatic.com` | ❌ obsolete | fonts now self-hosted (Task 10) |
+| L3 — Expand AI-crawler blocklist | ◻ open | — |
+| L4 — `PrincipalMiddleware` `/admin/*` | ◻ open | tracked in `docs/FOLLOW-UPS.md` |
+| L5 — Post-domain-cutover sitemap/301/GSC | ◻ open | tracked in `docs/FOLLOW-UPS.md` |
+
+Per-item details below retain the original audit text. Update the table above when the underlying state changes.
+
 ---
 
 ## 🟥 Critical (do before any paid acquisition or GSC submission)
