@@ -147,6 +147,15 @@ post-launch sprint should pick up.
   `flyctl machine list -a markland` returns → revert and reopen
   `docs/plans/2026-04-29-fix-fly-deploy-launch-group.md`.
 
+## Metrics
+
+- **`first_mcp_call` event persistence** — `service/metrics.py::emit_first_time`
+  writes to stdout only. The new `markland_admin_metrics` tool returns
+  `first_mcp_call: null` because there is no DB row to count. Either add a
+  `metrics_events (event, principal_id, created_at)` table written alongside
+  stdout, or parse `flyctl logs` from the tool. Cheapest path is the table; one
+  `CREATE TABLE` + one `INSERT` per emit.
+
 ## Test coverage
 
 - **EmailDispatcher lifespan test** — `tests/test_email_integration.py`
