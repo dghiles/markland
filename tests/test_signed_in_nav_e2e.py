@@ -169,3 +169,24 @@ def test_banner_email_truncates_when_long(harness):
     # The truncation rules are present in the partial's inline styles.
     assert "text-overflow:ellipsis" in body or "text-overflow: ellipsis" in body
     assert "flex-shrink:0" in body or "flex-shrink: 0" in body
+
+
+def test_verify_sent_page_shows_banner(harness):
+    """A naked sign-in (no return_to) lands on the verify_sent page.
+
+    Pre-fix this rendered as a standalone light-themed page with no
+    banner — the worst place for that gap, since it's the user's first
+    impression after sign-in.
+    """
+    from markland.service.magic_link import issue_magic_link_token
+
+    client, _ = harness
+    token = issue_magic_link_token("alice@example.com", secret=SECRET)
+    r = client.get(f"/verify?token={token}", follow_redirects=False)
+    assert r.status_code == 200  # naked sign-in renders verify_sent
+    body = r.text
+    # Banner present
+    assert "Signed in as" in body
+    assert "alice@example.com" in body
+    # Inherits base.html chrome
+    assert 'href="/explore"' in body  # site-nav links
