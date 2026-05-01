@@ -1009,6 +1009,15 @@ def build_mcp(
         )
         return list_envelope(items=rows, next_cursor=next_cursor)
 
+    def _admin_metrics(ctx, window_seconds: int = 604800):
+        p = _require_principal(ctx)
+        if not p.is_admin:
+            raise tool_error("forbidden")
+        from markland.service.admin_metrics import summary
+
+        capped = max(60, min(int(window_seconds), 30 * 86400))
+        return summary(db_conn, window_seconds=capped)
+
     @mcp.tool()
     def markland_audit(
         ctx: Context,
@@ -1040,6 +1049,35 @@ def build_mcp(
         Idempotency: Read-only.
         """
         return _audit(ctx, doc_id=doc_id, limit=limit, cursor=cursor)
+
+    @mcp.tool()
+    def markland_admin_metrics(
+        ctx: Context,
+        window_seconds: int = 604800,
+    ) -> dict:
+        """Funnel metrics summary over a time window. Admin only.
+
+        Aggregates signups, publishes, grants, and invite_accepts from the
+        existing users/audit_log tables, plus the unwindowed waitlist total.
+        Useful for "what does the funnel look like this week?" agent queries.
+
+        Args:
+            window_seconds: Window size in seconds. Default 604800 (7 days).
+                Floored at 60 seconds, capped at 30 days (2_592_000).
+
+        Returns:
+            Flat dict with keys: window_seconds, window_start_iso,
+            window_end_iso, signups, publishes, grants_created,
+            invites_accepted, waitlist_total, first_mcp_call.
+            `first_mcp_call` is currently `null` because that event lives in
+            stdout logs only — check `flyctl logs` for now.
+
+        Raises:
+            forbidden: Caller is not an admin.
+
+        Idempotency: Read-only.
+        """
+        return _admin_metrics(ctx, window_seconds=window_seconds)
 
     @mcp.tool()
     def markland_clear_status(ctx: Context, doc_id: str) -> dict:
@@ -1089,6 +1127,7 @@ def build_mcp(
         ),
         markland_status=_status,
         markland_audit=_audit,
+        markland_admin_metrics=_admin_metrics,
     )
     mcp.markland_handlers = handlers  # type: ignore[attr-defined]
     return mcp
