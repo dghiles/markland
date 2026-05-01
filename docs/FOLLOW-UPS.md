@@ -155,6 +155,17 @@ post-launch sprint should pick up.
   `metrics_events (event, principal_id, created_at)` table written alongside
   stdout, or parse `flyctl logs` from the tool. Cheapest path is the table; one
   `CREATE TABLE` + one `INSERT` per emit.
+- **Token-create reveal disappears before user can copy** —
+  `/settings/tokens` shows the freshly minted plaintext (`mk_usr_...`) only
+  briefly after `POST /api/tokens` returns, then the value vanishes from the
+  DOM. Plaintext is one-shot (server stores only the hash), so once dismissed
+  the user must revoke and recreate. Caught during the cutover (2026-05-01)
+  generating a smoke token — the workaround was to read the value off the
+  user's screen before it vanished. Fix: persist the reveal until an explicit
+  "Copy"/"I've saved it" action; consider an explicit clipboard-copy button
+  with a confirmed state. Touch points: `src/markland/web/identity_routes.py`
+  (`POST /api/tokens` JSON shape), the `/settings/tokens` template, and any
+  client-side JS that consumes the response.
 
 ## Test coverage
 
