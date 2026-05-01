@@ -273,14 +273,8 @@ def search_paginated(
     pattern = f"%{query}%"
     pid = principal.principal_id
 
-    where_clauses = [
-        "((d.owner_id = ? AND (d.title LIKE ? OR d.content LIKE ?)) "
-        "OR d.id IN (SELECT g.doc_id FROM grants g WHERE g.principal_id = ?) "
-        "AND (d.title LIKE ? OR d.content LIKE ?))"
-    ]
-    # NB: rewriting as a clearer UNION via subquery would change semantics; we
-    # mirror search_documents_for_principal's union structure but in a single
-    # query so keyset pagination works.
+    # Mirror search_documents_for_principal's union structure (owner-match
+    # OR grant-match) inside a subquery so keyset pagination can wrap it.
     sql_inner = (
         f"SELECT {db._DOC_COLUMNS} FROM documents "
         "WHERE owner_id = ? AND (title LIKE ? OR content LIKE ?) "
