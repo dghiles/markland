@@ -19,6 +19,8 @@ class Config:
     resend_api_key: str
     resend_from_email: str
     session_secret: str
+    umami_website_id: str
+    umami_script_url: str
 
     @property
     def db_path(self) -> Path:
@@ -43,6 +45,8 @@ def get_config() -> Config:
             resend_api_key=os.getenv("RESEND_API_KEY", "").strip(),
             resend_from_email=os.getenv("RESEND_FROM_EMAIL", "notifications@markland.dev").strip(),
             session_secret=os.getenv("MARKLAND_SESSION_SECRET", "").strip(),
+            umami_website_id=os.getenv("UMAMI_WEBSITE_ID", "").strip(),
+            umami_script_url=os.getenv("UMAMI_SCRIPT_URL", "https://cloud.umami.is/script.js").strip(),
         )
     return _config
 
