@@ -208,6 +208,73 @@ def build_mcp(
         except NotFound:
             raise tool_error("not_found")
 
+    def _doc_meta(
+        ctx,
+        doc_id: str,
+        public: bool | None = None,
+        featured: bool | None = None,
+    ):
+        from markland import db as db_module
+
+        p = _require_principal(ctx)
+
+        if featured is not None and not p.is_admin:
+            raise tool_error("forbidden")
+
+        # Look up current state so we can skip no-op writes (idempotency)
+        # before they hit permission checks.
+        current = db_module.get_document(db_conn, doc_id)
+
+        # Owner check is handled inside docs_svc for the public flag. Skip
+        # the call entirely when the requested state matches current state.
+        if public is not None and (current is None or current.is_public != public):
+            try:
+                docs_svc.set_visibility(db_conn, base_url, p, doc_id, public)
+            except NotFound:
+                raise tool_error("not_found")
+            except PermissionDenied:
+                raise tool_error("forbidden")
+
+        if featured is not None and (current is None or current.is_featured != featured):
+            try:
+                docs_svc.feature(db_conn, p, doc_id, featured)
+            except NotFound:
+                raise tool_error("not_found")
+
+        # Return the freshly-loaded doc as a doc_envelope.
+        doc = db_module.get_document(db_conn, doc_id)
+        if doc is None:
+            raise tool_error("not_found")
+
+        # No writes attempted: fall back to the standard view-permission
+        # check so we don't leak metadata for unrelated docs.
+        wrote = (
+            (public is not None and (current is None or current.is_public != public))
+            or (featured is not None and (current is None or current.is_featured != featured))
+        )
+        if not wrote:
+            try:
+                body = docs_svc.get(db_conn, p, doc_id, base_url=base_url)
+            except NotFound:
+                raise tool_error("not_found")
+            except PermissionDenied:
+                raise tool_error("forbidden")
+            return doc_envelope(body)
+
+        body = {
+            "id": doc.id,
+            "title": doc.title,
+            "content": doc.content,
+            "share_url": f"{base_url}/d/{doc.share_token}",
+            "updated_at": doc.updated_at,
+            "created_at": doc.created_at,
+            "is_public": doc.is_public,
+            "is_featured": doc.is_featured,
+            "owner_id": doc.owner_id,
+            "version": doc.version,
+        }
+        return doc_envelope(body)
+
     def _grant(
         ctx,
         doc_id: str,
@@ -656,6 +723,33 @@ def build_mcp(
         return _feature(ctx, doc_id, featured)
 
     @mcp.tool()
+    def markland_doc_meta(
+        ctx: Context,
+        doc_id: str,
+        public: bool | None = None,
+        featured: bool | None = None,
+    ) -> dict:
+        """Update document metadata flags. Owner can set public; admin can set featured.
+
+        Args:
+            doc_id: The document to update.
+            public: True/False to change public visibility (owner only).
+                    None leaves it unchanged.
+            featured: True/False to pin/unpin on the landing hero (admin only).
+                      None leaves it unchanged.
+
+        Returns:
+            doc_envelope.
+
+        Raises:
+            not_found: doc does not exist or caller cannot see it.
+            forbidden: caller is not the owner (for public) or not admin (for featured).
+
+        Idempotency: Idempotent — calling with arguments matching current state is a no-op.
+        """
+        return _doc_meta(ctx, doc_id, public=public, featured=featured)
+
+    @mcp.tool()
     def markland_grant(
         ctx: Context,
         doc_id: str,
@@ -953,6 +1047,7 @@ def build_mcp(
         markland_delete=_delete,
         markland_set_visibility=_set_visibility,
         markland_feature=_feature,
+        markland_doc_meta=_doc_meta,
         markland_grant=_grant,
         markland_revoke=_revoke,
         markland_list_grants=_list_grants,
