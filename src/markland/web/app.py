@@ -743,6 +743,9 @@ def create_app(
     from markland.web.security_headers_middleware import SecurityHeadersMiddleware
     app.add_middleware(SecurityHeadersMiddleware)
 
+    from markland.web.fly_dev_redirect_middleware import FlyDevRedirectMiddleware
+    app.add_middleware(FlyDevRedirectMiddleware)
+
     # 404 handler: render branded HTML for browser requests, JSON for API
     # clients. Registered for status 404 specifically so non-404
     # HTTPExceptions (401, 403, 422, 429, ...) keep falling through to
