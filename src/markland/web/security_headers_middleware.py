@@ -32,18 +32,37 @@ def _origin_of(url: str) -> str:
 def build_csp(umami_script_url: str = "") -> str:
     """Assemble the CSP string, allowing the Umami host when configured.
 
-    Umami's script and beacon both live at the same origin as the script URL,
-    so adding that origin to script-src + connect-src is sufficient.
+    Umami Cloud is a two-host topology: script.js is served from
+    cloud.umami.is, but the beacon POSTs to api-gateway.umami.dev — a
+    different origin. Single-origin CSP would block the beacon and produce
+    zero pageviews silently. To handle both Cloud and any future Umami
+    gateway moves, allow https://*.umami.is and https://*.umami.dev on
+    connect-src whenever the (default) cloud script URL is in use. For a
+    custom UMAMI_SCRIPT_URL (self-host), add only that single origin to
+    both directives — self-hosters typically run script + API at the same
+    origin.
     """
     umami_origin = _origin_of(umami_script_url)
-    extra = f" {umami_origin}" if umami_origin else ""
+    if not umami_origin:
+        connect_extra = ""
+        script_extra = ""
+    elif umami_origin in ("https://cloud.umami.is", "http://cloud.umami.is"):
+        # Umami Cloud: script on cloud.umami.is, beacon on
+        # api-gateway.umami.dev. Wildcard both umami families on connect-src
+        # to be resilient to future API host moves.
+        script_extra = f" {umami_origin}"
+        connect_extra = " https://*.umami.is https://*.umami.dev"
+    else:
+        # Self-host: script and API on the same configured origin.
+        script_extra = f" {umami_origin}"
+        connect_extra = f" {umami_origin}"
     return (
         "default-src 'self'; "
         "style-src 'self' 'unsafe-inline'; "
         "font-src 'self'; "
         "img-src 'self' data:; "
-        f"script-src 'self' 'unsafe-inline'{extra}; "
-        f"connect-src 'self'{extra}; "
+        f"script-src 'self' 'unsafe-inline'{script_extra}; "
+        f"connect-src 'self'{connect_extra}; "
         "frame-ancestors 'none'; "
         "base-uri 'self'; "
         "form-action 'self'"
