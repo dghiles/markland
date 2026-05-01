@@ -1,37 +1,32 @@
 {
-  "make_private": {
+  "no_change": {
     "kind": "ok",
     "value": {
-      "content": "# Public doc",
+      "content": "# t",
       "created_at": "<TIMESTAMP>",
       "id": "<DOC_ID>",
       "is_featured": false,
       "is_public": false,
       "owner_id": "<USR_ID>",
       "share_url": "<SHARE_URL>",
-      "title": "Public doc",
+      "title": "t",
       "updated_at": "<TIMESTAMP>",
       "version": 1
     }
   },
-  "make_public": {
+  "set_public": {
     "kind": "ok",
     "value": {
-      "content": "# Private doc",
+      "content": "# t",
       "created_at": "<TIMESTAMP>",
       "id": "<DOC_ID>",
       "is_featured": false,
       "is_public": true,
       "owner_id": "<USR_ID>",
       "share_url": "<SHARE_URL>",
-      "title": "Private doc",
+      "title": "t",
       "updated_at": "<TIMESTAMP>",
       "version": 1
     }
-  },
-  "non_owner_forbidden": {
-    "code": "not_found",
-    "data": {},
-    "kind": "error"
   }
 }

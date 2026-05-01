@@ -1,16 +1,17 @@
 {
-  "existing": {
+  "clear": {
     "kind": "ok",
     "value": {
       "cleared": true,
       "doc_id": "<DOC_ID>"
     }
   },
-  "idempotent_no_existing": {
+  "set_reading": {
     "kind": "ok",
     "value": {
-      "cleared": true,
-      "doc_id": "<DOC_ID>"
+      "doc_id": "<DOC_ID>",
+      "expires_at": "<TIMESTAMP>",
+      "status": "reading"
     }
   }
 }
