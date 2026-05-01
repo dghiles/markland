@@ -187,27 +187,6 @@ def build_mcp(
         except PermissionDenied:
             raise tool_error("forbidden")
 
-    def _set_visibility(ctx, doc_id: str, public: bool):
-        p = _require_principal(ctx)
-        try:
-            return docs_svc.set_visibility(db_conn, base_url, p, doc_id, public)
-        except NotFound:
-            raise tool_error("not_found")
-        except PermissionDenied:
-            raise tool_error("forbidden")
-
-    def _feature(ctx, doc_id: str, featured: bool = True):
-        p = _require_principal(ctx)
-        row = db_conn.execute(
-            "SELECT is_admin FROM users WHERE id = ?", (p.principal_id,)
-        ).fetchone()
-        if not row or not row[0]:
-            raise tool_error("forbidden")
-        try:
-            return docs_svc.feature(db_conn, p, doc_id, featured)
-        except NotFound:
-            raise tool_error("not_found")
-
     def _doc_meta(
         ctx,
         doc_id: str,
@@ -679,48 +658,45 @@ def build_mcp(
 
     @mcp.tool()
     def markland_set_visibility(ctx: Context, doc_id: str, public: bool) -> dict:
-        """Promote or demote a document's public visibility. Owner only.
+        """Deprecated. Use markland_doc_meta(doc_id, public=...) instead.
 
-        Public docs appear on /explore and can be opened by anyone with the
-        share URL. Unlisted docs are visible only to the owner and grantees.
+        Removed in the release scheduled 30 days after this one.
 
         Args:
-            doc_id: Document id.
-            public: `True` to publish to /explore, `False` to unlist.
+            doc_id: The document to update.
+            public: True for public, False for unlisted.
 
         Returns:
-            `{id, is_public, share_url}`.
+            doc_envelope.
 
         Raises:
-            not_found: Document does not exist.
-            forbidden: Caller is not the owner.
+            not_found: doc does not exist or caller cannot see it.
+            forbidden: caller is not the owner.
 
-        Idempotency: Idempotent — calling with the same flag is a no-op.
+        Idempotency: Idempotent.
         """
-        return _set_visibility(ctx, doc_id, public)
+        return _doc_meta(ctx, doc_id, public=public, featured=None)
 
     @mcp.tool()
     def markland_feature(ctx: Context, doc_id: str, featured: bool = True) -> dict:
-        """Pin or unpin a document on the landing hero. Admin only.
+        """Deprecated. Use markland_doc_meta(doc_id, featured=...) instead.
 
-        The featured slot drives which document the marketing landing page
-        showcases. Only one document is rendered, but the flag itself is
-        per-doc — flipping a new doc to featured does not auto-clear the old.
+        Removed in the release scheduled 30 days after this one.
 
         Args:
-            doc_id: Document id.
-            featured: `True` to pin, `False` to unpin. Default `True`.
+            doc_id: The document to update.
+            featured: True to pin, False to unpin.
 
         Returns:
-            `{id, is_featured, is_public}`.
+            doc_envelope.
 
         Raises:
-            forbidden: Caller is not an admin.
-            not_found: Document does not exist.
+            not_found: doc does not exist or caller cannot see it.
+            forbidden: caller is not an admin.
 
-        Idempotency: Idempotent — calling with the same flag is a no-op.
+        Idempotency: Idempotent.
         """
-        return _feature(ctx, doc_id, featured)
+        return _doc_meta(ctx, doc_id, public=None, featured=featured)
 
     @mcp.tool()
     def markland_doc_meta(
@@ -1045,8 +1021,12 @@ def build_mcp(
         markland_share=_share,
         markland_update=_update,
         markland_delete=_delete,
-        markland_set_visibility=_set_visibility,
-        markland_feature=_feature,
+        markland_set_visibility=lambda ctx, doc_id, public: _doc_meta(
+            ctx, doc_id, public=public, featured=None
+        ),
+        markland_feature=lambda ctx, doc_id, featured=True: _doc_meta(
+            ctx, doc_id, public=None, featured=featured
+        ),
         markland_doc_meta=_doc_meta,
         markland_grant=_grant,
         markland_revoke=_revoke,
