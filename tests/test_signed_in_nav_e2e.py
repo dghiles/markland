@@ -146,3 +146,82 @@ def test_signed_in_explore_view_mine_lists_user_docs(harness):
     assert "Carol Plan" in r.text  # would fail before fix — view=mine returned
                                    # public list for cookie users
     assert "Signed in as" in r.text
+
+
+def test_banner_email_truncates_when_long(harness):
+    """Long emails must not push 'Your docs / Sign out' off the viewport.
+
+    The fix is CSS: max-width + text-overflow: ellipsis on the email span,
+    plus flex-shrink: 0 on the action links. Asserting CSS in HTML is a
+    weak signal but enough to catch a future refactor that strips the
+    rules wholesale.
+    """
+    client, conn = harness
+    user = create_user(conn, email="long+banner-test+long-alias@example.com")
+    cookie = issue_session(user.id, secret=SECRET)
+    client.cookies.set(SESSION_COOKIE_NAME, cookie)
+
+    r = client.get("/")
+    assert r.status_code == 200
+    body = r.text
+    # The email itself appears.
+    assert "long+banner-test+long-alias@example.com" in body
+    # The truncation rules are present in the partial's inline styles.
+    assert "text-overflow:ellipsis" in body or "text-overflow: ellipsis" in body
+    assert "flex-shrink:0" in body or "flex-shrink: 0" in body
+
+
+def test_verify_sent_page_shows_banner(harness):
+    """A naked sign-in (no return_to) lands on the verify_sent page.
+
+    Pre-fix this rendered as a standalone light-themed page with no
+    banner — the worst place for that gap, since it's the user's first
+    impression after sign-in.
+    """
+    from markland.service.magic_link import issue_magic_link_token
+
+    client, _ = harness
+    token = issue_magic_link_token("alice@example.com", secret=SECRET)
+    r = client.get(f"/verify?token={token}", follow_redirects=False)
+    assert r.status_code == 200  # naked sign-in renders verify_sent
+    body = r.text
+    # Banner present
+    assert "Signed in as" in body
+    assert "alice@example.com" in body
+    # Inherits base.html chrome
+    assert 'href="/explore"' in body  # site-nav links
+
+
+def test_settings_tokens_page_shows_banner_and_drops_bespoke_signout(harness):
+    """Settings page should use the shared signed-in banner, not its own
+    bespoke 'Sign out' fetch link."""
+    client, conn = harness
+    user = create_user(conn, email="bob@example.com")
+    cookie = issue_session(user.id, secret=SECRET)
+    client.cookies.set(SESSION_COOKIE_NAME, cookie)
+
+    r = client.get("/settings/tokens")
+    assert r.status_code == 200
+    body = r.text
+    # Banner present
+    assert "Signed in as" in body
+    assert "bob@example.com" in body
+    # Bespoke sign-out fetch JS removed.
+    assert "fetch('/api/auth/logout'" not in body
+
+
+def test_signed_in_static_page_shows_banner(harness):
+    """Static base.html-extending pages (quickstart/about/etc.) inherit the
+    partial via base.html, but their handlers used to forget to pass
+    signed_in_user. After the render_with_nav refactor, they all show the
+    banner."""
+    client, conn = harness
+    user = create_user(conn, email="dan@example.com")
+    cookie = issue_session(user.id, secret=SECRET)
+    client.cookies.set(SESSION_COOKIE_NAME, cookie)
+
+    r = client.get("/quickstart")
+    assert r.status_code == 200
+    body = r.text
+    assert "Signed in as" in body
+    assert "dan@example.com" in body

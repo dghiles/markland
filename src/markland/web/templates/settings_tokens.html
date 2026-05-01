@@ -1,26 +1,29 @@
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Tokens — Markland</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 1rem; }
-    h1 { font-size: 1.5rem; }
-    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
-    th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #eee; }
-    form.inline { display: inline; }
-    .newtoken { background: #efe; border: 1px solid #aca; padding: 1rem; margin-top: 1rem; word-break: break-all; }
-    .newtoken code { font-size: 1rem; }
-    button { padding: 0.4rem 0.8rem; cursor: pointer; }
-    input[type=text] { padding: 0.4rem; width: 16rem; }
-  </style>
-</head>
-<body>
+{% extends "base.html" %}
+
+{% block title %}Tokens &middot; Markland{% endblock %}
+
+{% block content %}
+<style>
+  .tokens-section { max-width: 48rem; margin: 3rem auto; padding: 0 1.5rem; }
+  .tokens-section h1 { font-size: 1.6rem; margin-bottom: 0.5rem; }
+  .tokens-section h2 { font-size: 1.15rem; margin-top: 2rem; margin-bottom: 0.5rem; }
+  .tokens-section p { color: var(--muted); }
+  .tokens-section table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 1rem; font-size: 0.92rem; }
+  .tokens-section th, .tokens-section td { text-align: left; padding: 0.55rem 0.6rem; border-bottom: 1px solid var(--outline-hairline); }
+  .tokens-section th { color: var(--muted); font-weight: 500; }
+  .tokens-section input[type=text] { padding: 0.5rem 0.75rem; background: var(--surface-2); border: 1px solid var(--outline); border-radius: 6px; color: var(--text); font: inherit; width: 16rem; }
+  .tokens-section button { padding: 0.5rem 1rem; background: var(--surface-2); color: var(--text); border: 1px solid var(--outline); border-radius: 6px; cursor: pointer; font: inherit; }
+  .tokens-section button.revoke { background: none; border: 0; padding: 0; color: var(--red); text-decoration: underline; text-underline-offset: 2px; }
+  .tokens-section .newtoken { background: var(--surface-2); border: 1px solid var(--outline); padding: 1rem; margin-top: 1rem; border-radius: 8px; word-break: break-all; }
+  .tokens-section .newtoken code { font-family: var(--font-mono); color: var(--text); background: #000; padding: 0.5rem; display: block; border-radius: 4px; overflow-x: auto; margin-top: 0.5rem; }
+  .tokens-section code.bearer { font-family: var(--font-mono); background: var(--surface-2); border: 1px solid var(--outline-hairline); padding: 0.1rem 0.3rem; border-radius: 4px; font-size: 0.85em; }
+</style>
+<section class="tokens-section">
   <h1>API tokens for {{ user.email }}</h1>
-  <p>Use these tokens in your MCP client's <code>Authorization: Bearer ...</code> header.</p>
+  <p>Use these tokens in your MCP client's <code class="bearer">Authorization: Bearer ...</code> header.</p>
 
   <h2>Create a token</h2>
-  <form id="create">
+  <form id="create" style="display: inline-flex; gap: 0.5rem; align-items: center;">
     <input type="text" id="label" name="label" placeholder="e.g. laptop" required>
     <button type="submit">Create</button>
   </form>
@@ -46,39 +49,32 @@
   {% else %}
   <p>No tokens yet.</p>
   {% endif %}
+</section>
 
-  <p style="margin-top:2rem;"><a href="#" id="logout">Sign out</a></p>
-
-  <script>
-    document.getElementById('create').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const label = document.getElementById('label').value.trim();
-      const r = await fetch('/api/tokens', {
-        method: 'POST',
-        headers: {'content-type': 'application/json'},
-        body: JSON.stringify({label}),
-      });
-      if (r.ok) {
-        const body = await r.json();
-        document.getElementById('newbox').innerHTML =
-          '<div class="newtoken">New token (copy now — it will not be shown again):<br>' +
-          '<code>' + body.token + '</code></div>';
-        setTimeout(() => location.reload(), 500);
-      }
+<script>
+  document.getElementById('create').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const label = document.getElementById('label').value.trim();
+    const r = await fetch('/api/tokens', {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({label}),
     });
-    document.querySelectorAll('.revoke').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const id = btn.dataset.id;
-        if (!confirm('Revoke this token?')) return;
-        const r = await fetch('/api/tokens/' + id, {method: 'DELETE'});
-        if (r.ok) document.getElementById('row-' + id).remove();
-      });
+    if (r.ok) {
+      const body = await r.json();
+      document.getElementById('newbox').innerHTML =
+        '<div class="newtoken">New token (copy now — it will not be shown again):<br>' +
+        '<code>' + body.token + '</code></div>';
+      setTimeout(() => location.reload(), 500);
+    }
+  });
+  document.querySelectorAll('.revoke').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      if (!confirm('Revoke this token?')) return;
+      const r = await fetch('/api/tokens/' + id, {method: 'DELETE'});
+      if (r.ok) document.getElementById('row-' + id).remove();
     });
-    document.getElementById('logout').addEventListener('click', async (e) => {
-      e.preventDefault();
-      await fetch('/api/auth/logout', {method: 'POST'});
-      location.href = '/login';
-    });
-  </script>
-</body>
-</html>
+  });
+</script>
+{% endblock %}

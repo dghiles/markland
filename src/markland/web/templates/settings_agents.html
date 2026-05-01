@@ -1,20 +1,22 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Agents — Markland</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; }
-    h1 { font-size: 1.5rem; }
-    .agent { border: 1px solid #ddd; border-radius: 6px; padding: 1rem; margin: 0.75rem 0; }
-    .agent-id { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.85rem; color: #555; }
-    form.inline { display: inline; }
-    button { font: inherit; padding: 0.25rem 0.75rem; }
-    .token-plain { background: #fff8c4; padding: 0.5rem; border-radius: 4px; font-family: monospace; word-break: break-all; }
-    .muted { color: #888; font-size: 0.9rem; }
-  </style>
-</head>
-<body>
+{% extends "base.html" %}
+
+{% block title %}Agents &middot; Markland{% endblock %}
+
+{% block content %}
+<style>
+  .agents-section { max-width: 48rem; margin: 3rem auto; padding: 0 1.5rem; }
+  .agents-section h1 { font-size: 1.6rem; margin-bottom: 0.5rem; }
+  .agents-section h2 { font-size: 1.15rem; margin-top: 2rem; margin-bottom: 0.75rem; }
+  .agents-section p { color: var(--muted); }
+  .agents-section .agent { border: 1px solid var(--outline); border-radius: 6px; padding: 1rem; margin: 0.75rem 0; background: var(--surface-2); }
+  .agents-section .agent-id { font-family: var(--font-mono); font-size: 0.85rem; color: var(--muted); }
+  .agents-section form.inline { display: inline; }
+  .agents-section input[type=text] { padding: 0.5rem 0.75rem; background: var(--surface-2); border: 1px solid var(--outline); border-radius: 6px; color: var(--text); font: inherit; }
+  .agents-section button { font: inherit; padding: 0.35rem 0.85rem; background: var(--surface-2); color: var(--text); border: 1px solid var(--outline); border-radius: 6px; cursor: pointer; }
+  .agents-section .token-plain { background: var(--surface-2); border: 1px solid var(--outline); padding: 1rem; margin-top: 1rem; border-radius: 8px; word-break: break-all; font-family: var(--font-mono); color: var(--text); }
+  .agents-section .muted { color: var(--muted); font-size: 0.9rem; }
+</style>
+<section class="agents-section">
   <h1>Agents</h1>
   <p class="muted">Agents act on your behalf. They inherit your grants automatically &mdash; no need to re-grant a doc to every agent you own.</p>
 
@@ -51,5 +53,5 @@
       </form>
     </div>
   {% endfor %}
-</body>
-</html>
+</section>
+{% endblock %}

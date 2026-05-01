@@ -25,6 +25,7 @@ from markland.service.sessions import (
     issue_session,
 )
 from markland.service.users import upsert_user_by_email
+from markland.web.render_helpers import render_with_nav
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 
@@ -57,20 +58,14 @@ def build_auth_router(
     verify_sent_tpl = env.get_template("verify_sent.html")
     magic_link_sent_tpl = env.get_template("magic_link_sent.html")
 
-    def _canonical_host(request: Request) -> str:
-        if base_url:
-            return base_url.rstrip("/")
-        scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
-        return f"{scheme}://{request.url.netloc}"
-
     @router.get("/login", response_class=HTMLResponse)
     def login_page(request: Request, next: str | None = None) -> HTMLResponse:
         safe_next = safe_return_to(next)
         return HTMLResponse(
-            login_tpl.render(
+            render_with_nav(
+                login_tpl, request, db_conn,
+                base_url=base_url, secret=session_secret,
                 next=safe_next,
-                request=request,
-                canonical_host=_canonical_host(request),
             )
         )
 
@@ -166,7 +161,13 @@ def build_auth_router(
         if pending:
             target = "/resume"
         if target == "/":
-            resp = HTMLResponse(verify_sent_tpl.render())
+            resp = HTMLResponse(
+                render_with_nav(
+                    verify_sent_tpl, request, db_conn,
+                    base_url=base_url, secret=session_secret,
+                    signed_in_user={"email": user.email},
+                )
+            )
         else:
             resp = RedirectResponse(target, status_code=303)
         resp.set_cookie(

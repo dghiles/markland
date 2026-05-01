@@ -1,14 +1,10 @@
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Signed in — Markland</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 28rem; margin: 4rem auto; padding: 1rem; }
-  </style>
-</head>
-<body>
-  <h1>Signed in</h1>
-  <p>Go to <a href="/settings/tokens">your tokens</a> to create an API token for your MCP client.</p>
-</body>
-</html>
+{% extends "base.html" %}
+
+{% block title %}Signed in &middot; Markland{% endblock %}
+
+{% block content %}
+<section style="max-width: 32rem; margin: 4rem auto; padding: 0 1.5rem;">
+  <h1 style="font-size: 1.6rem; margin-bottom: 0.75rem;">Signed in</h1>
+  <p>You're signed in. Go to <a href="/settings/tokens" style="color:var(--blue); text-decoration:underline; text-underline-offset:2px;">your tokens</a> to create an API token for your MCP client, or visit <a href="/explore?view=mine" style="color:var(--blue); text-decoration:underline; text-underline-offset:2px;">Your docs</a>.</p>
+</section>
+{% endblock %}
