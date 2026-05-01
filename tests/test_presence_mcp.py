@@ -87,7 +87,8 @@ def test_clear_status_removes_row(conn):
     _call(mcp, "markland_set_status", alice,
           doc_id="doc_1", status="reading", note=None)
     out = _call(mcp, "markland_clear_status", alice, doc_id="doc_1")
-    assert out == {"ok": True}
+    assert out["cleared"] is True
+    assert out["doc_id"] == "doc_1"
     assert conn.execute("SELECT COUNT(*) FROM presence").fetchone()[0] == 0
 
 
