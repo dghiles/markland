@@ -11,6 +11,7 @@ from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from markland.config import get_config
 from markland.db import (
     add_waitlist_email,
     get_document_by_token,
@@ -236,6 +237,9 @@ def create_app(
         loader=FileSystemLoader(str(_TEMPLATE_DIR)),
         autoescape=select_autoescape(["html"]),
     )
+    _cfg = get_config()
+    env.globals["umami_website_id"] = _cfg.umami_website_id
+    env.globals["umami_script_url"] = _cfg.umami_script_url
     landing_tpl = env.get_template("landing.html")
     explore_tpl = env.get_template("explore.html")
     document_tpl = env.get_template("document.html")
