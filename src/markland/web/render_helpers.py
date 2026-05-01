@@ -66,6 +66,9 @@ def render_with_nav(
     override the auto-resolution. Used today for: admin-impersonation
     previews, tests asserting on a specific banner state, etc.
     """
+    # `if "X" not in ctx` (not setdefault) so signed_in_user_ctx is skipped
+    # when the caller overrode signed_in_user — saves a SQLite lookup and
+    # respects the explicit-wins precedence semantic.
     if "signed_in_user" not in ctx:
         ctx["signed_in_user"] = signed_in_user_ctx(request, conn, secret=secret)
     if "request" not in ctx:
