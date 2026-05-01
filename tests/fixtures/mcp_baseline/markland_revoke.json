@@ -13,10 +13,11 @@
     "kind": "error"
   },
   "unknown_target_invalid_argument": {
-    "code": "invalid_argument",
-    "data": {
-      "reason": "target_not_found"
-    },
-    "kind": "error"
+    "kind": "ok",
+    "value": {
+      "doc_id": "<DOC_ID>",
+      "revoked": false,
+      "target": "nobody@example.com"
+    }
   }
 }

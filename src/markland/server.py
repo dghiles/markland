@@ -187,26 +187,72 @@ def build_mcp(
         except PermissionDenied:
             raise tool_error("forbidden")
 
-    def _set_visibility(ctx, doc_id: str, public: bool):
+    def _doc_meta(
+        ctx,
+        doc_id: str,
+        public: bool | None = None,
+        featured: bool | None = None,
+    ):
+        from markland import db as db_module
+
         p = _require_principal(ctx)
-        try:
-            return docs_svc.set_visibility(db_conn, base_url, p, doc_id, public)
-        except NotFound:
-            raise tool_error("not_found")
-        except PermissionDenied:
+
+        if featured is not None and not p.is_admin:
             raise tool_error("forbidden")
 
-    def _feature(ctx, doc_id: str, featured: bool = True):
-        p = _require_principal(ctx)
-        row = db_conn.execute(
-            "SELECT is_admin FROM users WHERE id = ?", (p.principal_id,)
-        ).fetchone()
-        if not row or not row[0]:
-            raise tool_error("forbidden")
-        try:
-            return docs_svc.feature(db_conn, p, doc_id, featured)
-        except NotFound:
+        # Look up current state so we can skip no-op writes (idempotency)
+        # before they hit permission checks.
+        current = db_module.get_document(db_conn, doc_id)
+
+        # Owner check is handled inside docs_svc for the public flag. Skip
+        # the call entirely when the requested state matches current state.
+        if public is not None and (current is None or current.is_public != public):
+            try:
+                docs_svc.set_visibility(db_conn, base_url, p, doc_id, public)
+            except NotFound:
+                raise tool_error("not_found")
+            except PermissionDenied:
+                raise tool_error("forbidden")
+
+        if featured is not None and (current is None or current.is_featured != featured):
+            try:
+                docs_svc.feature(db_conn, p, doc_id, featured)
+            except NotFound:
+                raise tool_error("not_found")
+
+        # Return the freshly-loaded doc as a doc_envelope.
+        doc = db_module.get_document(db_conn, doc_id)
+        if doc is None:
             raise tool_error("not_found")
+
+        # No writes attempted: fall back to the standard view-permission
+        # check so we don't leak metadata for unrelated docs.
+        wrote = (
+            (public is not None and (current is None or current.is_public != public))
+            or (featured is not None and (current is None or current.is_featured != featured))
+        )
+        if not wrote:
+            try:
+                body = docs_svc.get(db_conn, p, doc_id, base_url=base_url)
+            except NotFound:
+                raise tool_error("not_found")
+            except PermissionDenied:
+                raise tool_error("forbidden")
+            return doc_envelope(body)
+
+        body = {
+            "id": doc.id,
+            "title": doc.title,
+            "content": doc.content,
+            "share_url": f"{base_url}/d/{doc.share_token}",
+            "updated_at": doc.updated_at,
+            "created_at": doc.created_at,
+            "is_public": doc.is_public,
+            "is_featured": doc.is_featured,
+            "owner_id": doc.owner_id,
+            "version": doc.version,
+        }
+        return doc_envelope(body)
 
     def _grant(
         ctx,
@@ -241,24 +287,34 @@ def build_mcp(
         except grants_svc.InvalidGrantLevel:
             raise tool_error("invalid_argument", reason="invalid_level")
 
-    def _revoke(ctx, doc_id: str, principal: str):
+    def _revoke(ctx, doc_id: str, target: str):
         p = _require_principal(ctx)
-        pid = principal.strip()
+        pid = target.strip()
         if "@" in pid:
             row = db_conn.execute(
                 "SELECT id FROM users WHERE lower(email) = lower(?)", (pid,)
             ).fetchone()
             if row is None:
-                raise tool_error("invalid_argument", reason="target_not_found")
+                # Idempotent: target doesn't exist as a user → return success no-op.
+                return {"revoked": False, "doc_id": doc_id, "target": target}
             pid = row[0]
+
+        # Owner check still applies — non-owner shouldn't probe arbitrary docs.
         try:
-            return grants_svc.revoke(
-                db_conn, principal=p, doc_id=doc_id, principal_id=pid
-            )
+            check_permission(db_conn, p, doc_id, "owner")
         except NotFound:
             raise tool_error("not_found")
         except PermissionDenied:
             raise tool_error("forbidden")
+
+        try:
+            result = grants_svc.revoke(
+                db_conn, principal=p, doc_id=doc_id, principal_id=pid,
+            )
+        except NotFound:
+            # Grant didn't exist on this owner-readable doc. Idempotent.
+            return {"revoked": False, "doc_id": doc_id, "target": target}
+        return result
 
     def _list_grants(
         ctx, doc_id: str, limit: int = 50, cursor: str | None = None
@@ -314,7 +370,8 @@ def build_mcp(
             "SELECT doc_id FROM invites WHERE id = ?", (invite_id,)
         ).fetchone()
         if row is None:
-            raise tool_error("not_found")
+            # Idempotent: invite never existed.
+            return {"revoked": True, "invite_id": invite_id}
         try:
             check_permission(db_conn, p, row[0], "owner")
         except NotFound:
@@ -326,32 +383,33 @@ def build_mcp(
         )
         return {"revoked": True, "invite_id": invite_id}
 
-    def _set_status(ctx, doc_id: str, status: str, note: str | None = None):
+    def _status(ctx, doc_id: str, status: str | None, note: str | None = None):
         p = _require_principal(ctx)
+
+        if status is None:
+            # Clear path — idempotent.
+            presence_svc.clear_status(db_conn, doc_id=doc_id, principal=p)
+            return {"doc_id": doc_id, "cleared": True}
+
         if status not in ("reading", "editing"):
             raise tool_error(
-                "invalid_argument", reason="status_must_be_reading_or_editing"
+                "invalid_argument",
+                reason="status_must_be_reading_or_editing_or_none",
             )
+
         try:
             check_permission(db_conn, p, doc_id, "view")
         except NotFound:
             raise tool_error("not_found")
         except PermissionDenied:
             raise tool_error("forbidden")
+
         try:
             return presence_svc.set_status(
-                db_conn,
-                doc_id=doc_id,
-                principal=p,
-                status=status,
-                note=note,
+                db_conn, doc_id=doc_id, principal=p, status=status, note=note,
             )
         except presence_svc.PresenceError:
             raise tool_error("not_found")
-
-    def _clear_status(ctx, doc_id: str):
-        p = _require_principal(ctx)
-        return presence_svc.clear_status(db_conn, doc_id=doc_id, principal=p)
 
     def _list_my_agents(ctx, limit: int = 50, cursor: str | None = None):
         p = _require_principal(ctx)
@@ -612,48 +670,72 @@ def build_mcp(
 
     @mcp.tool()
     def markland_set_visibility(ctx: Context, doc_id: str, public: bool) -> dict:
-        """Promote or demote a document's public visibility. Owner only.
+        """Deprecated. Use markland_doc_meta(doc_id, public=...) instead.
 
-        Public docs appear on /explore and can be opened by anyone with the
-        share URL. Unlisted docs are visible only to the owner and grantees.
+        Removed in the release scheduled 30 days after this one.
 
         Args:
-            doc_id: Document id.
-            public: `True` to publish to /explore, `False` to unlist.
+            doc_id: The document to update.
+            public: True for public, False for unlisted.
 
         Returns:
-            `{id, is_public, share_url}`.
+            doc_envelope.
 
         Raises:
-            not_found: Document does not exist.
-            forbidden: Caller is not the owner.
+            not_found: doc does not exist or caller cannot see it.
+            forbidden: caller is not the owner.
 
-        Idempotency: Idempotent — calling with the same flag is a no-op.
+        Idempotency: Idempotent.
         """
-        return _set_visibility(ctx, doc_id, public)
+        return _doc_meta(ctx, doc_id, public=public, featured=None)
 
     @mcp.tool()
     def markland_feature(ctx: Context, doc_id: str, featured: bool = True) -> dict:
-        """Pin or unpin a document on the landing hero. Admin only.
+        """Deprecated. Use markland_doc_meta(doc_id, featured=...) instead.
 
-        The featured slot drives which document the marketing landing page
-        showcases. Only one document is rendered, but the flag itself is
-        per-doc — flipping a new doc to featured does not auto-clear the old.
+        Removed in the release scheduled 30 days after this one.
 
         Args:
-            doc_id: Document id.
-            featured: `True` to pin, `False` to unpin. Default `True`.
+            doc_id: The document to update.
+            featured: True to pin, False to unpin.
 
         Returns:
-            `{id, is_featured, is_public}`.
+            doc_envelope.
 
         Raises:
-            forbidden: Caller is not an admin.
-            not_found: Document does not exist.
+            not_found: doc does not exist or caller cannot see it.
+            forbidden: caller is not an admin.
 
-        Idempotency: Idempotent — calling with the same flag is a no-op.
+        Idempotency: Idempotent.
         """
-        return _feature(ctx, doc_id, featured)
+        return _doc_meta(ctx, doc_id, public=None, featured=featured)
+
+    @mcp.tool()
+    def markland_doc_meta(
+        ctx: Context,
+        doc_id: str,
+        public: bool | None = None,
+        featured: bool | None = None,
+    ) -> dict:
+        """Update document metadata flags. Owner can set public; admin can set featured.
+
+        Args:
+            doc_id: The document to update.
+            public: True/False to change public visibility (owner only).
+                    None leaves it unchanged.
+            featured: True/False to pin/unpin on the landing hero (admin only).
+                      None leaves it unchanged.
+
+        Returns:
+            doc_envelope.
+
+        Raises:
+            not_found: doc does not exist or caller cannot see it.
+            forbidden: caller is not the owner (for public) or not admin (for featured).
+
+        Idempotency: Idempotent — calling with arguments matching current state is a no-op.
+        """
+        return _doc_meta(ctx, doc_id, public=public, featured=featured)
 
     @mcp.tool()
     def markland_grant(
@@ -694,32 +776,40 @@ def build_mcp(
         return _grant(ctx, doc_id, target, level, principal=principal)
 
     @mcp.tool()
-    def markland_revoke(ctx: Context, doc_id: str, principal: str) -> dict:
+    def markland_revoke(
+        ctx: Context,
+        doc_id: str,
+        target: str | None = None,
+        *,
+        principal: str | None = None,  # Deprecated alias for `target`.
+    ) -> dict:
         """Revoke an existing grant. Owner only.
 
-        `principal` accepts the same forms as `markland_grant`: an email
+        `target` accepts the same forms as `markland_grant`: an email
         address (resolved to a user id) or a `usr_…`/`agt_…` id passed
         through directly.
 
         Args:
             doc_id: Document id.
-            principal: Email, `usr_…`, or `agt_…` identifier of the grantee
-                to remove.
+            target: Email, `usr_…`, or `agt_…` identifier of the grantee
+                to remove. Replaces the `principal` keyword (deprecated;
+                removed in the release scheduled 30 days after this one).
 
         Returns:
-            `{revoked: bool, doc_id, principal_id}`. `revoked` is `False`
-            when no matching grant row existed.
+            `{revoked: bool, doc_id, target}`. `revoked` is `False`
+            when no matching grant row existed (idempotent no-op).
 
         Raises:
             not_found: Document does not exist.
             forbidden: Caller is not the owner.
-            invalid_argument: `target_not_found` if an email cannot be
-                resolved to a user.
 
-        Idempotency: Not idempotent — current behavior raises not_found if
-            target is missing. Plan 5 will flip to idempotent success.
+        Idempotency: Idempotent — calling on a non-existent target/grant
+            is a no-op success.
         """
-        return _revoke(ctx, doc_id, principal)
+        chosen_target = target if target is not None else principal
+        if chosen_target is None:
+            raise tool_error("invalid_argument", reason="target is required")
+        return _revoke(ctx, doc_id, chosen_target)
 
     @mcp.tool()
     def markland_list_grants(
@@ -799,7 +889,8 @@ def build_mcp(
         """Revoke an outstanding invite. Owner only.
 
         Sets `revoked_at` on the invite so the URL stops resolving. Already
-        revoked invites are a no-op.
+        revoked invites and non-existent invite ids are both treated as
+        successful no-ops.
 
         Args:
             invite_id: Invite id (e.g. `inv_…`).
@@ -808,11 +899,11 @@ def build_mcp(
             `{revoked: True, invite_id}`.
 
         Raises:
-            not_found: Invite or its document does not exist.
+            not_found: The invite's document does not exist.
             forbidden: Caller is not the document owner.
 
-        Idempotency: Not idempotent — current behavior raises not_found if
-            target is missing. Plan 5 will flip to idempotent success.
+        Idempotency: Idempotent — calling on a non-existent invite is a
+            no-op success.
         """
         return _revoke_invite(ctx, invite_id)
 
@@ -843,38 +934,64 @@ def build_mcp(
         return _list_my_agents(ctx, limit=limit, cursor=cursor)
 
     @mcp.tool()
+    def markland_status(
+        ctx: Context,
+        doc_id: str,
+        status: str | None = None,
+        note: str | None = None,
+    ) -> dict:
+        """Set or clear your presence on a document.
+
+        Pass status="reading" or status="editing" to announce; pass status=None
+        (or omit) to clear. Advisory only — does not lock the document. Set
+        entries expire after 10 minutes; re-call every ~5 minutes to remain
+        visible (heartbeat).
+
+        Args:
+            doc_id: The document.
+            status: "reading", "editing", or None to clear.
+            note: Optional free-text note (only used when status is set).
+
+        Returns:
+            On set: {doc_id, status, expires_at, note}.
+            On clear: {doc_id, cleared: true}.
+
+        Raises:
+            not_found: doc does not exist or caller cannot see it.
+            forbidden: caller does not have view access.
+            invalid_argument: status not in {reading, editing, None}.
+
+        Idempotency: Idempotent.
+        """
+        return _status(ctx, doc_id, status=status, note=note)
+
+    @mcp.tool()
     def markland_set_status(
         ctx: Context,
         doc_id: str,
         status: str,
         note: str | None = None,
     ) -> dict:
-        """Announce that you are reading or editing a document.
+        """Deprecated. Use markland_status(doc_id, status=...) instead.
 
-        Advisory — does NOT lock the document. Other principals may still
-        edit. The announcement expires after 10 minutes; re-call every ~5
-        minutes to remain visible (heartbeat). To stop announcing, call
-        `markland_clear_status`.
+        Removed in the release scheduled 30 days after this one.
 
         Args:
-            doc_id: Document id.
-            status: `"reading"` or `"editing"`. Other values raise
-                ValueError.
-            note: Optional free-text note shown alongside your presence
-                row (e.g. "fixing typos in §3").
+            doc_id: The document.
+            status: "reading" or "editing".
+            note: Optional free-text note.
 
         Returns:
-            `{doc_id, status, expires_at}`. `expires_at` is ISO-8601 UTC.
+            {doc_id, status, expires_at}.
 
         Raises:
-            not_found: Document does not exist.
-            forbidden: Caller lacks view access.
+            not_found: doc does not exist or caller cannot see it.
+            forbidden: caller does not have view access.
             invalid_argument: status not in {reading, editing}.
 
-        Idempotency: Idempotent — calling with the same status updates the
-            heartbeat without creating a duplicate row.
+        Idempotency: Idempotent.
         """
-        return _set_status(ctx, doc_id, status, note=note)
+        return _status(ctx, doc_id, status=status, note=note)
 
     def _audit(
         ctx,
@@ -926,21 +1043,19 @@ def build_mcp(
 
     @mcp.tool()
     def markland_clear_status(ctx: Context, doc_id: str) -> dict:
-        """Clear your presence announcement on a document. Idempotent.
+        """Deprecated. Use markland_status(doc_id, status=None) instead.
 
-        Equivalent to letting the announcement expire naturally after
-        10 minutes, but immediate.
+        Removed in the release scheduled 30 days after this one.
 
         Args:
-            doc_id: Document id whose presence row should be removed.
+            doc_id: The document whose presence row should be removed.
 
         Returns:
-            `{ok: True}`.
+            {doc_id, cleared: true}.
 
-        Idempotency: Idempotent — safe to call even if no presence row
-            exists.
+        Idempotency: Idempotent — safe to call even if no presence row exists.
         """
-        return _clear_status(ctx, doc_id)
+        return _status(ctx, doc_id, status=None)
 
     handlers.update(
         markland_whoami=_whoami,
@@ -951,16 +1066,28 @@ def build_mcp(
         markland_share=_share,
         markland_update=_update,
         markland_delete=_delete,
-        markland_set_visibility=_set_visibility,
-        markland_feature=_feature,
+        markland_set_visibility=lambda ctx, doc_id, public: _doc_meta(
+            ctx, doc_id, public=public, featured=None
+        ),
+        markland_feature=lambda ctx, doc_id, featured=True: _doc_meta(
+            ctx, doc_id, public=None, featured=featured
+        ),
+        markland_doc_meta=_doc_meta,
         markland_grant=_grant,
-        markland_revoke=_revoke,
+        markland_revoke=lambda ctx, doc_id, target=None, *, principal=None: _revoke(
+            ctx, doc_id, target if target is not None else principal
+        ),
         markland_list_grants=_list_grants,
         markland_list_my_agents=_list_my_agents,
         markland_create_invite=_create_invite,
         markland_revoke_invite=_revoke_invite,
-        markland_set_status=_set_status,
-        markland_clear_status=_clear_status,
+        markland_set_status=lambda ctx, doc_id, status, note=None: _status(
+            ctx, doc_id, status=status, note=note
+        ),
+        markland_clear_status=lambda ctx, doc_id: _status(
+            ctx, doc_id, status=None
+        ),
+        markland_status=_status,
         markland_audit=_audit,
     )
     mcp.markland_handlers = handlers  # type: ignore[attr-defined]

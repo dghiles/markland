@@ -2,9 +2,16 @@
   "admin_feature": {
     "kind": "ok",
     "value": {
+      "content": "# Featured doc",
+      "created_at": "<TIMESTAMP>",
       "id": "<DOC_ID>",
       "is_featured": true,
-      "is_public": true
+      "is_public": true,
+      "owner_id": "<USR_ID>",
+      "share_url": "<SHARE_URL>",
+      "title": "Featured doc",
+      "updated_at": "<TIMESTAMP>",
+      "version": 1
     }
   },
   "non_admin_forbidden": {

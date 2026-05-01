@@ -27,3 +27,72 @@ def test_grant_principal_kw_still_works_as_target_alias(tmp_path):
     assert new_call["doc_id"] == pub["id"]
     assert old_call["doc_id"] == pub2["id"]
     assert set(new_call) == set(old_call)
+
+
+def test_set_visibility_shim_delegates_to_doc_meta(tmp_path):
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# t")
+
+    new = alice.call("markland_doc_meta", doc_id=pub["id"], public=True)
+    old = alice.call("markland_set_visibility", doc_id=pub["id"], public=False)
+
+    assert new["is_public"] is True
+    assert old["is_public"] is False
+    # Both return doc_envelope shape.
+    assert set(new) == set(old)
+
+
+def test_feature_shim_delegates_to_doc_meta(tmp_path):
+    h = MCPHarness.create(tmp_path, mode="direct")
+    admin = h.as_admin()
+    pub = admin.call("markland_publish", content="# t")
+
+    old = admin.call("markland_feature", doc_id=pub["id"], featured=True)
+    assert old["is_featured"] is True
+
+
+def test_set_visibility_shim_marked_deprecated_in_docstring(tmp_path):
+    from markland.db import init_db
+    from markland.server import build_mcp
+    db = init_db(tmp_path / "t.db")
+    mcp = build_mcp(db, base_url="http://x", email_client=None)
+    desc = mcp._tool_manager.get_tool("markland_set_visibility").description
+    assert "Deprecated" in desc
+    assert "markland_doc_meta" in desc
+
+
+def test_feature_shim_marked_deprecated(tmp_path):
+    from markland.db import init_db
+    from markland.server import build_mcp
+    db = init_db(tmp_path / "t.db")
+    mcp = build_mcp(db, base_url="http://x", email_client=None)
+    desc = mcp._tool_manager.get_tool("markland_feature").description
+    assert "Deprecated" in desc
+
+
+def test_set_status_shim_delegates(tmp_path):
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# t")
+    res = alice.call("markland_set_status", doc_id=pub["id"], status="reading")
+    assert res["status"] == "reading"
+
+
+def test_clear_status_shim_delegates(tmp_path):
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# t")
+    alice.call("markland_set_status", doc_id=pub["id"], status="reading")
+    res = alice.call("markland_clear_status", doc_id=pub["id"])
+    assert res["cleared"] is True
+
+
+def test_set_status_marked_deprecated(tmp_path):
+    from markland.db import init_db
+    from markland.server import build_mcp
+    db = init_db(tmp_path / "t.db")
+    mcp = build_mcp(db, base_url="http://x", email_client=None)
+    desc = mcp._tool_manager.get_tool("markland_set_status").description
+    assert "Deprecated" in desc
+    assert "markland_status" in desc

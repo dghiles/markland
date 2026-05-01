@@ -559,6 +559,43 @@ def test_baseline_markland_audit_non_admin_forbidden(mcp):
 
 
 # ---------------------------------------------------------------------------
+# Plan 5: markland_doc_meta (axis 4 — doc-meta surface)
+# ---------------------------------------------------------------------------
+
+def test_baseline_markland_doc_meta_set_public(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# t")
+    r = alice.call_raw("markland_doc_meta", doc_id=pub["id"], public=True)
+    mcp.snapshot("markland_doc_meta", "set_public", _envelope_of_response(r))
+
+
+def test_baseline_markland_doc_meta_no_change(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# t")
+    r = alice.call_raw("markland_doc_meta", doc_id=pub["id"])  # no flags
+    mcp.snapshot("markland_doc_meta", "no_change", _envelope_of_response(r))
+
+
+# ---------------------------------------------------------------------------
+# Plan 5: markland_status (axis 4 — status surface)
+# ---------------------------------------------------------------------------
+
+def test_baseline_markland_status_set(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# t")
+    r = alice.call_raw("markland_status", doc_id=pub["id"], status="reading")
+    mcp.snapshot("markland_status", "set_reading", _envelope_of_response(r))
+
+
+def test_baseline_markland_status_clear(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# t")
+    alice.call("markland_status", doc_id=pub["id"], status="reading")
+    r = alice.call_raw("markland_status", doc_id=pub["id"], status=None)
+    mcp.snapshot("markland_status", "clear", _envelope_of_response(r))
+
+
+# ---------------------------------------------------------------------------
 # Task 33: HTTP-mode sample suite
 # ---------------------------------------------------------------------------
 

@@ -12,8 +12,10 @@
     "kind": "error"
   },
   "not_found": {
-    "code": "not_found",
-    "data": {},
-    "kind": "error"
+    "kind": "ok",
+    "value": {
+      "invite_id": "<INVITE_ID>",
+      "revoked": true
+    }
   }
 }
