@@ -115,7 +115,12 @@ def build_auth_router(
             return JSONResponse({"ok": True})
         safe_next = safe_return_to(return_to) if isinstance(return_to, str) else None
         return HTMLResponse(
-            magic_link_sent_tpl.render(email=email, return_to=safe_next)
+            render_with_nav(
+                magic_link_sent_tpl, request, db_conn,
+                base_url=base_url, secret=session_secret,
+                email=email,
+                return_to=safe_next,
+            )
         )
 
     @router.post("/api/auth/verify")
