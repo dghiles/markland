@@ -158,6 +158,14 @@ def build_mcp(
         raw["share_url"] = f"{base_url}/d/{share_token}"
         return doc_envelope(raw)
 
+    def _explore(ctx, limit: int = 50, cursor: str | None = None):
+        # Anonymous-callable — no _require_principal call.
+        rows, next_cursor = docs_svc.list_public_paginated(
+            db_conn, limit=limit, cursor=cursor,
+        )
+        items = [doc_summary(r) for r in rows]
+        return list_envelope(items=items, next_cursor=next_cursor)
+
     def _update(
         ctx,
         doc_id: str,
@@ -631,6 +639,25 @@ def build_mcp(
         Idempotency: Read-only.
         """
         return _get_by_share_token(ctx, share_token)
+
+    @mcp.tool()
+    def markland_explore(
+        ctx: Context, limit: int = 50, cursor: str | None = None,
+    ) -> dict:
+        """List recently-updated public documents. Anonymous-friendly.
+
+        Mirrors the public `/explore` web feed. No authentication required.
+
+        Args:
+            limit: Max documents per page (1-200, default 50).
+            cursor: Pagination cursor.
+
+        Returns:
+            list_envelope of doc_summary.
+
+        Idempotency: Read-only.
+        """
+        return _explore(ctx, limit=limit, cursor=cursor)
 
     @mcp.tool()
     def markland_share(ctx: Context, doc_id: str) -> dict:
@@ -1182,6 +1209,7 @@ def build_mcp(
         markland_list=_list,
         markland_get=_get,
         markland_get_by_share_token=_get_by_share_token,
+        markland_explore=_explore,
         markland_search=_search,
         markland_share=_share,
         markland_update=_update,
