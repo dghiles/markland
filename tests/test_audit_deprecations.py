@@ -69,3 +69,30 @@ def test_feature_shim_marked_deprecated(tmp_path):
     mcp = build_mcp(db, base_url="http://x", email_client=None)
     desc = mcp._tool_manager.get_tool("markland_feature").description
     assert "Deprecated" in desc
+
+
+def test_set_status_shim_delegates(tmp_path):
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# t")
+    res = alice.call("markland_set_status", doc_id=pub["id"], status="reading")
+    assert res["status"] == "reading"
+
+
+def test_clear_status_shim_delegates(tmp_path):
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# t")
+    alice.call("markland_set_status", doc_id=pub["id"], status="reading")
+    res = alice.call("markland_clear_status", doc_id=pub["id"])
+    assert res["cleared"] is True
+
+
+def test_set_status_marked_deprecated(tmp_path):
+    from markland.db import init_db
+    from markland.server import build_mcp
+    db = init_db(tmp_path / "t.db")
+    mcp = build_mcp(db, base_url="http://x", email_client=None)
+    desc = mcp._tool_manager.get_tool("markland_set_status").description
+    assert "Deprecated" in desc
+    assert "markland_status" in desc

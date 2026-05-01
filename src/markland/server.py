@@ -372,33 +372,6 @@ def build_mcp(
         )
         return {"revoked": True, "invite_id": invite_id}
 
-    def _set_status(ctx, doc_id: str, status: str, note: str | None = None):
-        p = _require_principal(ctx)
-        if status not in ("reading", "editing"):
-            raise tool_error(
-                "invalid_argument", reason="status_must_be_reading_or_editing"
-            )
-        try:
-            check_permission(db_conn, p, doc_id, "view")
-        except NotFound:
-            raise tool_error("not_found")
-        except PermissionDenied:
-            raise tool_error("forbidden")
-        try:
-            return presence_svc.set_status(
-                db_conn,
-                doc_id=doc_id,
-                principal=p,
-                status=status,
-                note=note,
-            )
-        except presence_svc.PresenceError:
-            raise tool_error("not_found")
-
-    def _clear_status(ctx, doc_id: str):
-        p = _require_principal(ctx)
-        return presence_svc.clear_status(db_conn, doc_id=doc_id, principal=p)
-
     def _status(ctx, doc_id: str, status: str | None, note: str | None = None):
         p = _require_principal(ctx)
 
@@ -979,32 +952,26 @@ def build_mcp(
         status: str,
         note: str | None = None,
     ) -> dict:
-        """Announce that you are reading or editing a document.
+        """Deprecated. Use markland_status(doc_id, status=...) instead.
 
-        Advisory — does NOT lock the document. Other principals may still
-        edit. The announcement expires after 10 minutes; re-call every ~5
-        minutes to remain visible (heartbeat). To stop announcing, call
-        `markland_clear_status`.
+        Removed in the release scheduled 30 days after this one.
 
         Args:
-            doc_id: Document id.
-            status: `"reading"` or `"editing"`. Other values raise
-                ValueError.
-            note: Optional free-text note shown alongside your presence
-                row (e.g. "fixing typos in §3").
+            doc_id: The document.
+            status: "reading" or "editing".
+            note: Optional free-text note.
 
         Returns:
-            `{doc_id, status, expires_at}`. `expires_at` is ISO-8601 UTC.
+            {doc_id, status, expires_at}.
 
         Raises:
-            not_found: Document does not exist.
-            forbidden: Caller lacks view access.
+            not_found: doc does not exist or caller cannot see it.
+            forbidden: caller does not have view access.
             invalid_argument: status not in {reading, editing}.
 
-        Idempotency: Idempotent — calling with the same status updates the
-            heartbeat without creating a duplicate row.
+        Idempotency: Idempotent.
         """
-        return _set_status(ctx, doc_id, status, note=note)
+        return _status(ctx, doc_id, status=status, note=note)
 
     def _audit(
         ctx,
@@ -1056,21 +1023,19 @@ def build_mcp(
 
     @mcp.tool()
     def markland_clear_status(ctx: Context, doc_id: str) -> dict:
-        """Clear your presence announcement on a document. Idempotent.
+        """Deprecated. Use markland_status(doc_id, status=None) instead.
 
-        Equivalent to letting the announcement expire naturally after
-        10 minutes, but immediate.
+        Removed in the release scheduled 30 days after this one.
 
         Args:
-            doc_id: Document id whose presence row should be removed.
+            doc_id: The document whose presence row should be removed.
 
         Returns:
-            `{ok: True}`.
+            {doc_id, cleared: true}.
 
-        Idempotency: Idempotent — safe to call even if no presence row
-            exists.
+        Idempotency: Idempotent — safe to call even if no presence row exists.
         """
-        return _clear_status(ctx, doc_id)
+        return _status(ctx, doc_id, status=None)
 
     handlers.update(
         markland_whoami=_whoami,
@@ -1094,8 +1059,12 @@ def build_mcp(
         markland_list_my_agents=_list_my_agents,
         markland_create_invite=_create_invite,
         markland_revoke_invite=_revoke_invite,
-        markland_set_status=_set_status,
-        markland_clear_status=_clear_status,
+        markland_set_status=lambda ctx, doc_id, status, note=None: _status(
+            ctx, doc_id, status=status, note=note
+        ),
+        markland_clear_status=lambda ctx, doc_id: _status(
+            ctx, doc_id, status=None
+        ),
         markland_status=_status,
         markland_audit=_audit,
     )
