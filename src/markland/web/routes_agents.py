@@ -13,6 +13,13 @@ from pydantic import BaseModel, Field
 
 from markland.service import agents as agents_svc
 from markland.service import auth as auth_svc
+from markland.service.agent_token_flash import (
+    AGENT_TOKEN_FLASH_COOKIE_NAME,
+    AGENT_TOKEN_FLASH_MAX_AGE_SECONDS,
+    InvalidAgentTokenFlash,
+    issue_agent_token_flash,
+    read_agent_token_flash,
+)
 from markland.service.sessions import (
     SESSION_COOKIE_NAME,
     InvalidSession,
@@ -167,15 +174,26 @@ def build_agents_router(
         if user is None:
             return RedirectResponse("/login", status_code=303)
         agents = agents_svc.list_agents(db_conn, owner_user_id=user.id)
-        return HTMLResponse(
-            render_with_nav(
-                settings_tpl, request, db_conn,
-                base_url=base_url, secret=session_secret,
-                agents=[a.__dict__ for a in agents],
-                new_token=request.query_params.get("new_token"),
-                signed_in_user={"email": user.email},
-            )
+
+        new_token: str | None = None
+        sealed = request.cookies.get(AGENT_TOKEN_FLASH_COOKIE_NAME, "")
+        if sealed:
+            try:
+                new_token = read_agent_token_flash(sealed, secret=session_secret)
+            except InvalidAgentTokenFlash:
+                new_token = None
+
+        body = render_with_nav(
+            settings_tpl, request, db_conn,
+            base_url=base_url, secret=session_secret,
+            agents=[a.__dict__ for a in agents],
+            new_token=new_token,
+            signed_in_user={"email": user.email},
         )
+        resp = HTMLResponse(body)
+        if sealed:
+            resp.delete_cookie(AGENT_TOKEN_FLASH_COOKIE_NAME, path="/")
+        return resp
 
     @html_router.post("/settings/agents/create")
     def settings_agents_create(
@@ -225,8 +243,20 @@ def build_agents_router(
             )
         except (LookupError, PermissionError, ValueError):
             return RedirectResponse("/settings/agents", status_code=303)
-        return RedirectResponse(
-            f"/settings/agents?new_token={plaintext}", status_code=303,
+
+        sealed = issue_agent_token_flash(
+            secret=session_secret, plaintext=plaintext
         )
+        resp = RedirectResponse("/settings/agents", status_code=303)
+        resp.set_cookie(
+            key=AGENT_TOKEN_FLASH_COOKIE_NAME,
+            value=sealed,
+            max_age=AGENT_TOKEN_FLASH_MAX_AGE_SECONDS,
+            httponly=True,
+            secure=request.url.scheme == "https",
+            samesite="lax",
+            path="/",
+        )
+        return resp
 
     return router, html_router
