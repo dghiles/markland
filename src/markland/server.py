@@ -25,6 +25,7 @@ from markland.service import invites as invites_svc
 from markland.service import presence as presence_svc
 from markland.service.auth import Principal
 from markland.service.email import EmailClient
+from markland._mcp_envelopes import doc_envelope
 from markland._mcp_errors import tool_error
 from markland.service.permissions import NotFound, PermissionDenied, check_permission
 
@@ -94,7 +95,10 @@ def build_mcp(
 
     def _publish(ctx, content: str, title: str | None = None, public: bool = False):
         p = _require_principal(ctx)
-        return docs_svc.publish(db_conn, base_url, p, content, title=title, public=public)
+        raw = docs_svc.publish(db_conn, base_url, p, content, title=title, public=public)
+        # Re-fetch via get() to ensure all doc_envelope fields are populated.
+        full = docs_svc.get(db_conn, p, raw["id"], base_url=base_url)
+        return doc_envelope(full)
 
     def _list(ctx):
         p = _require_principal(ctx)
@@ -112,7 +116,7 @@ def build_mcp(
         # never reach this branch because the check_permission call in
         # docs_svc.get raised above.
         actives = presence_svc.list_active(db_conn, doc_id=doc_id)
-        body["active_principals"] = [
+        active_principals = [
             {
                 "principal_id": a.principal_id,
                 "principal_type": a.principal_type,
@@ -123,7 +127,7 @@ def build_mcp(
             }
             for a in actives
         ]
-        return body
+        return doc_envelope(body, active_principals=active_principals)
 
     def _search(ctx, query: str):
         p = _require_principal(ctx)
@@ -163,13 +167,8 @@ def build_mcp(
                 current_content=exc.current_content,
                 current_title=exc.current_title,
             )
-        return {
-            "id": doc.id,
-            "title": doc.title,
-            "share_url": f"{base_url}/d/{doc.share_token}",
-            "updated_at": doc.updated_at,
-            "version": doc.version,
-        }
+        full = docs_svc.get(db_conn, p, doc.id, base_url=base_url)
+        return doc_envelope(full)
 
     def _delete(ctx, doc_id: str):
         p = _require_principal(ctx)

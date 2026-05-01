@@ -62,3 +62,41 @@ def test_cursor_round_trip():
 def test_decode_malformed_cursor_raises():
     with pytest.raises(ValueError, match="malformed cursor"):
         decode_cursor("@@@@@@")
+
+
+from tests._mcp_harness import MCPHarness
+
+
+def test_publish_returns_doc_envelope(tmp_path):
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    res = alice.call("markland_publish", content="# Hi")
+    assert set(res) >= {
+        "id", "title", "content", "version", "owner_id", "share_url",
+        "is_public", "is_featured", "created_at", "updated_at",
+    }
+
+
+def test_get_returns_doc_envelope_with_active_principals(tmp_path):
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# Hi")
+    got = alice.call("markland_get", doc_id=pub["id"])
+    assert "active_principals" in got
+    assert isinstance(got["active_principals"], list)
+
+
+def test_update_returns_doc_envelope(tmp_path):
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# v1")
+    upd = alice.call(
+        "markland_update", doc_id=pub["id"], if_version=pub["version"],
+        content="# v2",
+    )
+    assert upd["version"] == pub["version"] + 1
+    assert upd["content"] == "# v2"
+    assert set(upd) >= {
+        "id", "title", "content", "version", "owner_id", "share_url",
+        "is_public", "is_featured", "created_at", "updated_at",
+    }
