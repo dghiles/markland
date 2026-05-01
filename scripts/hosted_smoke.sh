@@ -74,7 +74,10 @@ code=$(curl -s -o "$whoami_body" -w "%{http_code}" \
   -X POST "$MARKLAND_URL/mcp/" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"markland_whoami","arguments":{}}}')
 test "$code" = "200" || { cat "$whoami_body" >&2; fail "whoami expected 200, got $code"; }
-grep -q '"principal_type"' "$whoami_body" || { cat "$whoami_body" >&2; fail "whoami response missing principal_type"; }
+# MCP tools/call returns SSE-encoded events; the principal object is a
+# JSON-string nested inside a text content block, so quotes appear escaped
+# (\"principal_type\"). Match the unescaped key name directly.
+grep -q 'principal_type' "$whoami_body" || { cat "$whoami_body" >&2; fail "whoami response missing principal_type"; }
 echo "ok"
 
 echo
