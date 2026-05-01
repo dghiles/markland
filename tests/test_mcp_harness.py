@@ -294,8 +294,12 @@ def test_per_test_isolation(tmp_path):
         docs_a = a.as_user(email="alice@example.com").call("markland_list")
         docs_b = b.as_user(email="alice@example.com").call("markland_list")
 
-        assert len(docs_a) == 1
-        assert len(docs_b) == 0
+        assert isinstance(docs_a, dict)
+        assert isinstance(docs_a["items"], list)
+        assert len(docs_a["items"]) == 1
+        assert isinstance(docs_b, dict)
+        assert isinstance(docs_b["items"], list)
+        assert len(docs_b["items"]) == 0
     finally:
         a.close()
         b.close()
