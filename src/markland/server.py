@@ -260,14 +260,23 @@ def build_mcp(
         except PermissionDenied:
             raise tool_error("forbidden")
 
-    def _list_grants(ctx, doc_id: str):
+    def _list_grants(
+        ctx, doc_id: str, limit: int = 50, cursor: str | None = None
+    ):
         p = _require_principal(ctx)
         try:
-            return grants_svc.list_grants(db_conn, principal=p, doc_id=doc_id)
+            rows, next_cursor = grants_svc.list_grants_paginated(
+                db_conn,
+                principal=p,
+                doc_id=doc_id,
+                limit=limit,
+                cursor=cursor,
+            )
         except NotFound:
             raise tool_error("not_found")
         except PermissionDenied:
             raise tool_error("forbidden")
+        return list_envelope(items=rows, next_cursor=next_cursor)
 
     def _create_invite(
         ctx,
@@ -712,17 +721,27 @@ def build_mcp(
         return _revoke(ctx, doc_id, principal)
 
     @mcp.tool()
-    def markland_list_grants(ctx: Context, doc_id: str) -> list[dict]:
-        """List all grants on a document.
+    def markland_list_grants(
+        ctx: Context,
+        doc_id: str,
+        limit: int = 50,
+        cursor: str | None = None,
+    ) -> dict:
+        """List grants on a document, paginated.
 
         Visible to the owner and any principal with edit access.
 
         Args:
             doc_id: Document id.
+            limit: Max grants per page (1-200, default 50).
+            cursor: Opaque token from a previous response's `next_cursor`.
+                Pass to fetch the next page; omit for the first page.
 
         Returns:
-            List of grant dicts `{doc_id, principal_id, principal_type,
-            level, granted_by, granted_at}`.
+            list_envelope of grant dicts: {items: [{doc_id, principal_id,
+            principal_type, level, granted_by, granted_at}, ...],
+            next_cursor}. Ordering is `(granted_at DESC, principal_id
+            DESC)`.
 
         Raises:
             not_found: Document does not exist.
@@ -730,7 +749,7 @@ def build_mcp(
 
         Idempotency: Read-only.
         """
-        return _list_grants(ctx, doc_id)
+        return _list_grants(ctx, doc_id, limit=limit, cursor=cursor)
 
     @mcp.tool()
     def markland_create_invite(
