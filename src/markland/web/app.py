@@ -744,8 +744,14 @@ def create_app(
     from markland.web.rate_limit_middleware import RateLimitMiddleware
     app.add_middleware(RateLimitMiddleware, db_conn=db_conn)
 
-    from markland.web.security_headers_middleware import SecurityHeadersMiddleware
-    app.add_middleware(SecurityHeadersMiddleware)
+    from markland.web.security_headers_middleware import (
+        SecurityHeadersMiddleware,
+        build_csp,
+    )
+    app.add_middleware(
+        SecurityHeadersMiddleware,
+        csp=build_csp(umami_script_url=_cfg.umami_script_url if _cfg.umami_website_id else ""),
+    )
 
     from markland.web.fly_dev_redirect_middleware import FlyDevRedirectMiddleware
     app.add_middleware(FlyDevRedirectMiddleware)
