@@ -331,6 +331,63 @@ def search_paginated(
     return page_dicts, next_cursor
 
 
+def list_public_paginated(
+    conn: sqlite3.Connection,
+    *,
+    limit: int = 50,
+    cursor: str | None = None,
+) -> tuple[list[dict], str | None]:
+    """Paginated list of public documents (the /explore feed).
+
+    Anonymous-friendly: no principal needed. Uses (updated_at, id) DESC
+    keyset pagination for stable ordering across rows with equal
+    timestamps.
+    """
+    from markland._mcp_envelopes import decode_cursor, encode_cursor
+
+    limit = min(max(1, int(limit)), 200)
+    where = ["is_public = 1"]
+    params: list = []
+    if cursor:
+        last_id, last_updated_at = decode_cursor(cursor)
+        where.append("(updated_at, id) < (?, ?)")
+        params.extend([last_updated_at, last_id])
+    sql = (
+        f"SELECT {db._DOC_COLUMNS} FROM documents "
+        f"WHERE {' AND '.join(where)} "
+        "ORDER BY updated_at DESC, id DESC "
+        "LIMIT ?"
+    )
+    params.append(limit + 1)
+    rows = conn.execute(sql, params).fetchall()
+    docs = [db._row_to_doc(r) for r in rows]
+    has_more = len(docs) > limit
+    page = docs[:limit]
+    next_cursor = None
+    if has_more and page:
+        last = page[-1]
+        next_cursor = encode_cursor(
+            last_id=last.id, last_updated_at=last.updated_at,
+        )
+    page_dicts = [
+        {
+            "id": d.id,
+            "title": d.title,
+            "content": d.content,
+            "share_token": d.share_token,
+            "created_at": d.created_at,
+            "updated_at": d.updated_at,
+            "is_public": d.is_public,
+            "is_featured": d.is_featured,
+            "owner_id": d.owner_id,
+            "version": d.version,
+            "forked_from_doc_id": d.forked_from_doc_id,
+        }
+        for d in page
+    ]
+    return page_dicts, next_cursor
+
+
 def get_by_share_token(
     conn: sqlite3.Connection, share_token: str
 ) -> dict | None:

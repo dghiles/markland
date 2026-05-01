@@ -69,3 +69,29 @@ def test_list_invites_non_owner_forbidden(tmp_path):
 
     r = bob.call_raw("markland_list_invites", doc_id=pub["id"])
     r.assert_error("not_found")  # deny-as-not-found
+
+
+def test_explore_returns_only_public_docs(tmp_path):
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    public_doc = alice.call("markland_publish", content="# Public", public=True)
+    alice.call("markland_publish", content="# Private", public=False)
+
+    res = h.anon().call("markland_explore")
+    items = res["items"]
+    ids = {item["id"] for item in items}
+    assert public_doc["id"] in ids
+    # Private doc not in the list.
+    private_titles = [i["title"] for i in items if "Private" in (i["title"] or "")]
+    assert private_titles == []
+
+
+def test_explore_paginates(tmp_path):
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    for i in range(5):
+        alice.call("markland_publish", content=f"# Doc {i}", public=True)
+
+    page1 = h.anon().call("markland_explore", limit=2)
+    assert len(page1["items"]) == 2
+    assert page1["next_cursor"] is not None
