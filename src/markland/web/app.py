@@ -813,7 +813,11 @@ def create_app(
                 headers=exc.headers or {},
             )
         return HTMLResponse(
-            not_found_tpl.render(**_seo_ctx(request, base_url)),
+            render_with_nav(
+                not_found_tpl, request, db_conn,
+                base_url=base_url, secret=session_secret,
+                **_seo_extra(request, base_url),
+            ),
             status_code=404,
         )
 
