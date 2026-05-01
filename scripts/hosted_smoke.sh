@@ -48,23 +48,29 @@ echo "ok"
 
 echo "==> POST $MARKLAND_URL/mcp/ initialize with auth (expect 200)"
 init_body=$(mktemp)
-trap 'rm -f "$init_body"' EXIT
-code=$(curl -s -o "$init_body" -w "%{http_code}" \
+init_headers=$(mktemp)
+trap 'rm -f "$init_body" "$init_headers"' EXIT
+code=$(curl -s -o "$init_body" -D "$init_headers" -w "%{http_code}" \
   -H "Authorization: Bearer $MARKLAND_SMOKE_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -X POST "$MARKLAND_URL/mcp/" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}')
 test "$code" = "200" || { cat "$init_body" >&2; fail "initialize expected 200, got $code"; }
-echo "ok"
+# MCP streamable HTTP returns Mcp-Session-Id on initialize; subsequent calls
+# must echo it back. Header name is case-insensitive per RFC 7230.
+session_id=$(awk 'tolower($1) == "mcp-session-id:" { sub(/\r$/, "", $2); print $2; exit }' "$init_headers")
+test -n "$session_id" || { cat "$init_headers" >&2; fail "initialize response missing Mcp-Session-Id header"; }
+echo "ok (session=$session_id)"
 
 echo "==> POST $MARKLAND_URL/mcp/ tools/call markland_whoami (expect 200 and principal)"
 whoami_body=$(mktemp)
-trap 'rm -f "$init_body" "$whoami_body"' EXIT
+trap 'rm -f "$init_body" "$init_headers" "$whoami_body"' EXIT
 code=$(curl -s -o "$whoami_body" -w "%{http_code}" \
   -H "Authorization: Bearer $MARKLAND_SMOKE_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
+  -H "Mcp-Session-Id: $session_id" \
   -X POST "$MARKLAND_URL/mcp/" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"markland_whoami","arguments":{}}}')
 test "$code" = "200" || { cat "$whoami_body" >&2; fail "whoami expected 200, got $code"; }
