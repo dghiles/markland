@@ -128,3 +128,31 @@ def test_fork_private_doc_not_found_for_stranger(tmp_path):
     r.assert_error("not_found")
 
 
+def test_revisions_returns_pre_update_snapshots(tmp_path):
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# v1")
+    upd1 = alice.call(
+        "markland_update", doc_id=pub["id"],
+        if_version=pub["version"], content="# v2",
+    )
+    alice.call(
+        "markland_update", doc_id=pub["id"],
+        if_version=upd1["version"], content="# v3",
+    )
+
+    res = alice.call("markland_revisions", doc_id=pub["id"])
+    items = res["items"]
+    # Two updates -> two pre-update snapshots.
+    assert len(items) == 2
+    versions = sorted(item["version"] for item in items)
+    assert versions == [1, 2]
+
+
+def test_revisions_forbidden_for_non_viewer(tmp_path):
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    bob = h.as_user(email="bob@example.com")
+    pub = alice.call("markland_publish", content="# v1")
+    r = bob.call_raw("markland_revisions", doc_id=pub["id"])
+    r.assert_error("not_found")

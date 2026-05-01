@@ -382,6 +382,59 @@ def fork(
     return _doc_to_full(new_doc, base_url)
 
 
+def list_revisions_paginated(
+    conn: sqlite3.Connection,
+    doc_id: str,
+    *,
+    limit: int = 50,
+    cursor: str | None = None,
+) -> tuple[list[dict], str | None]:
+    """Capped pre-update revisions for `doc_id`, newest first.
+
+    Caller is responsible for permission-checking before invoking this; the
+    helper performs no auth itself.
+    """
+    from markland._mcp_envelopes import decode_cursor, encode_cursor
+
+    limit = min(max(1, int(limit)), 200)
+    where = ["doc_id = ?"]
+    params: list = [doc_id]
+    if cursor:
+        last_id, last_created_at = decode_cursor(cursor)
+        where.append("(created_at, id) < (?, ?)")
+        params.extend([last_created_at, last_id])
+    sql = (
+        "SELECT id, version, title, content, created_at "
+        "FROM revisions "
+        f"WHERE {' AND '.join(where)} "
+        "ORDER BY created_at DESC, id DESC "
+        "LIMIT ?"
+    )
+    params.append(limit + 1)
+    cursor_obj = conn.execute(sql, params)
+    cols = [c[0] for c in cursor_obj.description]
+    rows = [dict(zip(cols, r)) for r in cursor_obj.fetchall()]
+    has_more = len(rows) > limit
+    page = rows[:limit]
+    next_cursor = None
+    if has_more and page:
+        next_cursor = encode_cursor(
+            last_id=str(page[-1]["id"]),
+            last_updated_at=page[-1]["created_at"],
+        )
+    items = [
+        {
+            "revision_id": str(r["id"]),
+            "version": r["version"],
+            "title": r["title"],
+            "content": r["content"],
+            "created_at": r["created_at"],
+        }
+        for r in page
+    ]
+    return items, next_cursor
+
+
 def list_public_paginated(
     conn: sqlite3.Connection,
     *,
