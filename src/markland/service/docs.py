@@ -331,6 +331,38 @@ def search_paginated(
     return page_dicts, next_cursor
 
 
+def get_by_share_token(
+    conn: sqlite3.Connection, share_token: str
+) -> dict | None:
+    """Return doc dict for a public doc, or None if not found / not public.
+
+    Anonymous-friendly: bypasses permission checks and only matches rows
+    where `is_public = 1`. The share token is not a capability for
+    non-public docs — those return None regardless of caller.
+    """
+    row = conn.execute(
+        f"SELECT {db._DOC_COLUMNS} FROM documents "
+        "WHERE share_token = ? AND is_public = 1",
+        (share_token,),
+    ).fetchone()
+    if row is None:
+        return None
+    doc = db._row_to_doc(row)
+    return {
+        "id": doc.id,
+        "title": doc.title,
+        "content": doc.content,
+        "share_token": doc.share_token,
+        "created_at": doc.created_at,
+        "updated_at": doc.updated_at,
+        "is_public": doc.is_public,
+        "is_featured": doc.is_featured,
+        "owner_id": doc.owner_id,
+        "version": doc.version,
+        "forked_from_doc_id": doc.forked_from_doc_id,
+    }
+
+
 def share_link(
     conn: sqlite3.Connection,
     base_url: str,
