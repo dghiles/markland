@@ -55,7 +55,9 @@ def test_user_principal_sees_own_agents(harness):
     a1 = agents_svc.create_agent(conn, "usr_alice", "a1")
     a2 = agents_svc.create_agent(conn, "usr_alice", "a2")
     result = h["markland_list_my_agents"](_Ctx(_user_principal()))
-    ids = [r["id"] for r in result]
+    assert isinstance(result, dict)
+    assert isinstance(result["items"], list)
+    ids = [r["id"] for r in result["items"]]
     assert a1.id in ids and a2.id in ids
 
 
@@ -65,8 +67,10 @@ def test_agent_principal_sees_only_self(harness):
     result = h["markland_list_my_agents"](
         _Ctx(_agent_principal(a.id, "usr_alice"))
     )
-    assert len(result) == 1
-    assert result[0]["id"] == a.id
+    assert isinstance(result, dict)
+    assert isinstance(result["items"], list)
+    assert len(result["items"]) == 1
+    assert result["items"][0]["id"] == a.id
 
 
 def test_service_agent_principal_returns_empty(harness):
@@ -75,4 +79,5 @@ def test_service_agent_principal_returns_empty(harness):
     result = h["markland_list_my_agents"](
         _Ctx(_agent_principal(sa.id, owner_user_id=None))
     )
-    assert result == []
+    assert isinstance(result, dict)
+    assert result["items"] == []
