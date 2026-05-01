@@ -150,6 +150,14 @@ def build_mcp(
         except PermissionDenied:
             raise tool_error("forbidden")
 
+    def _get_by_share_token(ctx, share_token: str):
+        # Anonymous-callable — no _require_principal call.
+        raw = docs_svc.get_by_share_token(db_conn, share_token)
+        if raw is None:
+            raise tool_error("not_found")
+        raw["share_url"] = f"{base_url}/d/{share_token}"
+        return doc_envelope(raw)
+
     def _update(
         ctx,
         doc_id: str,
@@ -587,6 +595,27 @@ def build_mcp(
         Idempotency: Read-only.
         """
         return _search(ctx, query, limit=limit, cursor=cursor)
+
+    @mcp.tool()
+    def markland_get_by_share_token(ctx: Context, share_token: str) -> dict:
+        """Read a public document by its share token, no authentication required.
+
+        Mirrors the anonymous web-viewer flow at `/d/<share_token>`. If the doc
+        is unlisted (not public), returns not_found regardless of caller — the
+        share token is not a capability for non-public docs.
+
+        Args:
+            share_token: The doc's share token (the last URL segment of share_url).
+
+        Returns:
+            doc_envelope. `active_principals` is omitted for anonymous callers.
+
+        Raises:
+            not_found: doc does not exist or is not public.
+
+        Idempotency: Read-only.
+        """
+        return _get_by_share_token(ctx, share_token)
 
     @mcp.tool()
     def markland_share(ctx: Context, doc_id: str) -> dict:
@@ -1107,6 +1136,7 @@ def build_mcp(
         markland_publish=_publish,
         markland_list=_list,
         markland_get=_get,
+        markland_get_by_share_token=_get_by_share_token,
         markland_search=_search,
         markland_share=_share,
         markland_update=_update,
