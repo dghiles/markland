@@ -433,6 +433,23 @@ def create_app(
             }
         )
 
+    @app.get("/admin/metrics")
+    def admin_metrics(request: Request, window_seconds: int = 604800):
+        from markland.service.admin_metrics import summary
+        from markland.service.auth import resolve_token
+
+        header = request.headers.get("authorization", "")
+        if not header.lower().startswith("bearer "):
+            return JSONResponse({"error": "unauthenticated"}, status_code=401)
+        plaintext = header[7:].strip()
+        principal = resolve_token(db_conn, plaintext)
+        if principal is None:
+            return JSONResponse({"error": "unauthenticated"}, status_code=401)
+        if not principal.is_admin:
+            return JSONResponse({"error": "forbidden"}, status_code=403)
+        capped = max(60, min(window_seconds, 30 * 86400))  # 1 min to 30 days
+        return JSONResponse(summary(db_conn, window_seconds=capped))
+
     @app.get("/admin/audit", response_class=HTMLResponse)
     def admin_audit(request: Request):
         # Resolve bearer token here because PrincipalMiddleware only gates /mcp.

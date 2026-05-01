@@ -596,6 +596,28 @@ def test_baseline_markland_status_clear(mcp):
 
 
 # ---------------------------------------------------------------------------
+# markland_admin_metrics
+# ---------------------------------------------------------------------------
+
+def test_baseline_markland_admin_metrics_admin_default(mcp):
+    admin = mcp.as_admin()
+    r = admin.call_raw("markland_admin_metrics")
+    mcp.snapshot("markland_admin_metrics", "admin_default", _envelope_of_response(r))
+
+
+def test_baseline_markland_admin_metrics_admin_custom_window(mcp):
+    admin = mcp.as_admin()
+    r = admin.call_raw("markland_admin_metrics", window_seconds=86400)
+    mcp.snapshot("markland_admin_metrics", "admin_custom_window", _envelope_of_response(r))
+
+
+def test_baseline_markland_admin_metrics_non_admin_forbidden(mcp):
+    alice = mcp.as_user(email="alice@example.com")
+    r = alice.call_raw("markland_admin_metrics")
+    mcp.snapshot("markland_admin_metrics", "non_admin_forbidden", _envelope_of_response(r))
+
+
+# ---------------------------------------------------------------------------
 # Task 33: HTTP-mode sample suite
 # ---------------------------------------------------------------------------
 

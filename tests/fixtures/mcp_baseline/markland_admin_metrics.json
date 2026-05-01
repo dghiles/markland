@@ -1,0 +1,35 @@
+{
+  "admin_custom_window": {
+    "kind": "ok",
+    "value": {
+      "first_mcp_call": null,
+      "grants_created": 0,
+      "invites_accepted": 0,
+      "publishes": 0,
+      "signups": 1,
+      "waitlist_total": 0,
+      "window_end_iso": "<TIMESTAMP>",
+      "window_seconds": 86400,
+      "window_start_iso": "<TIMESTAMP>"
+    }
+  },
+  "admin_default": {
+    "kind": "ok",
+    "value": {
+      "first_mcp_call": null,
+      "grants_created": 0,
+      "invites_accepted": 0,
+      "publishes": 0,
+      "signups": 1,
+      "waitlist_total": 0,
+      "window_end_iso": "<TIMESTAMP>",
+      "window_seconds": 604800,
+      "window_start_iso": "<TIMESTAMP>"
+    }
+  },
+  "non_admin_forbidden": {
+    "code": "forbidden",
+    "data": {},
+    "kind": "error"
+  }
+}
