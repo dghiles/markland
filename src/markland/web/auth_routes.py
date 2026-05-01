@@ -57,10 +57,22 @@ def build_auth_router(
     verify_sent_tpl = env.get_template("verify_sent.html")
     magic_link_sent_tpl = env.get_template("magic_link_sent.html")
 
+    def _canonical_host(request: Request) -> str:
+        if base_url:
+            return base_url.rstrip("/")
+        scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+        return f"{scheme}://{request.url.netloc}"
+
     @router.get("/login", response_class=HTMLResponse)
-    def login_page(next: str | None = None) -> HTMLResponse:
+    def login_page(request: Request, next: str | None = None) -> HTMLResponse:
         safe_next = safe_return_to(next)
-        return HTMLResponse(login_tpl.render(next=safe_next))
+        return HTMLResponse(
+            login_tpl.render(
+                next=safe_next,
+                request=request,
+                canonical_host=_canonical_host(request),
+            )
+        )
 
     @router.post("/api/auth/magic-link")
     async def magic_link(request: Request):
