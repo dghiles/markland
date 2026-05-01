@@ -184,21 +184,8 @@ post-launch sprint should pick up.
 
 ## Deploy / operations (post-2026-04-20 first-deploy)
 
-- **Cut over to `markland.dev`.** Domain registered 2026-04-29 at Porkbun
-  (Porkbun nameservers active: `curitiba|fortaleza|maceio|salvador.ns.porkbun.com`).
-  App still runs at `markland.fly.dev`. Cutover: (1) `flyctl ips allocate-v4 --yes`
-  (~$2/mo) + `flyctl ips allocate-v6`, (2) **DNS strategy decision** — either
-  (a) Porkbun DNS direct: add `A` / `AAAA` records on Porkbun pointing at the
-  Fly IPs (simplest, no proxy/CDN), or (b) switch nameservers to Cloudflare
-  and add `A`/`AAAA` DNS-only / grey-cloud (preserves the option to enable
-  proxy/CDN/WAF later), (3) `flyctl certs add markland.dev` and poll until
-  Issued, (4) edit `fly.toml` `MARKLAND_BASE_URL` from `https://markland.fly.dev`
-  to `https://markland.dev`, `flyctl deploy`, (5) re-run `scripts/hosted_smoke.sh`
-  with `MARKLAND_URL=https://markland.dev`, (6) add a 301 redirect from
-  `markland.fly.dev` → `markland.dev` (or document it as an SEO follow-up).
-- **Resend signup + DNS verification.** Blocks magic-link email on the live
-  deploy. Steps in `docs/runbooks/first-deploy.md` §2. Until this lands,
-  sign-ins require extracting the magic-link URL from `flyctl logs`.
+- **~~Cut over to `markland.dev`.~~** Done 2026-05-01 via `docs/plans/2026-04-29-cutover-to-markland-dev.md` Tasks 1–10. Dedicated Fly IPv4+v6, Porkbun-direct A/AAAA at apex, Fly TLS cert issued, `MARKLAND_BASE_URL` flipped, machine rolled in place, hosted_smoke green (after the session-ID fix in `4f965bd`), `FlyDevRedirectMiddleware` 301s the old fly.dev origin. Operator-only Task 11 (GSC sitemap submission) tracked separately below.
+- **~~Resend signup + DNS verification.~~** Done 2026-05-01. SPF/DKIM/DMARC/return-path records at the `markland.dev` zone, `RESEND_API_KEY` + `RESEND_FROM_EMAIL` set on Fly, end-to-end magic-link verified by signing in at `https://markland.dev/login` and clicking through to `/verify`. Evidence: `cutover-evidence/09-resend/done.log` (gitignored).
 - **~~Cloudflare R2 bucket + Litestream keys.~~** Done 2026-04-28. R2 bucket
   `markland-db`, scoped Account API token, secrets `LITESTREAM_BUCKET` /
   `LITESTREAM_ENDPOINT` / `LITESTREAM_ACCESS_KEY_ID` /
