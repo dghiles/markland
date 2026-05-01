@@ -33,7 +33,7 @@ Evidence capture:
 - Modify: `.gitignore`
 - Create: `cutover-evidence/` (gitignored)
 
-- [ ] **Step 1.1: Verify operator access (OPERATOR ACTION)**
+- [x] **Step 1.1: Verify operator access (OPERATOR ACTION)**
 
   Confirm you can sign in to:
   - Porkbun: https://porkbun.com/account/domainsSpeedy → `markland.dev` row visible
@@ -44,7 +44,7 @@ Evidence capture:
 
   If any of these fails, stop and resolve access before continuing.
 
-- [ ] **Step 1.2: Capture baseline state**
+- [x] **Step 1.2: Capture baseline state**
 
   Run from the repo root:
 
@@ -67,7 +67,7 @@ Evidence capture:
 
   Pass criteria: all four files non-empty, baseline `200`s recorded.
 
-- [ ] **Step 1.3: Add evidence directory to .gitignore**
+- [x] **Step 1.3: Add evidence directory to .gitignore**
 
   Edit `.gitignore`. After the existing entries, append:
 
@@ -76,7 +76,7 @@ Evidence capture:
   cutover-evidence/
   ```
 
-- [ ] **Step 1.4: Commit the .gitignore change**
+- [x] **Step 1.4: Commit the .gitignore change**
 
   ```bash
   git add .gitignore
@@ -104,11 +104,11 @@ This is a decision task, not an executable one. Pick ONE option and record it. T
 - Cons: extra account + zone setup, NS-change propagation delay (often <1h, occasionally up to 24h), one more dashboard.
 - Time-to-cut: 1.5–24h depending on NS propagation.
 
-- [ ] **Step 2.1: Pick the option (OPERATOR DECISION)**
+- [x] **Step 2.1: Pick the option (OPERATOR DECISION)**
 
   Decide: `A` (Porkbun-direct) or `B` (Cloudflare).
 
-- [ ] **Step 2.2: Record the decision**
+- [x] **Step 2.2: Record the decision**
 
   ```bash
   echo "DNS strategy: Option A (Porkbun-direct)" > cutover-evidence/02-dns-strategy.log
@@ -127,7 +127,7 @@ Required regardless of DNS strategy. Fly's shared anycast IPs cannot serve a cus
 
 **Files:** none (all `flyctl` commands).
 
-- [ ] **Step 3.1: Allocate dedicated IPv4**
+- [x] **Step 3.1: Allocate dedicated IPv4**
 
   ```bash
   flyctl ips allocate-v4 --yes -a markland | tee cutover-evidence/03-ipv4.log
@@ -135,7 +135,7 @@ Required regardless of DNS strategy. Fly's shared anycast IPs cannot serve a cus
 
   Expected output line: `<a.b.c.d>      v4    public    dedicated`. Capture the IP.
 
-- [ ] **Step 3.2: Allocate IPv6**
+- [x] **Step 3.2: Allocate IPv6**
 
   ```bash
   flyctl ips allocate-v6 -a markland | tee cutover-evidence/03-ipv6.log
@@ -143,7 +143,7 @@ Required regardless of DNS strategy. Fly's shared anycast IPs cannot serve a cus
 
   Expected output: a `2a09:8280:1::...` style IPv6 address. Capture it.
 
-- [ ] **Step 3.3: Confirm both IPs are assigned**
+- [x] **Step 3.3: Confirm both IPs are assigned**
 
   ```bash
   flyctl ips list -a markland | tee cutover-evidence/03-ips-after.log
@@ -161,15 +161,15 @@ Skip this task if Task 2 chose Option B; jump to Task 4b.
 
 **Files:** none — work happens in Porkbun's panel.
 
-- [ ] **Step 4a.1: Open Porkbun DNS records (OPERATOR ACTION)**
+- [x] **Step 4a.1: Open Porkbun DNS records (OPERATOR ACTION)**
 
   Navigate: https://porkbun.com/account/domainsSpeedy → `markland.dev` → DNS Records (the pencil icon next to "DNS RECORDS").
 
-- [ ] **Step 4a.2: Delete the default 2 records (OPERATOR ACTION)**
+- [x] **Step 4a.2: Delete the default 2 records (OPERATOR ACTION)**
 
   Porkbun ships every domain with a parked-page `ALIAS` and `CNAME`. Delete both.
 
-- [ ] **Step 4a.3: Add A record at apex pointing to dedicated v4 (OPERATOR ACTION)**
+- [x] **Step 4a.3: Add A record at apex pointing to dedicated v4 (OPERATOR ACTION)**
 
   Click "Add Record":
   - Type: `A`
@@ -177,7 +177,7 @@ Skip this task if Task 2 chose Option B; jump to Task 4b.
   - Answer: paste the IPv4 from `cutover-evidence/03-ipv4.log`
   - TTL: `600`
 
-- [ ] **Step 4a.4: Add AAAA record at apex (OPERATOR ACTION)**
+- [x] **Step 4a.4: Add AAAA record at apex (OPERATOR ACTION)**
 
   Click "Add Record":
   - Type: `AAAA`
@@ -185,7 +185,7 @@ Skip this task if Task 2 chose Option B; jump to Task 4b.
   - Answer: paste the IPv6 from `cutover-evidence/03-ipv6.log`
   - TTL: `600`
 
-- [ ] **Step 4a.5: (Optional) Add www CNAME (OPERATOR ACTION)**
+- [x] **Step 4a.5: (Optional) Add www CNAME (OPERATOR ACTION)**
 
   If you want `www.markland.dev` to resolve too:
   - Type: `CNAME`
@@ -193,7 +193,7 @@ Skip this task if Task 2 chose Option B; jump to Task 4b.
   - Answer: `markland.dev`
   - TTL: `600`
 
-- [ ] **Step 4a.6: Verify DNS resolution**
+- [x] **Step 4a.6: Verify DNS resolution**
 
   Wait 60 seconds for Porkbun to publish, then:
 
@@ -216,23 +216,23 @@ Skip this task if Task 2 chose Option A.
 
 **Files:** none — work happens in Cloudflare and Porkbun panels.
 
-- [ ] **Step 4b.1: Create Cloudflare account and add the zone (OPERATOR ACTION)**
+- [x] **Step 4b.1: Create Cloudflare account and add the zone (OPERATOR ACTION)**
 
   - Sign up / log in at https://dash.cloudflare.com (free plan is fine).
   - Click "Add a Site" → enter `markland.dev` → choose Free plan.
   - Cloudflare scans for existing records — there should be none meaningful (Porkbun parking only). Delete any auto-imported records you don't want.
 
-- [ ] **Step 4b.2: Capture Cloudflare-assigned nameservers (OPERATOR ACTION)**
+- [x] **Step 4b.2: Capture Cloudflare-assigned nameservers (OPERATOR ACTION)**
 
   Cloudflare displays two NS hostnames (e.g. `julia.ns.cloudflare.com` + `kahn.ns.cloudflare.com` — the names are randomly assigned per zone). Copy both.
 
-- [ ] **Step 4b.3: Update nameservers at Porkbun (OPERATOR ACTION)**
+- [x] **Step 4b.3: Update nameservers at Porkbun (OPERATOR ACTION)**
 
   - https://porkbun.com/account/domainsSpeedy → `markland.dev` → "NAMESERVERS" pencil icon.
   - Replace the four `*.ns.porkbun.com` entries with the two Cloudflare nameservers.
   - Save.
 
-- [ ] **Step 4b.4: Wait for NS propagation**
+- [x] **Step 4b.4: Wait for NS propagation**
 
   ```bash
   until [ "$(dig +short NS markland.dev | grep -c cloudflare)" -ge 1 ]; do
@@ -245,7 +245,7 @@ Skip this task if Task 2 chose Option A.
 
   Cloudflare also shows "Pending Nameserver Update" → "Active" in its dashboard once it sees the change. Wait for that too.
 
-- [ ] **Step 4b.5: Add A and AAAA records DNS-only (OPERATOR ACTION)**
+- [x] **Step 4b.5: Add A and AAAA records DNS-only (OPERATOR ACTION)**
 
   In Cloudflare dashboard → `markland.dev` → DNS → Records → Add record:
 
@@ -255,7 +255,7 @@ Skip this task if Task 2 chose Option A.
 
   **Why DNS-only:** Fly serves TLS itself and won't issue a Let's Encrypt cert if Cloudflare is proxying (the request never reaches Fly). You can flip to proxied (orange cloud) AFTER the Fly cert is Issued in Task 5, but defer that decision — it's a separate change.
 
-- [ ] **Step 4b.6: Verify DNS resolution**
+- [x] **Step 4b.6: Verify DNS resolution**
 
   ```bash
   dig +short A markland.dev | tee cutover-evidence/04b-dig-a.log
@@ -274,7 +274,7 @@ Fly issues a free Let's Encrypt cert via HTTP-01 challenge once DNS resolves to 
 
 **Files:** none.
 
-- [ ] **Step 5.1: Add the cert**
+- [x] **Step 5.1: Add the cert**
 
   ```bash
   flyctl certs add markland.dev -a markland | tee cutover-evidence/05-cert-add.log
@@ -282,7 +282,7 @@ Fly issues a free Let's Encrypt cert via HTTP-01 challenge once DNS resolves to 
 
   Expected: output shows the cert is being provisioned. If output says `DNS Configured: false`, recheck Task 4 — the apex must already resolve to the Fly IPs.
 
-- [ ] **Step 5.2: Poll until Issued**
+- [x] **Step 5.2: Poll until Issued**
 
   ```bash
   until flyctl certs show markland.dev -a markland 2>&1 | grep -q "Status.*Issued\|Issued =.*true"; do
@@ -295,7 +295,7 @@ Fly issues a free Let's Encrypt cert via HTTP-01 challenge once DNS resolves to 
 
   Pass criteria: `05-cert-show.log` contains `Issued`.
 
-- [ ] **Step 5.3: Verify HTTPS handshake**
+- [x] **Step 5.3: Verify HTTPS handshake**
 
   ```bash
   curl -sI https://markland.dev/ | tee cutover-evidence/05-https-head.log
@@ -314,7 +314,7 @@ The app reads `MARKLAND_BASE_URL` from `fly.toml` `[env]` to construct magic-lin
 **Files:**
 - Modify: `fly.toml:12`
 
-- [ ] **Step 6.1: Edit fly.toml**
+- [x] **Step 6.1: Edit fly.toml**
 
   Open `fly.toml`. Find:
 
@@ -336,7 +336,7 @@ The app reads `MARKLAND_BASE_URL` from `fly.toml` `[env]` to construct magic-lin
 
   Expected: one line removed, one line added, no other changes. If the diff is larger, revert and redo.
 
-- [ ] **Step 6.2: Commit and push**
+- [x] **Step 6.2: Commit and push**
 
   ```bash
   git add fly.toml
@@ -354,7 +354,7 @@ Use the launch-group-bug workaround (build-only + machine update), per `docs/FOL
 
 **Files:** none (deploy is operator-driven).
 
-- [ ] **Step 7.1: Capture current machine ID**
+- [x] **Step 7.1: Capture current machine ID**
 
   ```bash
   flyctl machine list -a markland --json | jq -r '.[] | select(.config.metadata.fly_process_group == "app") | .id' | head -1 | tee cutover-evidence/07-machine-id.log
@@ -362,7 +362,7 @@ Use the launch-group-bug workaround (build-only + machine update), per `docs/FOL
 
   Expected: a 14-character hex string (e.g. `185191df264378`). If empty, fall back to `flyctl machine list -a markland` and find the machine in the `app` process group.
 
-- [ ] **Step 7.2: Build and push the image**
+- [x] **Step 7.2: Build and push the image**
 
   ```bash
   flyctl deploy --build-only -a markland 2>&1 | tee cutover-evidence/07-build.log
@@ -377,7 +377,7 @@ Use the launch-group-bug workaround (build-only + machine update), per `docs/FOL
 
   Pass: `07-image.log` non-empty, looks like `registry.fly.io/markland:deployment-...`.
 
-- [ ] **Step 7.3: Roll the existing machine to the new image**
+- [x] **Step 7.3: Roll the existing machine to the new image**
 
   ```bash
   MID=$(cat cutover-evidence/07-machine-id.log)
@@ -387,7 +387,7 @@ Use the launch-group-bug workaround (build-only + machine update), per `docs/FOL
 
   Expected: `Machine <mid> updated successfully!`. Health checks should pass within ~30s.
 
-- [ ] **Step 7.4: Confirm app is up at new domain**
+- [x] **Step 7.4: Confirm app is up at new domain**
 
   ```bash
   curl -s -o /dev/null -w "markland.dev landing: %{http_code} %{time_total}s\n" https://markland.dev/ | tee cutover-evidence/07-new-domain-landing.log
@@ -397,7 +397,7 @@ Use the launch-group-bug workaround (build-only + machine update), per `docs/FOL
 
   Expected: all three return `200`. Pass criteria: zero non-200s in `07-new-domain-landing.log`.
 
-- [ ] **Step 7.5: Confirm canonical / OG URLs use new base**
+- [x] **Step 7.5: Confirm canonical / OG URLs use new base**
 
   ```bash
   curl -s https://markland.dev/ | grep -E '<link rel="canonical"|<meta property="og:url"' | tee cutover-evidence/07-canonical.log
@@ -415,7 +415,7 @@ Use the launch-group-bug workaround (build-only + machine update), per `docs/FOL
 
 **Files:** none.
 
-- [ ] **Step 8.1: Run smoke against new domain**
+- [x] **Step 8.1: Run smoke against new domain**
 
   ```bash
   MARKLAND_URL=https://markland.dev bash scripts/hosted_smoke.sh 2>&1 | tee cutover-evidence/08-smoke.log
@@ -423,7 +423,7 @@ Use the launch-group-bug workaround (build-only + machine update), per `docs/FOL
 
   Expected: script exits 0. Final line should be `OK` or equivalent. If it fails, read the log — most likely cause is a hardcoded `fly.dev` URL in a template (search with `grep -rn 'fly.dev' src/markland/web/templates/`).
 
-- [ ] **Step 8.2: Run smoke against old domain (regression check)**
+- [x] **Step 8.2: Run smoke against old domain (regression check)**
 
   ```bash
   MARKLAND_URL=https://markland.fly.dev bash scripts/hosted_smoke.sh 2>&1 | tee cutover-evidence/08-smoke-old.log
@@ -441,7 +441,7 @@ This delegates to the already-landed plan at `docs/plans/2026-04-28-resend-domai
 
 **Files:** none (DNS in Porkbun or Cloudflare per Task 2; secret in Fly).
 
-- [ ] **Step 9.1: Open the Resend plan**
+- [x] **Step 9.1: Open the Resend plan**
 
   ```bash
   cat docs/plans/2026-04-28-resend-domain-verify.md
@@ -449,7 +449,7 @@ This delegates to the already-landed plan at `docs/plans/2026-04-28-resend-domai
 
   Read the entire plan before executing. Note: that plan's "DNS records" task assumes a particular DNS host. If Task 2 chose Option B (Cloudflare), substitute Cloudflare's DNS UI for Porkbun's wherever it appears.
 
-- [ ] **Step 9.2: Execute the Resend plan tasks**
+- [x] **Step 9.2: Execute the Resend plan tasks**
 
   Work through every checkbox in `docs/plans/2026-04-28-resend-domain-verify.md`. Capture its evidence under `cutover-evidence/09-resend/` so it lives alongside the cutover evidence.
 
@@ -458,7 +458,7 @@ This delegates to the already-landed plan at `docs/plans/2026-04-28-resend-domai
   - `flyctl secrets list -a markland` includes `RESEND_API_KEY` (already set per `01-secrets-before.log`? if so this step is a no-op for the secret itself; the verify portion is what matters).
   - A test magic-link send to a real inbox arrives in <30s.
 
-- [ ] **Step 9.3: Mark the Resend plan complete**
+- [x] **Step 9.3: Mark the Resend plan complete**
 
   Once every checkbox in the Resend plan is ticked, return here. `docs/plans/2026-04-28-resend-domain-verify.md` itself does not need to be edited (the plan is the spec; checkboxes are the work artifact). Note completion in `cutover-evidence/09-resend/done.log`:
 
@@ -484,7 +484,7 @@ Two paths. Pick one based on whether you want a server-side redirect (preserves 
 - Modify: `src/markland/web/app.py`
 - Create: `tests/test_fly_dev_redirect.py`
 
-- [ ] **Step 10a.1: Write the failing test**
+- [x] **Step 10a.1: Write the failing test**
 
   Create `tests/test_fly_dev_redirect.py`:
 
@@ -523,7 +523,7 @@ Two paths. Pick one based on whether you want a server-side redirect (preserves 
       assert r.status_code != 301
   ```
 
-- [ ] **Step 10a.2: Run the test to verify it fails**
+- [x] **Step 10a.2: Run the test to verify it fails**
 
   ```bash
   uv run pytest tests/test_fly_dev_redirect.py -v
@@ -531,7 +531,7 @@ Two paths. Pick one based on whether you want a server-side redirect (preserves 
 
   Expected: 3 failures. Each `assert r.status_code == 301` fails because no redirect middleware exists yet.
 
-- [ ] **Step 10a.3: Add the middleware to app.py**
+- [x] **Step 10a.3: Add the middleware to app.py**
 
   In `src/markland/web/app.py`, find the section that adds middleware (search for `app.add_middleware(SecurityHeadersMiddleware`). Add a new middleware class above it and register it last (so it runs first per Starlette's reverse add-order):
 
@@ -565,7 +565,7 @@ Two paths. Pick one based on whether you want a server-side redirect (preserves 
 
   (Add it last in the add-order so it runs first in the request path — Starlette reverses add-order at runtime.)
 
-- [ ] **Step 10a.4: Run the test to verify it passes**
+- [x] **Step 10a.4: Run the test to verify it passes**
 
   ```bash
   uv run pytest tests/test_fly_dev_redirect.py -v
@@ -573,7 +573,7 @@ Two paths. Pick one based on whether you want a server-side redirect (preserves 
 
   Expected: 3 passed.
 
-- [ ] **Step 10a.5: Run the full test suite (regression check)**
+- [x] **Step 10a.5: Run the full test suite (regression check)**
 
   ```bash
   uv run pytest tests/ -q 2>&1 | tee cutover-evidence/10a-full-suite.log
@@ -581,7 +581,7 @@ Two paths. Pick one based on whether you want a server-side redirect (preserves 
 
   Expected: 689 passed (686 baseline + 3 new). Zero failures. Capture the count.
 
-- [ ] **Step 10a.6: Commit**
+- [x] **Step 10a.6: Commit**
 
   ```bash
   git add src/markland/web/app.py tests/test_fly_dev_redirect.py
@@ -589,13 +589,13 @@ Two paths. Pick one based on whether you want a server-side redirect (preserves 
   git push origin main
   ```
 
-- [ ] **Step 10a.7: Re-deploy with the workaround**
+- [x] **Step 10a.7: Re-deploy with the workaround**
 
   Repeat Steps 7.2 and 7.3 (build-only + machine update) so the redirect lands in production.
 
   Capture: `cutover-evidence/10a-redeploy-build.log` and `cutover-evidence/10a-redeploy-update.log`.
 
-- [ ] **Step 10a.8: Verify redirect in production**
+- [x] **Step 10a.8: Verify redirect in production**
 
   ```bash
   curl -sI https://markland.fly.dev/ | tee cutover-evidence/10a-redirect-curl.log
@@ -610,7 +610,7 @@ Two paths. Pick one based on whether you want a server-side redirect (preserves 
 
 Run only if Task 2 chose Option B AND you'd rather handle this at the edge. Otherwise skip 10b entirely.
 
-- [ ] **Step 10b.1: Add a redirect rule (OPERATOR ACTION)**
+- [x] **Step 10b.1: Add a redirect rule (OPERATOR ACTION)**
 
   In Cloudflare dashboard for a Cloudflare-managed zone (this requires `markland.fly.dev` to be a Cloudflare zone too — which it isn't, since Fly owns `*.fly.dev`). **Conclusion: Option 10b is not viable** because you don't control `fly.dev` DNS. Use Option 10a.
 
@@ -626,7 +626,7 @@ Run only if Task 2 chose Option B AND you'd rather handle this at the edge. Othe
 
 **Files:** none — work happens in GSC.
 
-- [ ] **Step 11.1: Verify the sitemap is reachable at the new origin**
+- [x] **Step 11.1: Verify the sitemap is reachable at the new origin**
 
   ```bash
   curl -sI https://markland.dev/sitemap.xml | head -1 | tee cutover-evidence/11-sitemap-head.log
@@ -637,13 +637,13 @@ Run only if Task 2 chose Option B AND you'd rather handle this at the edge. Othe
 
   If sitemap entries still say `fly.dev`, Task 7 did not flip the env correctly — back to 7.5 to debug.
 
-- [ ] **Step 11.2: Add domain property in GSC (OPERATOR ACTION)**
+- [x] **Step 11.2: Add domain property in GSC (OPERATOR ACTION)**
 
   - Go to https://search.google.com/search-console
   - "Add property" → "Domain" (not URL prefix) → enter `markland.dev` → Continue.
   - GSC shows a TXT record to add for verification (looks like `google-site-verification=...`).
 
-- [ ] **Step 11.3: Add the TXT record (OPERATOR ACTION)**
+- [x] **Step 11.3: Add the TXT record (OPERATOR ACTION)**
 
   - **If Task 2 = Option A (Porkbun):** Porkbun panel → DNS records → Add Record → Type `TXT`, Host blank, Answer `google-site-verification=<value>`, TTL 600.
   - **If Task 2 = Option B (Cloudflare):** Cloudflare panel → DNS → Add record → Type `TXT`, Name `@`, Content `google-site-verification=<value>`.
@@ -656,17 +656,17 @@ Run only if Task 2 chose Option B AND you'd rather handle this at the edge. Othe
 
   Expected: at least one line containing `google-site-verification=...`.
 
-- [ ] **Step 11.4: Click "Verify" in GSC (OPERATOR ACTION)**
+- [x] **Step 11.4: Click "Verify" in GSC (OPERATOR ACTION)**
 
   Back in GSC, click Verify. Expected: green checkmark, "Ownership verified."
 
-- [ ] **Step 11.5: Submit sitemap (OPERATOR ACTION)**
+- [x] **Step 11.5: Submit sitemap (OPERATOR ACTION)**
 
   GSC → Sitemaps (left sidebar) → "Add a new sitemap" → enter `sitemap.xml` (path only, GSC prepends the domain) → Submit.
 
   Expected: status flips to "Success" within minutes.
 
-- [ ] **Step 11.6: Capture submission confirmation**
+- [x] **Step 11.6: Capture submission confirmation**
 
   Screenshot or copy the GSC sitemap row showing "Success" and save to `cutover-evidence/11-gsc-sitemap.png` (or `.txt` with the row text).
 
@@ -680,7 +680,7 @@ Run only if Task 2 chose Option B AND you'd rather handle this at the edge. Othe
 - Modify: `docs/ROADMAP.md`
 - Modify: `docs/FOLLOW-UPS.md`
 
-- [ ] **Step 12.1: Re-run hosted_smoke against the new origin**
+- [x] **Step 12.1: Re-run hosted_smoke against the new origin**
 
   ```bash
   MARKLAND_URL=https://markland.dev bash scripts/hosted_smoke.sh 2>&1 | tee cutover-evidence/12-smoke-final.log
@@ -688,7 +688,7 @@ Run only if Task 2 chose Option B AND you'd rather handle this at the edge. Othe
 
   Expected: exit 0, all checks pass.
 
-- [ ] **Step 12.2: Spot-check magic-link end-to-end**
+- [x] **Step 12.2: Spot-check magic-link end-to-end**
 
   Manually:
   1. Open `https://markland.dev/` in an incognito window.
@@ -700,7 +700,7 @@ Run only if Task 2 chose Option B AND you'd rather handle this at the edge. Othe
 
   Pass criteria: end-to-end flow works without log diving.
 
-- [ ] **Step 12.3: Update ROADMAP "Where we are"**
+- [x] **Step 12.3: Update ROADMAP "Where we are"**
 
   Open `docs/ROADMAP.md`. Find the "Where we are" header and bump the date to today and replace the "Domain registered" stanza with cutover-complete language. Specifically, replace:
 
@@ -725,7 +725,7 @@ Run only if Task 2 chose Option B AND you'd rather handle this at the edge. Othe
 
   (Substitute the date and the chosen DNS path. Replace the angle-bracket placeholders verbatim.)
 
-- [ ] **Step 12.4: Move "Cut over" item from Now → Shipped in ROADMAP**
+- [x] **Step 12.4: Move "Cut over" item from Now → Shipped in ROADMAP**
 
   In `docs/ROADMAP.md`:
   1. Delete the bullet beginning `- **Cut over to `markland.dev`** —` from the Now lane.
@@ -735,7 +735,7 @@ Run only if Task 2 chose Option B AND you'd rather handle this at the edge. Othe
   - **<TODAY-YYYY-MM-DD>** — Cutover to `markland.dev` complete. Dedicated Fly IPv4 + IPv6 allocated, DNS via <Porkbun-direct | Cloudflare>, Fly TLS cert Issued, `MARKLAND_BASE_URL` flipped to `https://markland.dev`, `FlyDevRedirectMiddleware` 301s `markland.fly.dev` → `markland.dev`, hosted_smoke green, Resend domain verified, GSC property added + sitemap submitted.
   ```
 
-- [ ] **Step 12.5: Reconcile FOLLOW-UPS §1**
+- [x] **Step 12.5: Reconcile FOLLOW-UPS §1**
 
   In `docs/FOLLOW-UPS.md`, find the bullet starting `- **Cut over to \`markland.dev\`.**` (added 2026-04-29) and replace the entire bullet with:
 
@@ -746,7 +746,7 @@ Run only if Task 2 chose Option B AND you'd rather handle this at the edge. Othe
 
   Also strike-through (`~~ ~~`) the GSC sitemap submission bullet later in the same section if it's still listed as pending — it was completed in Task 11.
 
-- [ ] **Step 12.6: Commit and push docs reconciliation**
+- [x] **Step 12.6: Commit and push docs reconciliation**
 
   ```bash
   git add docs/ROADMAP.md docs/FOLLOW-UPS.md
@@ -756,7 +756,7 @@ Run only if Task 2 chose Option B AND you'd rather handle this at the edge. Othe
 
   Expected: push succeeds.
 
-- [ ] **Step 12.7: Final summary**
+- [x] **Step 12.7: Final summary**
 
   Capture a one-screen summary:
 
