@@ -146,3 +146,26 @@ def test_signed_in_explore_view_mine_lists_user_docs(harness):
     assert "Carol Plan" in r.text  # would fail before fix — view=mine returned
                                    # public list for cookie users
     assert "Signed in as" in r.text
+
+
+def test_banner_email_truncates_when_long(harness):
+    """Long emails must not push 'Your docs / Sign out' off the viewport.
+
+    The fix is CSS: max-width + text-overflow: ellipsis on the email span,
+    plus flex-shrink: 0 on the action links. Asserting CSS in HTML is a
+    weak signal but enough to catch a future refactor that strips the
+    rules wholesale.
+    """
+    client, conn = harness
+    user = create_user(conn, email="long+banner-test+long-alias@example.com")
+    cookie = issue_session(user.id, secret=SECRET)
+    client.cookies.set(SESSION_COOKIE_NAME, cookie)
+
+    r = client.get("/")
+    assert r.status_code == 200
+    body = r.text
+    # The email itself appears.
+    assert "long+banner-test+long-alias@example.com" in body
+    # The truncation rules are present in the partial's inline styles.
+    assert "text-overflow:ellipsis" in body or "text-overflow: ellipsis" in body
+    assert "flex-shrink:0" in body or "flex-shrink: 0" in body
