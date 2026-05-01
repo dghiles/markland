@@ -95,3 +95,36 @@ def test_explore_paginates(tmp_path):
     page1 = h.anon().call("markland_explore", limit=2)
     assert len(page1["items"]) == 2
     assert page1["next_cursor"] is not None
+
+
+def test_fork_creates_owned_copy(tmp_path):
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    bob = h.as_user(email="bob@example.com")
+    src = alice.call("markland_publish", content="# Original", public=True)
+
+    forked = bob.call("markland_fork", doc_id=src["id"], title="Bob's fork")
+    assert forked["owner_id"] == bob.principal_id
+    assert forked["id"] != src["id"]
+    assert forked["title"] == "Bob's fork"
+    assert forked["content"] == src["content"]
+
+
+def test_fork_inherits_title_when_not_provided(tmp_path):
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    bob = h.as_user(email="bob@example.com")
+    src = alice.call("markland_publish", content="# Source", public=True)
+    forked = bob.call("markland_fork", doc_id=src["id"])
+    assert "Source" in forked["title"]
+
+
+def test_fork_private_doc_not_found_for_stranger(tmp_path):
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    bob = h.as_user(email="bob@example.com")
+    src = alice.call("markland_publish", content="# Private", public=False)
+    r = bob.call_raw("markland_fork", doc_id=src["id"])
+    r.assert_error("not_found")
+
+

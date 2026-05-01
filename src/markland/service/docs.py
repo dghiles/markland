@@ -331,6 +331,57 @@ def search_paginated(
     return page_dicts, next_cursor
 
 
+def fork(
+    conn: sqlite3.Connection,
+    *,
+    principal: Principal,
+    source_doc_id: str,
+    base_url: str,
+    title: str | None = None,
+) -> dict:
+    """Duplicate a viewable doc into the principal's account.
+
+    Wraps `service.save.fork_document` with the MCP-shaped error contract:
+    sources the caller cannot view raise `NotFound` (deny-as-not-found) so
+    callers cannot probe for existence.
+
+    Returns a dict in the same shape as `_doc_to_full(...)` so the MCP tool
+    can wrap it with `doc_envelope`.
+    """
+    from markland.service.save import fork_document
+
+    owner_id = _resolve_owner_id(principal)
+    if owner_id is None:
+        raise PermissionDenied("service_agent_cannot_fork")
+
+    src = db.get_document(conn, source_doc_id)
+    if src is None:
+        raise NotFound(f"document {source_doc_id}")
+
+    try:
+        new_doc = fork_document(conn, source=src, new_owner_id=owner_id)
+    except PermissionError:
+        # Caller cannot view the source — deny-as-not-found.
+        raise NotFound(f"document {source_doc_id}")
+    except ValueError:
+        # Same owner — surface as NotFound to keep the contract narrow; the
+        # MCP layer maps this to `not_found`. (Rare in practice.)
+        raise NotFound(f"document {source_doc_id}")
+
+    # Apply optional title override.
+    new_title = title if title else f"Fork of {src.title}"
+    if new_title != new_doc.title:
+        conn.execute(
+            "UPDATE documents SET title = ? WHERE id = ?",
+            (new_title, new_doc.id),
+        )
+        conn.commit()
+        new_doc = db.get_document(conn, new_doc.id)
+        assert new_doc is not None
+
+    return _doc_to_full(new_doc, base_url)
+
+
 def list_public_paginated(
     conn: sqlite3.Connection,
     *,

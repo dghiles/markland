@@ -158,6 +158,23 @@ def build_mcp(
         raw["share_url"] = f"{base_url}/d/{share_token}"
         return doc_envelope(raw)
 
+    def _fork(ctx, doc_id: str, title: str | None = None):
+        p = _require_principal(ctx)
+        try:
+            raw = docs_svc.fork(
+                db_conn,
+                principal=p,
+                source_doc_id=doc_id,
+                base_url=base_url,
+                title=title,
+            )
+        except NotFound:
+            raise tool_error("not_found")
+        except PermissionDenied:
+            raise tool_error("forbidden")
+        full = docs_svc.get(db_conn, p, raw["id"], base_url=base_url)
+        return doc_envelope(full)
+
     def _explore(ctx, limit: int = 50, cursor: str | None = None):
         # Anonymous-callable — no _require_principal call.
         rows, next_cursor = docs_svc.list_public_paginated(
@@ -658,6 +675,29 @@ def build_mcp(
         Idempotency: Read-only.
         """
         return _explore(ctx, limit=limit, cursor=cursor)
+
+    @mcp.tool()
+    def markland_fork(
+        ctx: Context, doc_id: str, title: str | None = None,
+    ) -> dict:
+        """Duplicate a viewable document into your account.
+
+        Creates a private copy you own. The original's id is recorded on
+        the new row's `forked_from_doc_id` for attribution on the viewer.
+
+        Args:
+            doc_id: The source document. Must be visible to the caller.
+            title: Optional title; defaults to "Fork of <original title>".
+
+        Returns:
+            doc_envelope of the new document.
+
+        Raises:
+            not_found: source doc doesn't exist or caller cannot see it.
+
+        Idempotency: Not idempotent — each call creates a new doc.
+        """
+        return _fork(ctx, doc_id, title=title)
 
     @mcp.tool()
     def markland_share(ctx: Context, doc_id: str) -> dict:
@@ -1165,6 +1205,7 @@ def build_mcp(
         markland_get=_get,
         markland_get_by_share_token=_get_by_share_token,
         markland_explore=_explore,
+        markland_fork=_fork,
         markland_search=_search,
         markland_share=_share,
         markland_update=_update,
