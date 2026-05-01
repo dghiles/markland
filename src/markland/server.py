@@ -399,6 +399,34 @@ def build_mcp(
         p = _require_principal(ctx)
         return presence_svc.clear_status(db_conn, doc_id=doc_id, principal=p)
 
+    def _status(ctx, doc_id: str, status: str | None, note: str | None = None):
+        p = _require_principal(ctx)
+
+        if status is None:
+            # Clear path — idempotent.
+            presence_svc.clear_status(db_conn, doc_id=doc_id, principal=p)
+            return {"doc_id": doc_id, "cleared": True}
+
+        if status not in ("reading", "editing"):
+            raise tool_error(
+                "invalid_argument",
+                reason="status_must_be_reading_or_editing_or_none",
+            )
+
+        try:
+            check_permission(db_conn, p, doc_id, "view")
+        except NotFound:
+            raise tool_error("not_found")
+        except PermissionDenied:
+            raise tool_error("forbidden")
+
+        try:
+            return presence_svc.set_status(
+                db_conn, doc_id=doc_id, principal=p, status=status, note=note,
+            )
+        except presence_svc.PresenceError:
+            raise tool_error("not_found")
+
     def _list_my_agents(ctx, limit: int = 50, cursor: str | None = None):
         p = _require_principal(ctx)
         if p.principal_type == "agent":
@@ -913,6 +941,38 @@ def build_mcp(
         return _list_my_agents(ctx, limit=limit, cursor=cursor)
 
     @mcp.tool()
+    def markland_status(
+        ctx: Context,
+        doc_id: str,
+        status: str | None = None,
+        note: str | None = None,
+    ) -> dict:
+        """Set or clear your presence on a document.
+
+        Pass status="reading" or status="editing" to announce; pass status=None
+        (or omit) to clear. Advisory only — does not lock the document. Set
+        entries expire after 10 minutes; re-call every ~5 minutes to remain
+        visible (heartbeat).
+
+        Args:
+            doc_id: The document.
+            status: "reading", "editing", or None to clear.
+            note: Optional free-text note (only used when status is set).
+
+        Returns:
+            On set: {doc_id, status, expires_at, note}.
+            On clear: {doc_id, cleared: true}.
+
+        Raises:
+            not_found: doc does not exist or caller cannot see it.
+            forbidden: caller does not have view access.
+            invalid_argument: status not in {reading, editing, None}.
+
+        Idempotency: Idempotent.
+        """
+        return _status(ctx, doc_id, status=status, note=note)
+
+    @mcp.tool()
     def markland_set_status(
         ctx: Context,
         doc_id: str,
@@ -1036,6 +1096,7 @@ def build_mcp(
         markland_revoke_invite=_revoke_invite,
         markland_set_status=_set_status,
         markland_clear_status=_clear_status,
+        markland_status=_status,
         markland_audit=_audit,
     )
     mcp.markland_handlers = handlers  # type: ignore[attr-defined]
