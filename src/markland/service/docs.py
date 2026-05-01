@@ -331,6 +331,198 @@ def search_paginated(
     return page_dicts, next_cursor
 
 
+def fork(
+    conn: sqlite3.Connection,
+    *,
+    principal: Principal,
+    source_doc_id: str,
+    base_url: str,
+    title: str | None = None,
+) -> dict:
+    """Duplicate a viewable doc into the principal's account.
+
+    Wraps `service.save.fork_document` with the MCP-shaped error contract:
+    sources the caller cannot view raise `NotFound` (deny-as-not-found) so
+    callers cannot probe for existence.
+
+    Returns a dict in the same shape as `_doc_to_full(...)` so the MCP tool
+    can wrap it with `doc_envelope`.
+    """
+    from markland.service.save import fork_document
+
+    owner_id = _resolve_owner_id(principal)
+    if owner_id is None:
+        raise PermissionDenied("service_agent_cannot_fork")
+
+    src = db.get_document(conn, source_doc_id)
+    if src is None:
+        raise NotFound(f"document {source_doc_id}")
+
+    try:
+        new_doc = fork_document(conn, source=src, new_owner_id=owner_id)
+    except PermissionError:
+        # Caller cannot view the source — deny-as-not-found.
+        raise NotFound(f"document {source_doc_id}")
+    # ValueError("cannot_fork_own_doc") is allowed to propagate; the MCP
+    # layer translates it to invalid_argument so a confused agent can see
+    # the actual reason rather than a misleading not_found.
+
+    # Apply optional title override.
+    new_title = title if title else f"Fork of {src.title}"
+    if new_title != new_doc.title:
+        conn.execute(
+            "UPDATE documents SET title = ? WHERE id = ?",
+            (new_title, new_doc.id),
+        )
+        conn.commit()
+        new_doc = db.get_document(conn, new_doc.id)
+        assert new_doc is not None
+
+    return _doc_to_full(new_doc, base_url)
+
+
+def list_revisions_paginated(
+    conn: sqlite3.Connection,
+    doc_id: str,
+    *,
+    limit: int = 50,
+    cursor: str | None = None,
+) -> tuple[list[dict], str | None]:
+    """Capped pre-update revisions for `doc_id`, newest first.
+
+    Caller is responsible for permission-checking before invoking this; the
+    helper performs no auth itself.
+    """
+    from markland._mcp_envelopes import decode_cursor, encode_cursor
+
+    limit = min(max(1, int(limit)), 200)
+    where = ["doc_id = ?"]
+    params: list = [doc_id]
+    if cursor:
+        last_id, last_created_at = decode_cursor(cursor)
+        where.append("(created_at, id) < (?, ?)")
+        params.extend([last_created_at, last_id])
+    sql = (
+        "SELECT id, version, title, content, created_at "
+        "FROM revisions "
+        f"WHERE {' AND '.join(where)} "
+        "ORDER BY created_at DESC, id DESC "
+        "LIMIT ?"
+    )
+    params.append(limit + 1)
+    cursor_obj = conn.execute(sql, params)
+    cols = [c[0] for c in cursor_obj.description]
+    rows = [dict(zip(cols, r)) for r in cursor_obj.fetchall()]
+    has_more = len(rows) > limit
+    page = rows[:limit]
+    next_cursor = None
+    if has_more and page:
+        next_cursor = encode_cursor(
+            last_id=str(page[-1]["id"]),
+            last_updated_at=page[-1]["created_at"],
+        )
+    items = [
+        {
+            "revision_id": str(r["id"]),
+            "version": r["version"],
+            "title": r["title"],
+            "content": r["content"],
+            "created_at": r["created_at"],
+        }
+        for r in page
+    ]
+    return items, next_cursor
+
+
+def list_public_paginated(
+    conn: sqlite3.Connection,
+    *,
+    limit: int = 50,
+    cursor: str | None = None,
+) -> tuple[list[dict], str | None]:
+    """Paginated list of public documents (the /explore feed).
+
+    Anonymous-friendly: no principal needed. Uses (updated_at, id) DESC
+    keyset pagination for stable ordering across rows with equal
+    timestamps.
+    """
+    from markland._mcp_envelopes import decode_cursor, encode_cursor
+
+    limit = min(max(1, int(limit)), 200)
+    where = ["is_public = 1"]
+    params: list = []
+    if cursor:
+        last_id, last_updated_at = decode_cursor(cursor)
+        where.append("(updated_at, id) < (?, ?)")
+        params.extend([last_updated_at, last_id])
+    sql = (
+        f"SELECT {db._DOC_COLUMNS} FROM documents "
+        f"WHERE {' AND '.join(where)} "
+        "ORDER BY updated_at DESC, id DESC "
+        "LIMIT ?"
+    )
+    params.append(limit + 1)
+    rows = conn.execute(sql, params).fetchall()
+    docs = [db._row_to_doc(r) for r in rows]
+    has_more = len(docs) > limit
+    page = docs[:limit]
+    next_cursor = None
+    if has_more and page:
+        last = page[-1]
+        next_cursor = encode_cursor(
+            last_id=last.id, last_updated_at=last.updated_at,
+        )
+    page_dicts = [
+        {
+            "id": d.id,
+            "title": d.title,
+            "content": d.content,
+            "share_token": d.share_token,
+            "created_at": d.created_at,
+            "updated_at": d.updated_at,
+            "is_public": d.is_public,
+            "is_featured": d.is_featured,
+            "owner_id": d.owner_id,
+            "version": d.version,
+            "forked_from_doc_id": d.forked_from_doc_id,
+        }
+        for d in page
+    ]
+    return page_dicts, next_cursor
+
+
+def get_by_share_token(
+    conn: sqlite3.Connection, share_token: str
+) -> dict | None:
+    """Return doc dict for a public doc, or None if not found / not public.
+
+    Anonymous-friendly: bypasses permission checks and only matches rows
+    where `is_public = 1`. The share token is not a capability for
+    non-public docs — those return None regardless of caller.
+    """
+    row = conn.execute(
+        f"SELECT {db._DOC_COLUMNS} FROM documents "
+        "WHERE share_token = ? AND is_public = 1",
+        (share_token,),
+    ).fetchone()
+    if row is None:
+        return None
+    doc = db._row_to_doc(row)
+    return {
+        "id": doc.id,
+        "title": doc.title,
+        "content": doc.content,
+        "share_token": doc.share_token,
+        "created_at": doc.created_at,
+        "updated_at": doc.updated_at,
+        "is_public": doc.is_public,
+        "is_featured": doc.is_featured,
+        "owner_id": doc.owner_id,
+        "version": doc.version,
+        "forked_from_doc_id": doc.forked_from_doc_id,
+    }
+
+
 def share_link(
     conn: sqlite3.Connection,
     base_url: str,

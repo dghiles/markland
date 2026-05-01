@@ -150,6 +150,57 @@ def build_mcp(
         except PermissionDenied:
             raise tool_error("forbidden")
 
+    def _get_by_share_token(ctx, share_token: str):
+        # Anonymous-callable — no _require_principal call.
+        raw = docs_svc.get_by_share_token(db_conn, share_token)
+        if raw is None:
+            raise tool_error("not_found")
+        raw["share_url"] = f"{base_url}/d/{share_token}"
+        return doc_envelope(raw)
+
+    def _fork(ctx, doc_id: str, title: str | None = None):
+        p = _require_principal(ctx)
+        try:
+            raw = docs_svc.fork(
+                db_conn,
+                principal=p,
+                source_doc_id=doc_id,
+                base_url=base_url,
+                title=title,
+            )
+        except NotFound:
+            raise tool_error("not_found")
+        except PermissionDenied:
+            raise tool_error("forbidden")
+        except ValueError as exc:
+            # Service layer signals fork-specific argument errors (e.g.
+            # cannot_fork_own_doc) via ValueError. Surface as invalid_argument
+            # so callers see the real reason instead of a misleading not_found.
+            raise tool_error("invalid_argument", reason=str(exc))
+        full = docs_svc.get(db_conn, p, raw["id"], base_url=base_url)
+        return doc_envelope(full)
+
+    def _revisions(ctx, doc_id: str, limit: int = 50, cursor: str | None = None):
+        p = _require_principal(ctx)
+        try:
+            check_permission(db_conn, p, doc_id, "view")
+        except NotFound:
+            raise tool_error("not_found")
+        except PermissionDenied:
+            raise tool_error("forbidden")
+        items, next_cursor = docs_svc.list_revisions_paginated(
+            db_conn, doc_id, limit=limit, cursor=cursor,
+        )
+        return list_envelope(items=items, next_cursor=next_cursor)
+
+    def _explore(ctx, limit: int = 50, cursor: str | None = None):
+        # Anonymous-callable — no _require_principal call.
+        rows, next_cursor = docs_svc.list_public_paginated(
+            db_conn, limit=limit, cursor=cursor,
+        )
+        items = [doc_summary(r) for r in rows]
+        return list_envelope(items=items, next_cursor=next_cursor)
+
     def _update(
         ctx,
         doc_id: str,
@@ -363,6 +414,21 @@ def build_mcp(
             "level": result.level,
             "expires_at": result.expires_at,
         }
+
+    def _list_invites(
+        ctx, doc_id: str, limit: int = 50, cursor: str | None = None,
+    ):
+        p = _require_principal(ctx)
+        try:
+            check_permission(db_conn, p, doc_id, "owner")
+        except NotFound:
+            raise tool_error("not_found")
+        except PermissionDenied:
+            raise tool_error("forbidden")
+        items, next_cursor = invites_svc.list_for_doc_paginated(
+            db_conn, doc_id, limit=limit, cursor=cursor,
+        )
+        return list_envelope(items=items, next_cursor=next_cursor)
 
     def _revoke_invite(ctx, invite_id: str):
         p = _require_principal(ctx)
@@ -587,6 +653,97 @@ def build_mcp(
         Idempotency: Read-only.
         """
         return _search(ctx, query, limit=limit, cursor=cursor)
+
+    @mcp.tool()
+    def markland_get_by_share_token(ctx: Context, share_token: str) -> dict:
+        """Read a public document by its share token, no authentication required.
+
+        Mirrors the anonymous web-viewer flow at `/d/<share_token>`. If the doc
+        is unlisted (not public), returns not_found regardless of caller — the
+        share token is not a capability for non-public docs.
+
+        Args:
+            share_token: The doc's share token (the last URL segment of share_url).
+
+        Returns:
+            doc_envelope. `active_principals` is omitted for anonymous callers.
+
+        Raises:
+            not_found: doc does not exist or is not public.
+
+        Idempotency: Read-only.
+        """
+        return _get_by_share_token(ctx, share_token)
+
+    @mcp.tool()
+    def markland_explore(
+        ctx: Context, limit: int = 50, cursor: str | None = None,
+    ) -> dict:
+        """List recently-updated public documents. Anonymous-friendly.
+
+        Mirrors the public `/explore` web feed. No authentication required.
+
+        Args:
+            limit: Max documents per page (1-200, default 50).
+            cursor: Pagination cursor.
+
+        Returns:
+            list_envelope of doc_summary.
+
+        Idempotency: Read-only.
+        """
+        return _explore(ctx, limit=limit, cursor=cursor)
+
+    @mcp.tool()
+    def markland_fork(
+        ctx: Context, doc_id: str, title: str | None = None,
+    ) -> dict:
+        """Duplicate a viewable document into your account.
+
+        Creates a private copy you own. The original's id is recorded on
+        the new row's `forked_from_doc_id` for attribution on the viewer.
+
+        Args:
+            doc_id: The source document. Must be visible to the caller.
+            title: Optional title; defaults to "Fork of <original title>".
+
+        Returns:
+            doc_envelope of the new document.
+
+        Raises:
+            not_found: source doc doesn't exist or caller cannot see it.
+
+        Idempotency: Not idempotent — each call creates a new doc.
+        """
+        return _fork(ctx, doc_id, title=title)
+
+    @mcp.tool()
+    def markland_revisions(
+        ctx: Context,
+        doc_id: str,
+        limit: int = 50,
+        cursor: str | None = None,
+    ) -> dict:
+        """List capped pre-update snapshots of a document. Read-only.
+
+        The most recent 50 revisions per doc are retained. Newer revisions
+        appear first. This is read-only — there is no rollback tool today.
+
+        Args:
+            doc_id: The document.
+            limit: Max revisions per page (1-200, default 50).
+            cursor: Pagination cursor.
+
+        Returns:
+            list_envelope of revision summaries:
+                {revision_id, version, title, content, created_at}.
+
+        Raises:
+            not_found: doc does not exist or caller cannot see it.
+
+        Idempotency: Read-only.
+        """
+        return _revisions(ctx, doc_id, limit=limit, cursor=cursor)
 
     @mcp.tool()
     def markland_share(ctx: Context, doc_id: str) -> dict:
@@ -885,6 +1042,36 @@ def build_mcp(
         )
 
     @mcp.tool()
+    def markland_list_invites(
+        ctx: Context,
+        doc_id: str,
+        limit: int = 50,
+        cursor: str | None = None,
+    ) -> dict:
+        """List outstanding invites for a document. Owner only.
+
+        Plaintext invite tokens are NEVER returned — the original tokens are
+        only available at create-time. Use this tool to inspect and revoke
+        existing invites.
+
+        Args:
+            doc_id: The document.
+            limit: Max invites per page (1-200, default 50).
+            cursor: Pagination cursor.
+
+        Returns:
+            list_envelope of invite summaries:
+                {invite_id, level, uses_remaining, expires_at, created_at}
+
+        Raises:
+            not_found: doc does not exist or caller cannot see it.
+            forbidden: caller is not the owner.
+
+        Idempotency: Read-only.
+        """
+        return _list_invites(ctx, doc_id, limit=limit, cursor=cursor)
+
+    @mcp.tool()
     def markland_revoke_invite(ctx: Context, invite_id: str) -> dict:
         """Revoke an outstanding invite. Owner only.
 
@@ -1107,6 +1294,10 @@ def build_mcp(
         markland_publish=_publish,
         markland_list=_list,
         markland_get=_get,
+        markland_get_by_share_token=_get_by_share_token,
+        markland_explore=_explore,
+        markland_fork=_fork,
+        markland_revisions=_revisions,
         markland_search=_search,
         markland_share=_share,
         markland_update=_update,
@@ -1125,6 +1316,7 @@ def build_mcp(
         markland_list_grants=_list_grants,
         markland_list_my_agents=_list_my_agents,
         markland_create_invite=_create_invite,
+        markland_list_invites=_list_invites,
         markland_revoke_invite=_revoke_invite,
         markland_set_status=lambda ctx, doc_id, status, note=None: _status(
             ctx, doc_id, status=status, note=note

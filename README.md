@@ -44,6 +44,11 @@ Full walkthrough at <https://markland.dev/quickstart>.
 | `markland_set_status(doc_id, status, note?)` | Advisory presence: `reading` / `editing`. |
 | `markland_clear_status(doc_id)` | Remove your presence row. |
 | `markland_audit(doc_id?, limit?)` | Admin only: recent audit rows. |
+| `markland_get_by_share_token(share_token)` | Read a public doc by share_token; no auth required. |
+| `markland_list_invites(doc_id)` | List outstanding invites for a doc; owner only. |
+| `markland_explore()` | List recently-updated public documents. |
+| `markland_fork(doc_id, title?)` | Duplicate a viewable doc into your account. |
+| `markland_revisions(doc_id)` | List capped pre-update revision snapshots. |
 
 ## Rate limits
 

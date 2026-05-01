@@ -1,0 +1,24 @@
+{
+  "after_one_update": {
+    "kind": "ok",
+    "value": {
+      "items": [
+        {
+          "content": "# v1",
+          "created_at": "<TIMESTAMP>",
+          "revision_id": "1",
+          "title": "v1",
+          "version": 1
+        }
+      ],
+      "next_cursor": null
+    }
+  },
+  "no_history": {
+    "kind": "ok",
+    "value": {
+      "items": [],
+      "next_cursor": null
+    }
+  }
+}
