@@ -133,9 +133,13 @@ def build_mcp(
         ]
         return doc_envelope(body, active_principals=active_principals)
 
-    def _search(ctx, query: str):
+    def _search(ctx, query: str, limit: int = 50, cursor: str | None = None):
         p = _require_principal(ctx)
-        return docs_svc.search(db_conn, p, query)
+        rows, next_cursor = docs_svc.search_paginated(
+            db_conn, p, query, limit=limit, cursor=cursor,
+        )
+        items = [doc_summary(r) for r in rows]
+        return list_envelope(items=items, next_cursor=next_cursor)
 
     def _share(ctx, doc_id: str):
         p = _require_principal(ctx)
@@ -490,21 +494,31 @@ def build_mcp(
         return _get(ctx, doc_id)
 
     @mcp.tool()
-    def markland_search(ctx: Context, query: str) -> list[dict]:
-        """Search documents the current principal can view.
+    def markland_search(
+        ctx: Context,
+        query: str,
+        limit: int = 50,
+        cursor: str | None = None,
+    ) -> dict:
+        """Search documents the current principal can view, paginated.
 
         Searches title and content with a simple LIKE match; only documents
         the principal owns or has a grant on are returned.
 
         Args:
             query: Free-text query. Empty strings match nothing.
+            limit: Max documents per page (1-200, default 50).
+            cursor: Opaque token from a previous response's `next_cursor`.
+                Pass to fetch the next page; omit for the first page.
 
         Returns:
-            List of document summary dicts (same shape as `markland_list`).
+            list_envelope of doc_summary: {items: [doc_summary, ...],
+            next_cursor}. `next_cursor` is None when there are no more
+            results. Ordering is `(updated_at DESC, id DESC)`.
 
         Idempotency: Read-only.
         """
-        return _search(ctx, query)
+        return _search(ctx, query, limit=limit, cursor=cursor)
 
     @mcp.tool()
     def markland_share(ctx: Context, doc_id: str) -> dict:
