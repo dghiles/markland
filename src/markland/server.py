@@ -175,6 +175,19 @@ def build_mcp(
         full = docs_svc.get(db_conn, p, raw["id"], base_url=base_url)
         return doc_envelope(full)
 
+    def _revisions(ctx, doc_id: str, limit: int = 50, cursor: str | None = None):
+        p = _require_principal(ctx)
+        try:
+            check_permission(db_conn, p, doc_id, "view")
+        except NotFound:
+            raise tool_error("not_found")
+        except PermissionDenied:
+            raise tool_error("forbidden")
+        items, next_cursor = docs_svc.list_revisions_paginated(
+            db_conn, doc_id, limit=limit, cursor=cursor,
+        )
+        return list_envelope(items=items, next_cursor=next_cursor)
+
     def _explore(ctx, limit: int = 50, cursor: str | None = None):
         # Anonymous-callable — no _require_principal call.
         rows, next_cursor = docs_svc.list_public_paginated(
@@ -700,6 +713,34 @@ def build_mcp(
         return _fork(ctx, doc_id, title=title)
 
     @mcp.tool()
+    def markland_revisions(
+        ctx: Context,
+        doc_id: str,
+        limit: int = 50,
+        cursor: str | None = None,
+    ) -> dict:
+        """List capped pre-update snapshots of a document. Read-only.
+
+        The most recent 50 revisions per doc are retained. Newer revisions
+        appear first. This is read-only — there is no rollback tool today.
+
+        Args:
+            doc_id: The document.
+            limit: Max revisions per page (1-200, default 50).
+            cursor: Pagination cursor.
+
+        Returns:
+            list_envelope of revision summaries:
+                {revision_id, version, title, content, created_at}.
+
+        Raises:
+            not_found: doc does not exist or caller cannot see it.
+
+        Idempotency: Read-only.
+        """
+        return _revisions(ctx, doc_id, limit=limit, cursor=cursor)
+
+    @mcp.tool()
     def markland_share(ctx: Context, doc_id: str) -> dict:
         """Get a document's shareable URL.
 
@@ -1206,6 +1247,7 @@ def build_mcp(
         markland_get_by_share_token=_get_by_share_token,
         markland_explore=_explore,
         markland_fork=_fork,
+        markland_revisions=_revisions,
         markland_search=_search,
         markland_share=_share,
         markland_update=_update,
