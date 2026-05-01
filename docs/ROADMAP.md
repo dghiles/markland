@@ -26,15 +26,18 @@ Current selection: **"Shared notes for you and your agents."** — collaboration
 
 ## Where we are (2026-05-01)
 
-Live at **`https://markland.dev`** as of 2026-05-01. Cutover Tasks 1–10
-shipped today: dedicated Fly IPv4+v6, Porkbun-direct DNS, Fly cert issued,
-`MARKLAND_BASE_URL` flipped, deploy verified, end-to-end magic-link tested
-(Resend DNS verified — daveyhiles@gmail.com signed in via real link from
-`notifications@markland.dev`), 301 redirect from `markland.fly.dev` → new
-host live. Smoke script fixed to forward `Mcp-Session-Id` between
-`initialize` and `tools/call` (pre-existing bug surfaced during cutover).
-Remaining cutover items: GSC sitemap submission (operator-only) and a
-re-run of `hosted_smoke.sh` against `markland.dev` to confirm clean now.
+Live at **`https://markland.dev`** as of 2026-05-01. **Cutover complete:**
+all 12 tasks of `docs/plans/2026-04-29-cutover-to-markland-dev.md` shipped
+today — dedicated Fly IPv4 (149.248.214.141) + v6, Porkbun-direct DNS, Fly
+cert issued, `MARKLAND_BASE_URL` flipped, deploy verified, end-to-end
+magic-link tested (Resend DNS verified — daveyhiles@gmail.com signed in via
+real link from `notifications@markland.dev`), 301 redirect from
+`markland.fly.dev` → `markland.dev` live (`FlyDevRedirectMiddleware`),
+GSC domain property + sitemap submitted (TXT verify via Porkbun API,
+sitemap.xml accepted). Hosted_smoke green on cutover-relevant checks
+(/health, landing, MCP unauth/auth gating, whoami principal); a residual
+grep-on-escaped-JSON false-positive in the smoke script's whoami assertion
+is logged for separate fix.
 
 MCP audit advancing fast: Plans 1–5 of 7 shipped (harness + axes 1+6, 2+7,
 3, 4+8, plus Plan 5 axis-4/8 idempotency). Two plans left — Plan 6 (axis 5,
@@ -53,7 +56,6 @@ Active or imminent. Items here have a plan or a clear next action.
 
 - **MCP audit + test harness** — spec at `docs/specs/2026-04-27-mcp-audit-design.md`. **Plans 1–5 of 7 shipped 2026-04-29 → 2026-05-01** (harness + baselines, axis 1+6 naming/docstrings, axis 3 error model, axis 2+7 return shapes/pagination, axis 4+8 granularity/idempotency). Two plans remaining: Plan 6 (axis 5, new tools) — in flight at `.worktrees/mcp-axis-5`; Plan 7 (deprecation/removal phase) — sequenced last.
 - **SEO action plan batch 2+** — remaining items from `docs/audits/2026-04-24-seo-audit/ACTION-PLAN.md`. Batches 1–3 done per the audit status table; remaining critical/high items roll into batch 4+ (see ACTION-PLAN.md status grid).
-- **Cutover finalization** — Tasks 1–10 shipped 2026-05-01. Remaining: (a) re-run `MARKLAND_URL=https://markland.dev MARKLAND_SMOKE_TOKEN=mk_usr_… ./scripts/hosted_smoke.sh` to confirm green now that the session-ID fix is live, (b) submit `https://markland.dev/sitemap.xml` to Google Search Console (Task 11, operator-only — add domain property, verify via DNS TXT, submit), (c) commit final ROADMAP/FOLLOW-UPS reconciliation (Task 12.6 — this commit).
 - **Install/onboarding flow simplification** — first-time CLI install today is six steps across two channels: CLI shows `user_code` → visit `/device` → email form → check inbox → click magic link → bounce back → enter code → confirm. Plan `docs/plans/2026-04-24-setup-install-ux-fix.md` captures the four leverage-ordered cleanup options. **Option 1 shipped 2026-04-28 (PR #12 + #13)**: `?next=` now threads through `/login` → magic-link → `/verify` and is url-encoded so the `user_code` survives the `/device/confirm` bounce. Remaining options (2)–(4) on the runbook side; worth a brainstorm pass on which to pick before broad launch.
 
 ## Next
@@ -87,7 +89,7 @@ date it landed.
 
 ### Hosted infrastructure + ops
 
-- **2026-05-01** — **Cutover to `markland.dev` Tasks 1–10 shipped.** Dedicated Fly IPv4+v6, Porkbun-direct A/AAAA at apex, Fly TLS cert issued, `MARKLAND_BASE_URL` flipped, machine rolled in place via `flyctl deploy --strategy immediate`, hosted_smoke green except a pre-existing session-ID bug now also fixed (`4f965bd`), `FlyDevRedirectMiddleware` 301s the old fly.dev origin (`076a3c2`). Resend DNS records (SPF/DKIM/DMARC) verified end-to-end via real magic-link sign-in from `notifications@markland.dev`. Plan: `docs/plans/2026-04-29-cutover-to-markland-dev.md`. Operator-only Task 11 (GSC sitemap submission) remaining.
+- **2026-05-01** — **Cutover to `markland.dev` complete.** All 12 tasks of `docs/plans/2026-04-29-cutover-to-markland-dev.md` shipped: dedicated Fly IPv4 (149.248.214.141) + IPv6 (2a09:8280:1::107:b98d:0), Porkbun-direct A/AAAA at apex (Porkbun API DNS edits), Fly TLS cert issued, `MARKLAND_BASE_URL` flipped to `https://markland.dev`, machine rolled in place via `flyctl deploy --strategy immediate`, `FlyDevRedirectMiddleware` 301s the old `markland.fly.dev` host (`076a3c2`), Resend DNS records (SPF/DKIM/DMARC) verified end-to-end via real magic-link sign-in from `notifications@markland.dev`, GSC domain property added with TXT verification + sitemap.xml submitted. Hosted_smoke green on cutover-relevant checks; a residual grep-on-escaped-JSON false-positive in the smoke whoami assertion is logged in FOLLOW-UPS for separate fix.
 - **2026-05-01** — `markland_admin_metrics` MCP tool + `GET /admin/metrics` JSON endpoint. Aggregates signups, publishes, grants_created, invites_accepted from existing tables over a configurable window (default 7d, cap 30d) plus unwindowed waitlist_total. Admin-only via existing `is_admin` gate. `first_mcp_call` returned as null pending event-table follow-up.
 - **2026-04-29** — Domain `markland.dev` registered at Porkbun (registry expires 2027-04-29, locked, contact privacy on, Porkbun nameservers active). Unblocks the cutover sequence.
 - **2026-04-28** — Five "Next"-lane plans landed under `docs/plans/2026-04-28-*.md`: Resend domain verify, security follow-ups batch (6 items), Phase 0 dogfood walkthrough, Sentry DSN + alerts, agent token query-string leak fix.

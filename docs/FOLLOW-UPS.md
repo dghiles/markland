@@ -181,10 +181,20 @@ post-launch sprint should pick up.
 - **Device confirm rate-limit test** — once the per-IP limiter on
   `POST /device/confirm` lands, add a test driving 11 confirms from the same IP
   in a minute and asserting the 11th returns 429 with `Retry-After`.
+- **`scripts/hosted_smoke.sh` whoami grep mismatches escaped JSON** —
+  the final assertion does `grep -q '"principal_type"'` on the body of the
+  `markland_whoami` tool/call, but the MCP envelope wraps the principal
+  JSON inside a `text` content block, so the on-wire form is
+  `\"principal_type\"` (backslash-escaped) which the literal grep doesn't
+  match. The whoami call itself returns 200 with the right principal —
+  this is purely a test-script false-positive. Caught in cutover Task
+  12.1 (2026-05-01). Fix: extract the inner content text (e.g. with `jq
+  -r '.result.content[0].text'`) and grep that, or relax the pattern to
+  match either form.
 
 ## Deploy / operations (post-2026-04-20 first-deploy)
 
-- **~~Cut over to `markland.dev`.~~** Done 2026-05-01 via `docs/plans/2026-04-29-cutover-to-markland-dev.md` Tasks 1–10. Dedicated Fly IPv4+v6, Porkbun-direct A/AAAA at apex, Fly TLS cert issued, `MARKLAND_BASE_URL` flipped, machine rolled in place, hosted_smoke green (after the session-ID fix in `4f965bd`), `FlyDevRedirectMiddleware` 301s the old fly.dev origin. Operator-only Task 11 (GSC sitemap submission) tracked separately below.
+- **~~Cut over to `markland.dev`.~~** Done 2026-05-01 via `docs/plans/2026-04-29-cutover-to-markland-dev.md` (all 12 tasks). Dedicated Fly IPv4 (149.248.214.141) + v6, Porkbun-direct A/AAAA at apex (Porkbun API), Fly TLS cert issued, `MARKLAND_BASE_URL` flipped, machine rolled in place, hosted_smoke green on cutover-relevant checks, `FlyDevRedirectMiddleware` 301s the old fly.dev origin (`076a3c2`), GSC domain property + sitemap.xml submitted. Residual smoke-script grep false-positive on whoami logged separately below.
 - **~~Resend signup + DNS verification.~~** Done 2026-05-01. SPF/DKIM/DMARC/return-path records at the `markland.dev` zone, `RESEND_API_KEY` + `RESEND_FROM_EMAIL` set on Fly, end-to-end magic-link verified by signing in at `https://markland.dev/login` and clicking through to `/verify`. Evidence: `cutover-evidence/09-resend/done.log` (gitignored).
 - **~~Cloudflare R2 bucket + Litestream keys.~~** Done 2026-04-28. R2 bucket
   `markland-db`, scoped Account API token, secrets `LITESTREAM_BUCKET` /
@@ -206,13 +216,11 @@ post-launch sprint should pick up.
   to `rolling` once Fly fixes it. Full diagnostic with `flyctl scale count`
   and metadata-edit attempts: `docs/plans/2026-04-29-fix-fly-deploy-launch-
   group.md`.
-- **Submit `/sitemap.xml` to Google Search Console** — deferred until the
-  canonical domain is live. Submitting under `markland.fly.dev` now would
-  burn the property on a host we plan to abandon, and Search Console does
-  not migrate indexed URLs cleanly across properties. After the
-  `markland.dev` cutover (see first item of this section), verify
-  `https://markland.dev/sitemap.xml` loads, then add the domain property in
-  GSC, verify via DNS TXT, and submit the sitemap there.
+- **~~Submit `/sitemap.xml` to Google Search Console.~~** Done 2026-05-01.
+  Domain property `markland.dev` added in GSC, verified via DNS TXT
+  (`google-site-verification=...` added at apex via Porkbun API),
+  `sitemap.xml` submitted (13 URLs all `https://markland.dev/*`,
+  2026-05-01 lastmod). Evidence: `cutover-evidence/11-*.log` (gitignored).
 
 ## Docs
 
