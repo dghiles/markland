@@ -88,9 +88,15 @@ def test_csp_includes_umami_origin_when_id_set(monkeypatch, tmp_path):
     client = _make_client(tmp_path)
     r = client.get("/")
     csp = r.headers.get("content-security-policy", "")
+    # Umami Cloud serves script.js from cloud.umami.is but routes the beacon
+    # to api-gateway.umami.dev — different host. CSP must allow both, plus
+    # cover any future umami.is/umami.dev API host moves.
     assert "https://cloud.umami.is" in csp
     assert "script-src 'self' 'unsafe-inline' https://cloud.umami.is" in csp
-    assert "connect-src 'self' https://cloud.umami.is" in csp
+    # connect-src must allow both the umami.is and umami.dev families so the
+    # script can POST to the API regardless of which gateway umami uses.
+    assert "https://*.umami.is" in csp.split("connect-src", 1)[1]
+    assert "https://*.umami.dev" in csp.split("connect-src", 1)[1]
 
 
 def test_csp_omits_umami_origin_when_id_unset(monkeypatch, tmp_path):
