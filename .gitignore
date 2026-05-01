@@ -75,3 +75,6 @@ desktop-*.png
 
 # Accidental SQLite Connection-string filenames
 <sqlite3.Connection*
+
+# Cutover evidence (operator artifact, not committed)
+cutover-evidence/
