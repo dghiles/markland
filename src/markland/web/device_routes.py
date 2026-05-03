@@ -36,6 +36,45 @@ from markland.service.sessions import (
 logger = logging.getLogger("markland.device_flow")
 
 
+class SlidingWindowRateLimiter:
+    """Per-key sliding-window rate limiter with periodic stale-key GC.
+
+    Without GC the backing dict grows unboundedly with distinct keys seen
+    over process lifetime. GC drops keys whose most recent hit is older than
+    the window; cost is O(N) over distinct keys, amortized across
+    `prune_every` calls so steady-state overhead is ~constant.
+    """
+
+    def __init__(self, *, limit: int, window: float, prune_every: int = 1000) -> None:
+        self.limit = limit
+        self.window = window
+        self._prune_every = prune_every
+        self._hits: dict[str, Deque[float]] = defaultdict(deque)
+        self._calls_since_prune = 0
+
+    def check(self, key: str) -> tuple[bool, int]:
+        self._calls_since_prune += 1
+        if self._calls_since_prune >= self._prune_every:
+            self._prune()
+            self._calls_since_prune = 0
+
+        now = time.time()
+        q = self._hits[key]
+        while q and now - q[0] > self.window:
+            q.popleft()
+        if len(q) >= self.limit:
+            retry_after = int(self.window - (now - q[0])) + 1
+            return False, retry_after
+        q.append(now)
+        return True, 0
+
+    def _prune(self) -> None:
+        now = time.time()
+        stale = [k for k, q in self._hits.items() if not q or now - q[-1] > self.window]
+        for k in stale:
+            del self._hits[k]
+
+
 class DeviceStartBody(BaseModel):
     invite_token: str | None = None
 
@@ -61,11 +100,10 @@ def build_device_router(
     device_tpl = jinja_env.get_template("device.html")
     device_done_tpl = jinja_env.get_template("device_done.html")
 
-    # --- Per-IP rate limit on device-start (in-process, sliding window) ---
+    # --- Per-IP rate limits (in-process, sliding window with periodic GC) ---
 
-    DEVICE_START_LIMIT = 10          # requests
-    DEVICE_START_WINDOW = 60         # seconds
-    _device_start_hits: dict[str, Deque[float]] = defaultdict(deque)
+    _device_start_limiter = SlidingWindowRateLimiter(limit=10, window=60)
+    _device_confirm_limiter = SlidingWindowRateLimiter(limit=10, window=60)
 
     def _client_ip(request: Request) -> str:
         xff = request.headers.get("x-forwarded-for", "")
@@ -74,32 +112,10 @@ def build_device_router(
         return request.client.host if request.client else "unknown"
 
     def _rate_limit_device_start(ip: str) -> tuple[bool, int]:
-        now = time.time()
-        q = _device_start_hits[ip]
-        while q and now - q[0] > DEVICE_START_WINDOW:
-            q.popleft()
-        if len(q) >= DEVICE_START_LIMIT:
-            retry_after = int(DEVICE_START_WINDOW - (now - q[0])) + 1
-            return False, retry_after
-        q.append(now)
-        return True, 0
-
-    # --- Per-IP rate limit on /device/confirm (mirrors device-start) ---
-
-    DEVICE_CONFIRM_LIMIT = 10        # requests
-    DEVICE_CONFIRM_WINDOW = 60       # seconds
-    _device_confirm_hits: dict[str, Deque[float]] = defaultdict(deque)
+        return _device_start_limiter.check(ip)
 
     def _rate_limit_device_confirm(ip: str) -> tuple[bool, int]:
-        now = time.time()
-        q = _device_confirm_hits[ip]
-        while q and now - q[0] > DEVICE_CONFIRM_WINDOW:
-            q.popleft()
-        if len(q) >= DEVICE_CONFIRM_LIMIT:
-            retry_after = int(DEVICE_CONFIRM_WINDOW - (now - q[0])) + 1
-            return False, retry_after
-        q.append(now)
-        return True, 0
+        return _device_confirm_limiter.check(ip)
 
     # --- Session helpers ---
 
