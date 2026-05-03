@@ -85,7 +85,13 @@ class MCPHarness:
     _snapshot_update: bool = False
 
     @classmethod
-    def create(cls, tmp_path: Path, *, mode: Mode = "direct") -> "MCPHarness":
+    def create(
+        cls,
+        tmp_path: Path,
+        *,
+        mode: Mode = "direct",
+        monkeypatch=None,
+    ) -> "MCPHarness":
         tmp_path = Path(tmp_path)
         tmp_path.mkdir(parents=True, exist_ok=True)
         db_path = tmp_path / "harness.db"
@@ -104,12 +110,21 @@ class MCPHarness:
         harness._email_client = email_client
 
         if mode == "http":
-            # Set rate-limit env vars BEFORE create_app, since the app reads
-            # them at build time. Setting after create_app has no effect.
-            import os
-            os.environ.setdefault("MARKLAND_RATE_LIMIT_USER_PER_MIN", "10000")
-            os.environ.setdefault("MARKLAND_RATE_LIMIT_AGENT_PER_MIN", "10000")
-            os.environ.setdefault("MARKLAND_RATE_LIMIT_ANON_PER_MIN", "10000")
+            # Env vars must be set BEFORE create_app() since the app reads
+            # them at build time. The fixture (conftest.py) passes
+            # monkeypatch so values are scoped to the test, not the session.
+            if monkeypatch is not None:
+                monkeypatch.setenv("MARKLAND_RATE_LIMIT_USER_PER_MIN", "10000")
+                monkeypatch.setenv("MARKLAND_RATE_LIMIT_AGENT_PER_MIN", "10000")
+                monkeypatch.setenv("MARKLAND_RATE_LIMIT_ANON_PER_MIN", "10000")
+            else:
+                # Fallback for direct callers (e.g., test_mode_equivalence
+                # builds harnesses without a fixture). setdefault keeps the
+                # same first-wins semantics the old code had.
+                import os
+                os.environ.setdefault("MARKLAND_RATE_LIMIT_USER_PER_MIN", "10000")
+                os.environ.setdefault("MARKLAND_RATE_LIMIT_AGENT_PER_MIN", "10000")
+                os.environ.setdefault("MARKLAND_RATE_LIMIT_ANON_PER_MIN", "10000")
 
             from fastapi.testclient import TestClient
             from markland.web.app import create_app
