@@ -15,12 +15,6 @@ post-launch sprint should pick up.
   JTIs in a `magic_link_consumed (jti, email, consumed_at)` table and reject
   reused tokens at `read_magic_link_token`. Update `/security` wording back
   to "single-use" once enforced.
-- **Agent token leak via query string** — `src/markland/web/routes_agents.py:224`
-  redirects to `/settings/agents?new_token={plaintext}` after minting, exposing
-  the token to browser history, Referer headers, and proxy access logs. Replace
-  with a signed one-shot flash cookie or a server-side one-shot cache keyed off
-  the session. Audit `src/markland/web/identity_routes.py` for the same pattern
-  on user-token minting.
 - **No CSRF protection on save routes** — `POST /d/{t}/fork`,
   `POST /d/{t}/bookmark`, and `DELETE /d/{t}/bookmark` in
   `src/markland/web/save_routes.py` accept plain form/fetch submissions with
