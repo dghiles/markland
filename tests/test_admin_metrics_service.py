@@ -130,6 +130,37 @@ def test_summary_documents_created_in_window(conn):
     assert result["documents_total"] == 2  # unwindowed sees both
 
 
+def test_summary_invites_total_counts_live_invites(conn):
+    from markland.db import ensure_invites_schema
+
+    ensure_invites_schema(conn)
+    # Two live, one revoked — total should be 2.
+    conn.execute(
+        "INSERT INTO invites (id, token_hash, doc_id, level, created_by, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        ("inv1", "h1", "d1", "view", "usr_a", "2026-04-30T22:00:00Z"),
+    )
+    conn.execute(
+        "INSERT INTO invites (id, token_hash, doc_id, level, created_by, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        ("inv2", "h2", "d2", "edit", "usr_a", "2026-04-30T23:00:00Z"),
+    )
+    conn.execute(
+        "INSERT INTO invites (id, token_hash, doc_id, level, created_by, created_at, revoked_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ("inv3", "h3", "d3", "view", "usr_a", "2026-04-29T22:00:00Z", "2026-04-30T22:00:00Z"),
+    )
+    conn.commit()
+    result = summary(conn, window_seconds=86400, now_iso="2026-05-01T00:00:00Z")
+    assert result["invites_total"] == 2
+
+
+def test_summary_invites_total_returns_zero_when_table_missing(conn):
+    # init_db does not create the invites table; summary should not raise.
+    result = summary(conn, window_seconds=86400, now_iso="2026-05-01T00:00:00Z")
+    assert result["invites_total"] == 0
+
+
 def test_summary_grants_total_counts_active_rows(conn):
     # Seed two grant rows directly.
     conn.execute(
