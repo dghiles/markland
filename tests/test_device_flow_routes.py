@@ -258,6 +258,30 @@ def test_device_confirm_unauth_redirect_preserves_user_code_through_login(client
     assert "code" not in qs, qs
 
 
+def test_device_confirm_rate_limits_per_ip(client):
+    """POST /device/confirm must rate-limit per IP (10/min) like /device-start."""
+    _login(client)
+    # Burn 10 confirms (each will return 400 because csrf is bogus, but should
+    # NOT 429). The rate limiter must count these.
+    for _ in range(10):
+        r = client.post(
+            "/device/confirm",
+            data={"user_code": "XXXX-YYYY", "csrf": "x"},
+            follow_redirects=False,
+        )
+        assert r.status_code != 429, r.text
+    # 11th request from the same IP must be 429.
+    r = client.post(
+        "/device/confirm",
+        data={"user_code": "XXXX-YYYY", "csrf": "x"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 429
+    body = r.json()
+    assert body["error"] == "rate_limited"
+    assert "retry_after" in body
+
+
 def test_device_confirm_unauth_redirect_escapes_malformed_user_code(client):
     """A user_code containing `?` or `&` must not break the redirect target.
 

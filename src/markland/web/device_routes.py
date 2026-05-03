@@ -84,6 +84,23 @@ def build_device_router(
         q.append(now)
         return True, 0
 
+    # --- Per-IP rate limit on /device/confirm (mirrors device-start) ---
+
+    DEVICE_CONFIRM_LIMIT = 10        # requests
+    DEVICE_CONFIRM_WINDOW = 60       # seconds
+    _device_confirm_hits: dict[str, Deque[float]] = defaultdict(deque)
+
+    def _rate_limit_device_confirm(ip: str) -> tuple[bool, int]:
+        now = time.time()
+        q = _device_confirm_hits[ip]
+        while q and now - q[0] > DEVICE_CONFIRM_WINDOW:
+            q.popleft()
+        if len(q) >= DEVICE_CONFIRM_LIMIT:
+            retry_after = int(DEVICE_CONFIRM_WINDOW - (now - q[0])) + 1
+            return False, retry_after
+        q.append(now)
+        return True, 0
+
     # --- Session helpers ---
 
     def _session_user_id(request: Request) -> str | None:
@@ -224,6 +241,13 @@ def build_device_router(
         user_code: str = Form(...),
         csrf: str = Form(...),
     ):
+        ip = _client_ip(request)
+        ok, retry_after = _rate_limit_device_confirm(ip)
+        if not ok:
+            return JSONResponse(
+                {"error": "rate_limited", "retry_after": retry_after},
+                status_code=429,
+            )
         user_id = _session_user_id(request)
         session = _session_obj(user_id)
         if user_id is None:
