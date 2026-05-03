@@ -1,5 +1,7 @@
 """Unit tests for pure SEO helpers in markland.web.seo."""
 
+import pytest
+
 from markland.web.seo import (
     NOINDEX_PATH_PREFIXES,
     ROBOTS_TXT,
@@ -48,9 +50,6 @@ def test_robots_txt_references_sitemap_and_core_disallows():
     # Must allow the marketing prefixes (no explicit disallow on root)
     assert "User-agent: *" in ROBOTS_TXT
     assert "Allow: /\n" in ROBOTS_TXT
-
-
-import pytest
 
 
 @pytest.mark.parametrize(
