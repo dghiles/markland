@@ -255,3 +255,21 @@ These are tradeoff calls that need a decision before any AI-crawler robots.txt c
 2. **Block `PerplexityBot`?** Recommend **unblock** — search-only, no training exposure.
 3. **Block `Google-Extended`?** Yes (current) = Gemini training opt-out without affecting Googlebot/AIO. Keep as-is.
 4. **`FAQPage` schema** — fine for AI engines, no rich-result lift. Ship if you want AI citations but don't expect Google's collapsible-FAQ widget.
+
+---
+
+## Resolution (2026-05-03)
+
+| Item | Status | Landed in |
+|------|:------:|-----------|
+| G1 — Unblock PerplexityBot | ✅ done | PR #54 (`bcdec8e`) — `GPTBot` stays blocked per owner decision |
+| G2 — `/llms.txt` route | ✅ done | PR #54 — live at `https://markland.dev/llms.txt` (200, text/plain) |
+| G3 — Question-shaped FAQ | ✅ done | PR #54 — `/`, `/quickstart`, all 5 `/alternatives/{slug}` use `<h3>/<p>`; legacy `<dl>` removed where present |
+| G4 — "What is Markland?" answer block | ✅ done | PR #54 — 143-word section above the hero on `/` |
+| G5 — `/explore` conditional in sitemap | ✅ done | PR #54 — `EXPLORE_MIN_PUBLIC_DOCS = 5`; live `sitemap.xml` shows 12 locs |
+
+**Implementation plan:** `docs/plans/2026-05-03-geo-search-readiness.md` (8 tasks, subagent-driven execution with two-stage review per task).
+
+**Open Questions remaining:** GPTBot decision is preserved as-is (kept blocked); FAQPage schema is unaddressed and remains a follow-up if AI-citation lift is desired.
+
+**Quick-win backlog still open:** LinkedIn `sameAs` (pending real LinkedIn presence), multimodal images, Show HN, inbound-link seeding — tracked separately as opportunities, not as audit items.
