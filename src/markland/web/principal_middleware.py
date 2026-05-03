@@ -1,10 +1,13 @@
 """Middleware that resolves Bearer tokens to Principals on protected paths.
 
-Replaces the Plan-1 `AdminBearerMiddleware`. On a request under `protected_prefix`:
-  1. Extract `Authorization: Bearer <token>`.
-  2. Call `service.auth.resolve_token`.
-  3. On success, attach the `Principal` to `request.state.principal`.
-  4. On any failure (no header, malformed header, unknown/revoked token) return 401.
+Replaces the Plan-1 `AdminBearerMiddleware`. On a request whose path matches
+ANY of `protected_prefixes`:
+  1. If `request.state.principal` is already set (e.g. by a test injection
+     middleware), pass through.
+  2. Extract `Authorization: Bearer <token>`.
+  3. Call `service.auth.resolve_token`.
+  4. On success, attach the `Principal` to `request.state.principal`.
+  5. On any failure (no header, malformed header, unknown/revoked token) return 401.
 """
 
 from __future__ import annotations
@@ -24,14 +27,19 @@ class PrincipalMiddleware(BaseHTTPMiddleware):
         app,
         *,
         db_conn: sqlite3.Connection,
-        protected_prefix: str = "/mcp",
+        protected_prefixes: tuple[str, ...] = ("/mcp",),
     ) -> None:
         super().__init__(app)
         self._conn = db_conn
-        self._prefix = protected_prefix
+        self._prefixes = tuple(protected_prefixes)
 
     async def dispatch(self, request: Request, call_next):
-        if not request.url.path.startswith(self._prefix):
+        path = request.url.path
+        if not any(path.startswith(p) for p in self._prefixes):
+            return await call_next(request)
+
+        # Honor pre-injected principals (test harness path).
+        if getattr(request.state, "principal", None) is not None:
             return await call_next(request)
 
         header = request.headers.get("authorization", "")
