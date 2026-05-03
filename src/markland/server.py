@@ -95,7 +95,16 @@ def build_mcp(
 
     def _publish(ctx, content: str, title: str | None = None, public: bool = False):
         p = _require_principal(ctx)
-        raw = docs_svc.publish(db_conn, base_url, p, content, title=title, public=public)
+        try:
+            raw = docs_svc.publish(db_conn, base_url, p, content, title=title, public=public)
+        except PermissionError as exc:
+            # docs_svc.publish raises PermissionError with a structured
+            # message ("invalid_argument: service_agent_cannot_publish")
+            # for service-owned agents. Surface the canonical code so
+            # callers get a debuggable reason instead of internal_error.
+            msg = str(exc)
+            reason = msg.split(": ", 1)[1] if ": " in msg else msg
+            raise tool_error("invalid_argument", reason=reason)
         # Re-fetch via get() to ensure all doc_envelope fields are populated.
         full = docs_svc.get(db_conn, p, raw["id"], base_url=base_url)
         return doc_envelope(full)

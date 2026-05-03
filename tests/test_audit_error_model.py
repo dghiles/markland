@@ -62,3 +62,36 @@ def test_feature_non_admin_is_forbidden(tmp_path):
     pub = alice.call("markland_publish", content="# t")
     r = alice.call_raw("markland_feature", doc_id=pub["id"], featured=True)
     r.assert_error("forbidden")
+
+
+def test_publish_service_agent_is_invalid_argument(tmp_path):
+    """Plan-B.1: service-owned agents cannot publish; the tool surfaces
+    invalid_argument with reason=service_agent_cannot_publish, not the
+    raw PermissionError."""
+    h = MCPHarness.create(tmp_path, mode="direct")
+
+    # Build a service-owned agent (owner_user_id is None).
+    from markland.service.agents import create_service_agent
+    from markland.service.auth import Principal
+
+    agent = create_service_agent(
+        h.db, service_id="svc_test", display_name="probe-bot"
+    )
+    principal = Principal(
+        principal_id=agent.id,
+        principal_type="agent",
+        display_name=agent.display_name,
+        is_admin=False,
+        user_id=None,  # service agent has no human owner
+    )
+
+    # Wire a Caller manually since the harness as_agent only seeds
+    # user-owned agents. Direct mode only consults principal; no token
+    # validation runs, so we don't need to mint one (and the public
+    # create_agent_token API rejects service-owned agents by design).
+    from tests._mcp_harness import Caller
+    caller = Caller(principal=principal, token=None, _harness=h)
+
+    r = caller.call_raw("markland_publish", content="# probe")
+    r.assert_error("invalid_argument")
+    assert "service_agent_cannot_publish" in r.error_data.get("reason", "")
