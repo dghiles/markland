@@ -48,11 +48,27 @@ Allow: /
 {_DISALLOW_LINES}
 
 # Block AI training crawlers; real search engines (Googlebot, Bingbot) fall
-# through to the wildcard rule above.
+# through to the wildcard rule above. Google-Extended is the opt-out for
+# Gemini/Vertex training without affecting Googlebot's regular index crawl.
 User-agent: GPTBot
 Disallow: /
 
 User-agent: CCBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: Bytespider
 Disallow: /
 
 Sitemap: {{sitemap_url}}

@@ -1,5 +1,7 @@
 """Unit tests for pure SEO helpers in markland.web.seo."""
 
+import pytest
+
 from markland.web.seo import (
     NOINDEX_PATH_PREFIXES,
     ROBOTS_TXT,
@@ -48,6 +50,25 @@ def test_robots_txt_references_sitemap_and_core_disallows():
     # Must allow the marketing prefixes (no explicit disallow on root)
     assert "User-agent: *" in ROBOTS_TXT
     assert "Allow: /\n" in ROBOTS_TXT
+
+
+@pytest.mark.parametrize(
+    "bot",
+    [
+        "GPTBot",
+        "CCBot",
+        "anthropic-ai",
+        "Claude-Web",
+        "Google-Extended",
+        "PerplexityBot",
+        "Bytespider",
+    ],
+)
+def test_robots_txt_blocks_ai_training_crawler(bot):
+    """Each AI/training crawler in our blocklist must have its own
+    User-agent stanza followed by a full-site Disallow. Locks in the
+    audit's L3 expansion so a future refactor can't quietly drop a bot."""
+    assert f"User-agent: {bot}\nDisallow: /\n" in ROBOTS_TXT
 
 
 def test_build_sitemap_xml_contains_all_urls():
