@@ -50,6 +50,28 @@ def test_robots_txt_references_sitemap_and_core_disallows():
     assert "Allow: /\n" in ROBOTS_TXT
 
 
+import pytest
+
+
+@pytest.mark.parametrize(
+    "bot",
+    [
+        "GPTBot",
+        "CCBot",
+        "anthropic-ai",
+        "Claude-Web",
+        "Google-Extended",
+        "PerplexityBot",
+        "Bytespider",
+    ],
+)
+def test_robots_txt_blocks_ai_training_crawler(bot):
+    """Each AI/training crawler in our blocklist must have its own
+    User-agent stanza followed by a full-site Disallow. Locks in the
+    audit's L3 expansion so a future refactor can't quietly drop a bot."""
+    assert f"User-agent: {bot}\nDisallow: /\n" in ROBOTS_TXT
+
+
 def test_build_sitemap_xml_contains_all_urls():
     xml = build_sitemap_xml(
         base_url="https://example.test",
