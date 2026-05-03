@@ -117,11 +117,12 @@ post-launch sprint should pick up.
 ## Metrics
 
 - **`first_mcp_call` event persistence** — `service/metrics.py::emit_first_time`
-  writes to stdout only. The new `markland_admin_metrics` tool returns
-  `first_mcp_call: null` because there is no DB row to count. Either add a
-  `metrics_events (event, principal_id, created_at)` table written alongside
-  stdout, or parse `flyctl logs` from the tool. Cheapest path is the table; one
-  `CREATE TABLE` + one `INSERT` per emit.
+  writes to stdout only. `markland_admin_metrics` returns `first_mcp_call: null`
+  because there is no DB row to count — the only key in the 19-key summary that
+  isn't backed by an existing table. Either add a `metrics_events (event,
+  principal_id, created_at)` table written alongside stdout, or parse `flyctl
+  logs` from the tool. Cheapest path is the table; one `CREATE TABLE` + one
+  `INSERT` per emit.
 - **Token-create reveal disappears before user can copy** —
   `/settings/tokens` shows the freshly minted plaintext (`mk_usr_...`) only
   briefly after `POST /api/tokens` returns, then the value vanishes from the
