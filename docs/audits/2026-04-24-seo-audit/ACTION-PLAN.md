@@ -3,7 +3,7 @@
 **Source audit:** `FULL-AUDIT-REPORT.md` (2026-04-24). **Current score:** 77 / 100.
 **Ordered by impact × inverse-effort.** File paths use repo root `/Users/daveyhiles/Developer/markland/`.
 
-## Status snapshot (2026-05-01)
+## Status snapshot (2026-05-02)
 
 | Item | Status | Landed in |
 |------|:------:|-----------|
@@ -18,11 +18,11 @@
 | H5 — Trust-page titles 40–60 chars | ✅ done | enforced by `test_trust_pages.py` |
 | H6 — `/privacy` + `/terms` meta ≥130 chars | ✅ done | enforced by `test_trust_pages.py` |
 | M1–M10 — GEO polish | ✅ done | commit `87219b0` (#6) |
-| L1 — `size-adjust` fallback `@font-face` | ◻ open | superseded by Task 10 |
+| L1 — `size-adjust` fallback `@font-face` | ❌ obsolete | self-hosted swap (Task 10) mitigates the CLS concern |
 | L2 — `preconnect` for `fonts.gstatic.com` | ❌ obsolete | fonts now self-hosted (Task 10) |
-| L3 — Expand AI-crawler blocklist | ◻ open | — |
+| L3 — Expand AI-crawler blocklist | ✅ done | PR #48 (`864ec313`); follow-up `markland-fjf` adds `ClaudeBot` |
 | L4 — `PrincipalMiddleware` `/admin/*` | ◻ open | tracked in `docs/FOLLOW-UPS.md` |
-| L5 — Post-domain-cutover sitemap/301/GSC | ◻ open | tracked in `docs/FOLLOW-UPS.md` |
+| L5 — Post-domain-cutover sitemap/301/GSC | ✅ done | cutover live, sitemap submitted, GSC verified; indexing-health check tracked in `markland-ejw` (defer 2026-05-05) |
 
 Per-item details below retain the original audit text. Update the table above when the underlying state changes.
 
