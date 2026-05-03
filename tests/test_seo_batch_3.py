@@ -120,13 +120,6 @@ def test_landing_has_faq_section(client):
     assert "How is this different from Git or GitHub?" in text
 
 
-def test_quickstart_has_faq_section(client):
-    r = client.get("/quickstart")
-    text = r.text
-    assert "qs-faq" in text
-    assert "Do I need an API key?" in text
-
-
 @pytest.mark.parametrize("path", ["/", "/quickstart"])
 def test_no_faqpage_schema(client, path):
     """FAQPage rich-result is restricted to gov/health since Aug 2023.

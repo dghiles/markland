@@ -84,22 +84,6 @@
             font-style: italic;
         }
 
-        /* FAQ — plain markup, no FAQPage schema (rich-result restricted
-           to gov/health). The content alone helps GEO. */
-        .qs-faq { display: grid; gap: 1.4rem; margin-bottom: 2rem; }
-        .qs-faq dt {
-            font-family: var(--font-display);
-            font-weight: 700;
-            font-size: 1.02rem;
-            color: var(--text);
-            margin-bottom: 0.3rem;
-        }
-        .qs-faq dd {
-            margin: 0;
-            color: var(--text-2);
-            line-height: 1.55;
-        }
-
         /* End-of-page CTA — closes the cold-end the audit flagged. */
         .qs-end-cta {
             margin-top: 3rem;
@@ -148,6 +132,25 @@
             transition: transform 0.18s ease;
         }
         .qs-end-cta button:hover { transform: translateY(-1px); }
+
+        /* --- FAQ section (plain markup, no FAQPage schema — restricted
+               to gov/health since Aug 2023). --- */
+        .section.faq { display: grid; gap: 1.6rem; max-width: 760px; padding-top: 2rem; }
+        .section.faq h2 {
+            font-family: var(--font-display);
+            font-size: 1.35rem;
+            letter-spacing: -0.02em;
+            margin-top: 0;
+            margin-bottom: 0;
+        }
+        .section.faq h3 {
+            font-family: var(--font-display);
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin: 0 0 0.4rem 0;
+            color: var(--text);
+        }
+        .section.faq p { margin: 0 0 0.8rem 0; line-height: 1.65; color: var(--text-2); }
 {% endblock %}
 
 {% block content %}
@@ -258,23 +261,27 @@
     Stuck on anything the troubleshooting list doesn't cover? Reply to the signup email &mdash; a real human reads it.
   </p>
 
-  <h2>FAQ</h2>
-  <dl class="qs-faq">
-    <dt>Do I need an API key?</dt>
-    <dd>No. The <code>/setup</code> runbook walks Claude Code through a device-authorization flow that mints a per-user bearer token, which Claude Code stores for you. You never see or paste the token; it lives in the CLI&rsquo;s MCP config.</dd>
+  <section class="section faq" id="faq">
+    <h2>Frequently asked questions</h2>
 
-    <dt>Can I use Markland from Cursor or another MCP client?</dt>
-    <dd>Yes. Any MCP-capable client can register Markland and call its tools. The setup snippet on the landing page is in plain MCP-config JSON &mdash; copy it into whichever client you use. The CLI flow on this page is the Claude Code shortcut.</dd>
+    <h3>Do I need an Anthropic account?</h3>
+    <p>No. You need a Markland account (created via magic link sent to your email) and an MCP-compatible client. Claude Code is the example throughout this quickstart because the <code>claude mcp add</code> CLI is the cleanest setup, but any client that registers an MCP server works.</p>
 
-    <dt>What does <code>markland_publish</code> actually do?</dt>
-    <dd>Creates a new document with the markdown body you pass in, returns its stable ID and a public share URL. Subsequent edits go through <code>markland_update</code> with an <code>if_version</code> argument so concurrent writers see a clean conflict instead of clobbering each other.</dd>
+    <h3>Does Markland work with Cursor, Continue, or other MCP clients?</h3>
+    <p>Yes. Markland exposes a standard MCP server. Any client that can register one &mdash; Cursor, Continue, Codex, Claude Desktop, custom agents &mdash; can call the eight Markland tools. Setup differs per client; the MCP <code>config.json</code> snippet on the <a href="/">home page</a> is the canonical form.</p>
 
-    <dt>Can I make a doc public without a share link?</dt>
-    <dd>Yes &mdash; pass <code>public=true</code> to <code>markland_publish</code>. The doc shows up on <a href="/explore">/explore</a>, gets a stable share URL, and is reachable without a grant. Default is private.</dd>
+    <h3>Where do my published docs live?</h3>
+    <p>On Markland's application server, in SQLite, currently hosted on Fly.io in the US-East region. Documents are bytes-on-disk &mdash; what your agent writes is what readers see. See <a href="/security">/security</a> for hosting and encryption details.</p>
 
-    <dt>What if I want to revoke access?</dt>
-    <dd>Ask Claude something like &ldquo;Revoke <code>friend@example.com</code> on that doc.&rdquo; The agent calls <code>markland_revoke</code>; the grant is removed and the audit log captures who removed it.</dd>
-  </dl>
+    <h3>What if I want to revoke an agent token?</h3>
+    <p>Sign in to Markland, open <code>/settings/agents</code> (or <code>/settings/tokens</code> if you authenticated via personal token), and click revoke. Existing share-token URLs for documents you published continue to work; the revoked agent token just can't issue new MCP calls.</p>
+
+    <h3>What does <code>markland_publish</code> actually do?</h3>
+    <p>It creates a new document with the markdown body you pass in and returns its stable ID plus a share URL. Subsequent edits go through <code>markland_update</code> with an <code>if_version</code> argument so concurrent writers see a clean conflict instead of silently clobbering each other.</p>
+
+    <h3>Can I make a doc publicly visible without granting access to individuals?</h3>
+    <p>Yes &mdash; pass <code>public=true</code> to <code>markland_publish</code> (or <code>markland_update</code>). The doc appears on <a href="/explore">/explore</a> and is reachable by anyone with the share URL, no grant required. Default is private.</p>
+  </section>
 
   <section class="qs-end-cta">
     <h2>Don&rsquo;t have an account yet?</h2>
