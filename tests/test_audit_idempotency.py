@@ -178,3 +178,23 @@ def test_revoke_invite_owner_idempotent_on_missing(tmp_path):
     )
     assert res["revoked"] is True
     assert res["invite_id"] == "inv_does_not_exist_67890"
+
+
+def test_doc_meta_non_admin_featured_on_invisible_doc_is_not_found(tmp_path):
+    """Plan-A.3: per §12.5, a non-admin attempting to set `featured`
+    on a doc they cannot see surfaces as not_found — same shape as for
+    a doc that does not exist. Today the admin-gate fires first and
+    surfaces forbidden, leaking nothing per se but breaking the §12.5
+    invariant the rest of the surface honors."""
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    bob = h.as_user(email="bob@example.com")
+    private = alice.call("markland_publish", content="# private", public=False)
+
+    # bob (non-admin, cannot see private) attempts to feature it.
+    r = bob.call_raw("markland_doc_meta", doc_id=private["id"], featured=True)
+    r.assert_error("not_found")  # NOT forbidden
+
+    # And same for a doc that just doesn't exist.
+    r2 = bob.call_raw("markland_doc_meta", doc_id="nonexistent00000000", featured=True)
+    r2.assert_error("not_found")

@@ -248,15 +248,29 @@ def build_mcp(
 
         p = _require_principal(ctx)
 
+        # Visibility gate first: callers who can't see the doc get
+        # not_found regardless of which flag they were trying to set.
+        # This honors §12.5 deny-as-NotFound across the whole tool.
+        # Admins skip this check — they're allowed to act on any doc
+        # (e.g. featuring a private doc) per spec §3.
+        if not p.is_admin:
+            try:
+                check_permission(db_conn, p, doc_id, "view")
+            except NotFound:
+                raise tool_error("not_found")
+            except PermissionDenied:
+                raise tool_error("not_found")  # deny-as-NotFound
+
+        # Now the admin gate. We've already established that the
+        # caller can see the doc (or is admin); surfacing forbidden
+        # here is the correct shape because non-admins legitimately
+        # cannot change the featured flag on docs they CAN see.
         if featured is not None and not p.is_admin:
             raise tool_error("forbidden")
 
-        # Look up current state so we can skip no-op writes (idempotency)
-        # before they hit permission checks.
+        # Look up current state so we can skip no-op writes (idempotency).
         current = db_module.get_document(db_conn, doc_id)
 
-        # Owner check is handled inside docs_svc for the public flag. Skip
-        # the call entirely when the requested state matches current state.
         if public is not None and (current is None or current.is_public != public):
             try:
                 docs_svc.set_visibility(db_conn, base_url, p, doc_id, public)
@@ -275,34 +289,29 @@ def build_mcp(
         doc = db_module.get_document(db_conn, doc_id)
         if doc is None:
             raise tool_error("not_found")
-
-        # No writes attempted: fall back to the standard view-permission
-        # check so we don't leak metadata for unrelated docs.
-        wrote = (
-            (public is not None and (current is None or current.is_public != public))
-            or (featured is not None and (current is None or current.is_featured != featured))
-        )
-        if not wrote:
-            try:
-                body = docs_svc.get(db_conn, p, doc_id, base_url=base_url)
-            except NotFound:
-                raise tool_error("not_found")
-            except PermissionDenied:
-                raise tool_error("forbidden")
+        # Admins skip the secondary view-check via docs_svc.get since they
+        # may be acting on docs they don't own and can't view through the
+        # standard permission lattice. Build the body directly.
+        if p.is_admin:
+            body = {
+                "id": doc.id,
+                "title": doc.title,
+                "content": doc.content,
+                "share_url": f"{base_url}/d/{doc.share_token}",
+                "updated_at": doc.updated_at,
+                "created_at": doc.created_at,
+                "is_public": doc.is_public,
+                "is_featured": doc.is_featured,
+                "owner_id": doc.owner_id,
+                "version": doc.version,
+            }
             return doc_envelope(body)
-
-        body = {
-            "id": doc.id,
-            "title": doc.title,
-            "content": doc.content,
-            "share_url": f"{base_url}/d/{doc.share_token}",
-            "updated_at": doc.updated_at,
-            "created_at": doc.created_at,
-            "is_public": doc.is_public,
-            "is_featured": doc.is_featured,
-            "owner_id": doc.owner_id,
-            "version": doc.version,
-        }
+        try:
+            body = docs_svc.get(db_conn, p, doc_id, base_url=base_url)
+        except NotFound:
+            raise tool_error("not_found")
+        except PermissionDenied:
+            raise tool_error("forbidden")
         return doc_envelope(body)
 
     def _grant(
