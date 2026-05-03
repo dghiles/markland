@@ -29,6 +29,7 @@ def test_device_authorizations_columns(tmp_path):
         "polled_last",
         "authorized_at",
         "consumed_at",
+        "failed_confirms",
     }
 
 

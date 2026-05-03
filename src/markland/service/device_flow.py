@@ -38,6 +38,7 @@ DEVICE_CODE_ENTROPY_BYTES = 40
 DEVICE_CODE_TTL_SECONDS = 600          # 10 minutes
 POLL_INTERVAL_SECONDS = 5
 SLOW_DOWN_WINDOW_SECONDS = 5           # must match POLL_INTERVAL_SECONDS
+MAX_FAILED_CONFIRMS = 5
 
 
 def generate_user_code() -> str:
@@ -249,29 +250,59 @@ def authorize(
 
     Accepts either the device_code or the user_code (formatted or raw). Returns
     an AuthorizeResult describing the outcome; the caller renders.
+
+    After MAX_FAILED_CONFIRMS unsuccessful attempts on a single row, the row
+    is locked to status='expired' so subsequent attempts fail fast regardless
+    of TTL — closes the online-guess window on the user_code.
     """
     row = _lookup_by_any_code(conn, code)
     if row is None:
+        # No row to bump — best we can do; nothing to lock.
         return AuthorizeResult(ok=False, reason="not_found")
 
     device_code, raw_user_code, status, invite_token, expires_at = row
     now = _utcnow()
 
+    def _bump_and_maybe_lock(reason: str) -> AuthorizeResult:
+        """Increment failed_confirms; lock the row if it reaches the cap.
+
+        Lock only applies when status is still 'pending' — never overwrite
+        'authorized' (would deny token mint to the legitimate poll) or
+        'expired'/'denied' (already terminal).
+        """
+        cur = conn.execute(
+            "UPDATE device_authorizations "
+            "SET failed_confirms = failed_confirms + 1 "
+            "WHERE device_code = ? "
+            "RETURNING failed_confirms",
+            (device_code,),
+        )
+        new_count_row = cur.fetchone()
+        new_count = new_count_row[0] if new_count_row else 0
+        if new_count >= MAX_FAILED_CONFIRMS and status == "pending":
+            conn.execute(
+                "UPDATE device_authorizations SET status='expired' WHERE device_code=?",
+                (device_code,),
+            )
+            conn.commit()
+            return AuthorizeResult(
+                ok=False, reason="expired", device_code=device_code,
+                user_code=format_user_code(raw_user_code),
+            )
+        conn.commit()
+        return AuthorizeResult(
+            ok=False, reason=reason, device_code=device_code,
+            user_code=format_user_code(raw_user_code),
+        )
+
     if now >= _parse_iso(expires_at):
-        return AuthorizeResult(
-            ok=False, reason="expired", device_code=device_code,
-            user_code=format_user_code(raw_user_code),
-        )
+        return _bump_and_maybe_lock("expired")
+    if status == "expired":
+        return _bump_and_maybe_lock("expired")
     if status == "authorized":
-        return AuthorizeResult(
-            ok=False, reason="already_authorized", device_code=device_code,
-            user_code=format_user_code(raw_user_code),
-        )
+        return _bump_and_maybe_lock("already_authorized")
     if status != "pending":
-        return AuthorizeResult(
-            ok=False, reason=status, device_code=device_code,
-            user_code=format_user_code(raw_user_code),
-        )
+        return _bump_and_maybe_lock(status)
 
     invite_accepted = False
     invite_error: str | None = None
