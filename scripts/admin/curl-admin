@@ -1,0 +1,48 @@
+#!/bin/sh
+# Curl an /admin/* endpoint with the bearer from .env.local.
+#
+# Usage:
+#   ./scripts/admin/curl-admin <path> [extra curl args...]
+#
+# Examples:
+#   ./scripts/admin/curl-admin /admin/metrics | jq
+#   ./scripts/admin/curl-admin /admin/metrics?window_seconds=86400 | jq
+#   ./scripts/admin/curl-admin /admin/waitlist?limit=10 | jq
+#
+# Requires .env.local at the repo root with:
+#   MARKLAND_PROD_ADMIN_TOKEN=mk_usr_...
+#   MARKLAND_PROD_BASE_URL=https://markland.dev   # optional; default below
+#
+# Mint a token: see .env.example or docs/runbooks/admin-operations.md
+
+set -eu
+
+repo_root=$(cd "$(dirname "$0")/../.." && pwd)
+env_file="$repo_root/.env.local"
+
+if [ ! -f "$env_file" ]; then
+    echo "error: $env_file not found. Copy .env.example and fill in MARKLAND_PROD_ADMIN_TOKEN." >&2
+    exit 2
+fi
+
+# shellcheck disable=SC1090
+. "$env_file"
+
+if [ -z "${MARKLAND_PROD_ADMIN_TOKEN:-}" ]; then
+    echo "error: MARKLAND_PROD_ADMIN_TOKEN not set in $env_file" >&2
+    echo "Mint one: flyctl ssh console -a markland -C \"/app/.venv/bin/python scripts/admin/mint_admin_token.py runbook-test\"" >&2
+    exit 2
+fi
+
+base_url="${MARKLAND_PROD_BASE_URL:-https://markland.dev}"
+
+if [ $# -lt 1 ]; then
+    echo "usage: $0 <path> [curl args...]" >&2
+    echo "example: $0 /admin/metrics | jq" >&2
+    exit 2
+fi
+
+path=$1
+shift
+
+curl -s -H "Authorization: Bearer $MARKLAND_PROD_ADMIN_TOKEN" "$@" "$base_url$path"
