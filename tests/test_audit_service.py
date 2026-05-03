@@ -144,3 +144,34 @@ def test_service_list_recent_honors_limit(conn: sqlite3.Connection) -> None:
         audit.record(conn, action="publish", principal=_principal(), doc_id=f"doc_{i}")
     rows = audit.list_recent(conn, limit=2)
     assert len(rows) == 2
+
+
+def test_audit_log_update_raises(conn: sqlite3.Connection) -> None:
+    """The audit_log table must reject UPDATE via a BEFORE UPDATE trigger."""
+    from markland.db import record_audit
+
+    record_audit(
+        conn,
+        doc_id="doc_1",
+        action="publish",
+        principal_id="usr_abc",
+        principal_type="user",
+        metadata={"k": "v"},
+    )
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute("UPDATE audit_log SET action='tampered' WHERE id=1")
+
+
+def test_audit_log_delete_raises(conn: sqlite3.Connection) -> None:
+    """The audit_log table must reject DELETE via a BEFORE DELETE trigger."""
+    from markland.db import record_audit
+
+    record_audit(
+        conn,
+        doc_id="doc_1",
+        action="publish",
+        principal_id="usr_abc",
+        principal_type="user",
+    )
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute("DELETE FROM audit_log WHERE id=1")

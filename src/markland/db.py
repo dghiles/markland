@@ -195,6 +195,24 @@ def init_db(db_path: Path) -> sqlite3.Connection:
         """
     )
     conn.execute(
+        """
+        CREATE TRIGGER IF NOT EXISTS audit_log_no_update
+        BEFORE UPDATE ON audit_log
+        BEGIN
+            SELECT RAISE(ABORT, 'audit_log is append-only');
+        END
+        """
+    )
+    conn.execute(
+        """
+        CREATE TRIGGER IF NOT EXISTS audit_log_no_delete
+        BEFORE DELETE ON audit_log
+        BEGIN
+            SELECT RAISE(ABORT, 'audit_log is append-only');
+        END
+        """
+    )
+    conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit_log (created_at DESC)"
     )
     conn.execute(
