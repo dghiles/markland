@@ -60,7 +60,6 @@ def test_robots_txt_references_sitemap_and_core_disallows():
         "anthropic-ai",
         "Claude-Web",
         "Google-Extended",
-        "PerplexityBot",
         "Bytespider",
     ],
 )
@@ -69,6 +68,13 @@ def test_robots_txt_blocks_ai_training_crawler(bot):
     User-agent stanza followed by a full-site Disallow. Locks in the
     audit's L3 expansion so a future refactor can't quietly drop a bot."""
     assert f"User-agent: {bot}\nDisallow: /\n" in ROBOTS_TXT
+
+
+def test_robots_txt_does_not_block_perplexitybot():
+    """PerplexityBot is search-only — blocking it just hides Markland from
+    Perplexity citations with no privacy or training-data upside. Audit G1
+    unblocks it."""
+    assert "User-agent: PerplexityBot" not in ROBOTS_TXT
 
 
 def test_build_sitemap_xml_contains_all_urls():
