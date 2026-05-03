@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from markland.service.email import EmailClient
 from markland.service.magic_link import (
     InvalidMagicLink,
-    read_magic_link_token,
+    consume_magic_link_token,
     safe_return_to,
     send_magic_link,
 )
@@ -128,9 +128,13 @@ def build_auth_router(
         if not session_secret:
             raise HTTPException(500, "session secret not configured")
         try:
-            email = read_magic_link_token(body.token, secret=session_secret)
-        except InvalidMagicLink as e:
-            raise HTTPException(400, str(e)) from e
+            email = consume_magic_link_token(
+                body.token, conn=db_conn, secret=session_secret
+            )
+        except InvalidMagicLink:
+            # Generic message — do NOT echo str(e), which would leak whether
+            # the token was bad/expired vs. already-used.
+            raise HTTPException(400, "invalid or expired magic link")
         user = upsert_user_by_email(db_conn, email)
         cookie = issue_session(user.id, secret=session_secret)
         resp = JSONResponse({"ok": True, "user_id": user.id})
@@ -150,7 +154,9 @@ def build_auth_router(
         if not session_secret:
             raise HTTPException(500, "session secret not configured")
         try:
-            email = read_magic_link_token(token, secret=session_secret)
+            email = consume_magic_link_token(
+                token, conn=db_conn, secret=session_secret
+            )
         except InvalidMagicLink:
             return HTMLResponse(
                 "<html><body style='font-family:system-ui;padding:2rem;'>"
