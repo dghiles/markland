@@ -138,19 +138,27 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS device_authorizations (
-            device_code    TEXT PRIMARY KEY,
-            user_code      TEXT NOT NULL UNIQUE,
-            status         TEXT NOT NULL CHECK (status IN ('pending','authorized','expired','denied')),
-            user_id        TEXT,
-            invite_token   TEXT,
-            created_at     TEXT NOT NULL,
-            expires_at     TEXT NOT NULL,
-            polled_last    TEXT,
-            authorized_at  TEXT,
-            consumed_at    TEXT
+            device_code     TEXT PRIMARY KEY,
+            user_code       TEXT NOT NULL UNIQUE,
+            status          TEXT NOT NULL CHECK (status IN ('pending','authorized','expired','denied')),
+            user_id         TEXT,
+            invite_token    TEXT,
+            created_at      TEXT NOT NULL,
+            expires_at      TEXT NOT NULL,
+            polled_last     TEXT,
+            authorized_at   TEXT,
+            consumed_at     TEXT,
+            failed_confirms INTEGER NOT NULL DEFAULT 0
         )
         """
     )
+    # Idempotent migration for pre-existing databases that predate failed_confirms.
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(device_authorizations)").fetchall()}
+    if "failed_confirms" not in cols:
+        conn.execute(
+            "ALTER TABLE device_authorizations "
+            "ADD COLUMN failed_confirms INTEGER NOT NULL DEFAULT 0"
+        )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_device_user_code "
         "ON device_authorizations (user_code)"
@@ -184,6 +192,24 @@ def init_db(db_path: Path) -> sqlite3.Connection:
             metadata TEXT NOT NULL DEFAULT '{}',
             created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
         )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TRIGGER IF NOT EXISTS audit_log_no_update
+        BEFORE UPDATE ON audit_log
+        BEGIN
+            SELECT RAISE(ABORT, 'audit_log is append-only');
+        END
+        """
+    )
+    conn.execute(
+        """
+        CREATE TRIGGER IF NOT EXISTS audit_log_no_delete
+        BEFORE DELETE ON audit_log
+        BEGIN
+            SELECT RAISE(ABORT, 'audit_log is append-only');
+        END
         """
     )
     conn.execute(

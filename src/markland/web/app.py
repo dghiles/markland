@@ -489,14 +489,7 @@ def create_app(
 
     @app.get("/admin/audit", response_class=HTMLResponse)
     def admin_audit(request: Request):
-        # Resolve bearer token here because PrincipalMiddleware only gates /mcp.
-        from markland.service.auth import resolve_token
-
-        header = request.headers.get("authorization", "")
-        if not header.lower().startswith("bearer "):
-            return JSONResponse({"error": "unauthenticated"}, status_code=401)
-        plaintext = header[7:].strip()
-        principal = resolve_token(db_conn, plaintext)
+        principal = getattr(request.state, "principal", None)
         if principal is None:
             return JSONResponse({"error": "unauthenticated"}, status_code=401)
         if not principal.is_admin:
@@ -768,15 +761,16 @@ def create_app(
                     request.state.principal = test_principal_by_token[tok]
             return await call_next(request)
 
-    if mcp_app is not None:
-        from markland.web.principal_middleware import PrincipalMiddleware
+    # PrincipalMiddleware gates /mcp AND /admin/* uniformly. We add it whether
+    # or not /mcp is mounted so /admin endpoints are always covered.
+    from markland.web.principal_middleware import PrincipalMiddleware
 
-        # Middleware gates /mcp before the sub-app sees the request.
-        app.add_middleware(
-            PrincipalMiddleware,
-            db_conn=db_conn,
-            protected_prefix="/mcp",
-        )
+    app.add_middleware(
+        PrincipalMiddleware,
+        db_conn=db_conn,
+        protected_prefixes=("/mcp", "/admin/"),
+    )
+    if mcp_app is not None:
         app.mount("/mcp", mcp_app)
 
     # Starlette wraps middleware such that the last-added is OUTERMOST (runs

@@ -21,30 +21,6 @@ post-launch sprint should pick up.
   with a signed one-shot flash cookie or a server-side one-shot cache keyed off
   the session. Audit `src/markland/web/identity_routes.py` for the same pattern
   on user-token minting.
-- **Unescaped `user_code` in device login redirect** —
-  `src/markland/web/device_routes.py:230` interpolates `user_code` directly.
-  Wrap with `urllib.parse.quote(...)` defensively so a malformed code can't
-  corrupt the redirect target.
-- **Per-IP rate limit on device confirm** — `POST /device/confirm` and `POST
-  /api/auth/device-authorize` in `src/markland/web/device_routes.py` are not
-  rate-limited, leaving the 38-bit `user_code` open to online guessing. Add a
-  per-IP sliding-window limiter mirroring the one already on `device-start`
-  (10 req/min).
-- **Lock / expire device row after N failed confirms** — same file, same
-  threat model; after (e.g.) 5 failed confirms for a given `device_code`, mark
-  it expired so the next poll returns `expired_token` regardless of TTL.
-- **`grant_by_principal_id` defensive check** — `src/markland/service/grants.py`
-  (helper used by `accept_invite`) does not assert `principal_type ∈
-  {'user','agent'}` or that agent ids start with `agt_`. All current callers
-  are correct; add a runtime check for defensive hardening.
-- **Append-only audit enforcement** — `audit_log` rows are written by
-  `service/audit.py::record()` but there is no DB-level protection against
-  UPDATE/DELETE. Either add a BEFORE UPDATE/DELETE SQLite trigger that raises,
-  or document the trust boundary (operator with DB access is trusted).
-- **`/admin/audit` duplicates bearer resolution** — the handler in
-  `src/markland/web/app.py` re-runs `resolve_token` because `PrincipalMiddleware`
-  only gates `/mcp`. Widen the middleware's protected-prefix set to cover
-  `/admin/*` so principal resolution happens in one place.
 - **No CSRF protection on save routes** — `POST /d/{t}/fork`,
   `POST /d/{t}/bookmark`, and `DELETE /d/{t}/bookmark` in
   `src/markland/web/save_routes.py` accept plain form/fetch submissions with

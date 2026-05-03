@@ -12,7 +12,7 @@ from markland.web.principal_middleware import PrincipalMiddleware
 
 def _app(conn):
     app = FastAPI()
-    app.add_middleware(PrincipalMiddleware, db_conn=conn, protected_prefix="/mcp")
+    app.add_middleware(PrincipalMiddleware, db_conn=conn, protected_prefixes=("/mcp",))
 
     @app.get("/mcp/ping")
     def mcp_ping(request: Request):

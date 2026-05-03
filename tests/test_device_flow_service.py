@@ -270,3 +270,88 @@ def test_authorize_still_ok_when_invite_accept_raises(conn):
         (start.device_code,),
     ).fetchone()[0]
     assert status == "authorized"
+
+
+def test_authorize_locks_pending_row_after_five_failed_confirms(tmp_path):
+    """A pending row that fails 5 authorize attempts gets locked to expired.
+
+    Drive 5 TTL-expired hits against a single pending row. Each hit returns
+    reason='expired' (natural TTL) and bumps failed_confirms. The 5th attempt
+    additionally flips status='pending' -> 'expired' so subsequent polls
+    short-circuit even if (somehow) TTL extended.
+    """
+    from markland.db import init_db
+    from markland.service import device_flow
+
+    conn = init_db(tmp_path / "t.db")
+    # Manually insert a pending row whose TTL is already in the past — every
+    # authorize() call hits the TTL-expired branch and bumps the counter.
+    conn.execute(
+        "INSERT INTO device_authorizations "
+        "(device_code, user_code, status, created_at, expires_at) "
+        "VALUES ('dc_test', 'AAAABBBB', 'pending', "
+        "'2026-01-01T00:00:00Z', '2026-01-01T00:10:00Z')"
+    )
+    conn.commit()
+
+    # First 4 fails: reason='expired' (TTL), row still 'pending'.
+    for i in range(4):
+        r = device_flow.authorize(conn, "AAAA-BBBB", user_id="usr_x")
+        assert r.ok is False
+        assert r.reason == "expired"
+        row = conn.execute(
+            "SELECT status, failed_confirms FROM device_authorizations "
+            "WHERE device_code='dc_test'"
+        ).fetchone()
+        assert row[0] == "pending", f"after {i + 1} failures, status should still be pending"
+        assert row[1] == i + 1
+
+    # Fifth fail: lock fires, status flipped to 'expired'.
+    r = device_flow.authorize(conn, "AAAA-BBBB", user_id="usr_x")
+    assert r.ok is False
+    assert r.reason == "expired"
+    row = conn.execute(
+        "SELECT status, failed_confirms FROM device_authorizations "
+        "WHERE device_code='dc_test'"
+    ).fetchone()
+    assert row[0] == "expired"
+    assert row[1] == 5
+
+
+def test_authorize_does_not_lock_authorized_row(tmp_path):
+    """An authorized row must NOT be locked by repeated already_authorized hits.
+
+    Otherwise a third party who learned the user_code (e.g. shoulder-surfed
+    after the human typed it) could spam /device/confirm post-auth and flip
+    the row to 'expired' before the legitimate CLI's next poll, preventing
+    token mint.
+    """
+    from markland.db import init_db
+    from markland.service import device_flow
+    from markland.service.users import create_user
+
+    conn = init_db(tmp_path / "t.db")
+    user = create_user(conn, email="a@x", display_name="A")
+    start = device_flow.start(conn, base_url="https://markland.test")
+
+    # Legit auth.
+    r = device_flow.authorize(conn, start.user_code, user_id=user.id)
+    assert r.ok is True
+
+    # Attacker spams 10 retries — each returns already_authorized.
+    for _ in range(10):
+        r = device_flow.authorize(conn, start.user_code, user_id=user.id)
+        assert r.ok is False
+        assert r.reason == "already_authorized"
+
+    # Row must remain 'authorized' so the legit poll can still mint the token.
+    row = conn.execute(
+        "SELECT status FROM device_authorizations WHERE device_code=?",
+        (start.device_code,),
+    ).fetchone()
+    assert row[0] == "authorized"
+
+    # And the legit poll still mints.
+    poll_result = device_flow.poll(conn, start.device_code)
+    assert poll_result["status"] == "authorized"
+    assert "access_token" in poll_result
