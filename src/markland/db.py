@@ -218,13 +218,18 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_audit_doc_id ON audit_log (doc_id)"
     )
-    conn.execute("""
+    # consumed_at is epoch seconds (INTEGER) rather than ISO TEXT used elsewhere:
+    # this column is never displayed and is compared with `< ?` against int(time.time())
+    # during opportunistic GC of expired rows.
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS magic_link_consumed (
             jti         TEXT PRIMARY KEY,
             email       TEXT NOT NULL,
             consumed_at INTEGER NOT NULL
         )
-    """)
+        """
+    )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_magic_link_consumed_at "
         "ON magic_link_consumed (consumed_at)"
