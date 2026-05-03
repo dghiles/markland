@@ -262,7 +262,7 @@ These are tradeoff calls that need a decision before any AI-crawler robots.txt c
 
 | Item | Status | Landed in |
 |------|:------:|-----------|
-| G1 — Unblock PerplexityBot | ✅ done | PR #54 (`bcdec8e`) — `GPTBot` stays blocked per owner decision |
+| G1 — Unblock PerplexityBot | ✅ done | PR #54 (`bcdec8e`); GPTBot also unblocked in PR #55 (`e86f7b3`) — full ChatGPT Search + Perplexity surface now reachable |
 | G2 — `/llms.txt` route | ✅ done | PR #54 — live at `https://markland.dev/llms.txt` (200, text/plain) |
 | G3 — Question-shaped FAQ | ✅ done | PR #54 — `/`, `/quickstart`, all 5 `/alternatives/{slug}` use `<h3>/<p>`; legacy `<dl>` removed where present |
 | G4 — "What is Markland?" answer block | ✅ done | PR #54 — 143-word section above the hero on `/` |
@@ -270,6 +270,6 @@ These are tradeoff calls that need a decision before any AI-crawler robots.txt c
 
 **Implementation plan:** `docs/plans/2026-05-03-geo-search-readiness.md` (8 tasks, subagent-driven execution with two-stage review per task).
 
-**Open Questions remaining:** GPTBot decision is preserved as-is (kept blocked); FAQPage schema is unaddressed and remains a follow-up if AI-citation lift is desired.
+**Open Questions remaining:** FAQPage schema is unaddressed and remains a follow-up if AI-citation lift is desired. GPTBot decision was reversed on the same day — see PR #55 above.
 
 **Quick-win backlog still open:** LinkedIn `sameAs` (pending real LinkedIn presence), multimodal images, Show HN, inbound-link seeding — tracked separately as opportunities, not as audit items.
