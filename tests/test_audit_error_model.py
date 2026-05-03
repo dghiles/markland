@@ -121,3 +121,17 @@ def test_audit_malformed_cursor_with_non_numeric_id_is_invalid_argument(tmp_path
         f"audit cursor ValueError leaks as internal_error; expected a "
         f"canonical code (invalid_argument). Got data: {r.error_data!r}"
     )
+
+
+def test_admin_metrics_invalid_window_uses_reason_kwarg(tmp_path):
+    """Plan-B.5: every invalid_argument across the surface uses
+    error_data['reason'], not error_data['message']."""
+    h = MCPHarness.create(tmp_path, mode="direct")
+    admin = h.as_admin()
+    r = admin.call_raw(
+        "markland_admin_metrics", window_seconds="not-an-int"
+    )
+    r.assert_error("invalid_argument")
+    assert "reason" in r.error_data, (
+        f"invalid_argument data uses non-canonical key: {r.error_data!r}"
+    )
