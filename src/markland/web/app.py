@@ -20,7 +20,7 @@ from markland.db import (
 )
 from markland.web.competitors import COMPETITORS, MARKLAND, get_competitor
 from markland.web.renderer import make_excerpt, render_markdown
-from markland.web.seo import build_sitemap_xml, render_robots_txt, EXPLORE_MIN_PUBLIC_DOCS
+from markland.web.seo import build_sitemap_xml, render_llms_txt, render_robots_txt, EXPLORE_MIN_PUBLIC_DOCS
 from markland.web.render_helpers import render_with_nav
 from markland.web.session_principal import session_principal
 
@@ -307,6 +307,11 @@ def create_app(
     def robots_txt(request: Request):
         sitemap_url = f"{_public_host(request, base_url)}/sitemap.xml"
         return PlainTextResponse(render_robots_txt(sitemap_url))
+
+    @app.get("/llms.txt", response_class=PlainTextResponse)
+    def llms_txt(request: Request):
+        host = _public_host(request, base_url)
+        return PlainTextResponse(render_llms_txt(host))
 
     # Path → template object for the sitemap's per-page lastmod (audit M10).
     # /alternatives/{slug} all share the same template file, which is
