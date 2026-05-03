@@ -45,11 +45,6 @@ def _whoami_for_principal(principal: Principal) -> dict:
     }
 
 
-def _feature_requires_admin(principal: Principal) -> None:
-    if not principal.is_admin:
-        raise PermissionError("markland_feature requires admin")
-
-
 def _principal_from_ctx(ctx) -> Principal | None:
     """Ctx surfaces the Principal.
 
