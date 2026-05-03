@@ -1314,8 +1314,9 @@ def build_mcp(
     ) -> dict:
         """Funnel metrics summary over a time window. Admin only.
 
-        Aggregates signups, publishes, grants, and invite_accepts from the
-        existing users/audit_log tables, plus the unwindowed waitlist total.
+        Aggregates signups, publishes, document activity, grants, and invite
+        events from the users/audit_log/documents/grants/invites tables, plus
+        unwindowed totals (users, documents, grants, invites, waitlist).
         Useful for "what does the funnel look like this week?" agent queries.
 
         Args:
