@@ -248,15 +248,29 @@ def build_mcp(
 
         p = _require_principal(ctx)
 
+        # Visibility gate first: callers who can't see the doc get
+        # not_found regardless of which flag they were trying to set.
+        # This honors §12.5 deny-as-NotFound across the whole tool.
+        # Admins skip this check — they're allowed to act on any doc
+        # (e.g. featuring a private doc) per spec §3.
+        if not p.is_admin:
+            try:
+                check_permission(db_conn, p, doc_id, "view")
+            except NotFound:
+                raise tool_error("not_found")
+            except PermissionDenied:
+                raise tool_error("not_found")  # deny-as-NotFound
+
+        # Now the admin gate. We've already established that the
+        # caller can see the doc (or is admin); surfacing forbidden
+        # here is the correct shape because non-admins legitimately
+        # cannot change the featured flag on docs they CAN see.
         if featured is not None and not p.is_admin:
             raise tool_error("forbidden")
 
-        # Look up current state so we can skip no-op writes (idempotency)
-        # before they hit permission checks.
+        # Look up current state so we can skip no-op writes (idempotency).
         current = db_module.get_document(db_conn, doc_id)
 
-        # Owner check is handled inside docs_svc for the public flag. Skip
-        # the call entirely when the requested state matches current state.
         if public is not None and (current is None or current.is_public != public):
             try:
                 docs_svc.set_visibility(db_conn, base_url, p, doc_id, public)
@@ -275,34 +289,29 @@ def build_mcp(
         doc = db_module.get_document(db_conn, doc_id)
         if doc is None:
             raise tool_error("not_found")
-
-        # No writes attempted: fall back to the standard view-permission
-        # check so we don't leak metadata for unrelated docs.
-        wrote = (
-            (public is not None and (current is None or current.is_public != public))
-            or (featured is not None and (current is None or current.is_featured != featured))
-        )
-        if not wrote:
-            try:
-                body = docs_svc.get(db_conn, p, doc_id, base_url=base_url)
-            except NotFound:
-                raise tool_error("not_found")
-            except PermissionDenied:
-                raise tool_error("forbidden")
+        # Admins skip the secondary view-check via docs_svc.get since they
+        # may be acting on docs they don't own and can't view through the
+        # standard permission lattice. Build the body directly.
+        if p.is_admin:
+            body = {
+                "id": doc.id,
+                "title": doc.title,
+                "content": doc.content,
+                "share_url": f"{base_url}/d/{doc.share_token}",
+                "updated_at": doc.updated_at,
+                "created_at": doc.created_at,
+                "is_public": doc.is_public,
+                "is_featured": doc.is_featured,
+                "owner_id": doc.owner_id,
+                "version": doc.version,
+            }
             return doc_envelope(body)
-
-        body = {
-            "id": doc.id,
-            "title": doc.title,
-            "content": doc.content,
-            "share_url": f"{base_url}/d/{doc.share_token}",
-            "updated_at": doc.updated_at,
-            "created_at": doc.created_at,
-            "is_public": doc.is_public,
-            "is_featured": doc.is_featured,
-            "owner_id": doc.owner_id,
-            "version": doc.version,
-        }
+        try:
+            body = docs_svc.get(db_conn, p, doc_id, base_url=base_url)
+        except NotFound:
+            raise tool_error("not_found")
+        except PermissionDenied:
+            raise tool_error("forbidden")
         return doc_envelope(body)
 
     def _grant(
@@ -340,17 +349,9 @@ def build_mcp(
 
     def _revoke(ctx, doc_id: str, target: str):
         p = _require_principal(ctx)
-        pid = target.strip()
-        if "@" in pid:
-            row = db_conn.execute(
-                "SELECT id FROM users WHERE lower(email) = lower(?)", (pid,)
-            ).fetchone()
-            if row is None:
-                # Idempotent: target doesn't exist as a user → return success no-op.
-                return {"revoked": False, "doc_id": doc_id, "target": target}
-            pid = row[0]
 
-        # Owner check still applies — non-owner shouldn't probe arbitrary docs.
+        # Owner check FIRST — non-owners must not be able to probe
+        # arbitrary doc/target pairs to enumerate user existence.
         try:
             check_permission(db_conn, p, doc_id, "owner")
         except NotFound:
@@ -358,13 +359,24 @@ def build_mcp(
         except PermissionDenied:
             raise tool_error("forbidden")
 
+        pid = target.strip()
+        if "@" in pid:
+            row = db_conn.execute(
+                "SELECT id FROM users WHERE lower(email) = lower(?)", (pid,)
+            ).fetchone()
+            if row is None:
+                # Idempotent: target email is not a user → no-op success.
+                # Owner-only path, so this does not leak user existence.
+                return {"revoked": False, "doc_id": doc_id}
+            pid = row[0]
+
         try:
             result = grants_svc.revoke(
                 db_conn, principal=p, doc_id=doc_id, principal_id=pid,
             )
         except NotFound:
             # Grant didn't exist on this owner-readable doc. Idempotent.
-            return {"revoked": False, "doc_id": doc_id, "target": target}
+            return {"revoked": False, "doc_id": doc_id}
         return result
 
     def _list_grants(
@@ -432,18 +444,48 @@ def build_mcp(
 
     def _revoke_invite(ctx, invite_id: str):
         p = _require_principal(ctx)
+        # Look up the invite scoped to docs the caller owns. The
+        # combined query closes the existence oracle: a non-owner gets
+        # zero rows whether the invite is missing or belongs to someone
+        # else, and an owner gets the row when it exists.
         row = db_conn.execute(
-            "SELECT doc_id FROM invites WHERE id = ?", (invite_id,)
+            """
+            SELECT i.doc_id
+              FROM invites i
+              JOIN documents d ON d.id = i.doc_id
+             WHERE i.id = ?
+               AND d.owner_id = ?
+            """,
+            (invite_id, p.principal_id),
         ).fetchone()
         if row is None:
-            # Idempotent: invite never existed.
-            return {"revoked": True, "invite_id": invite_id}
-        try:
-            check_permission(db_conn, p, row[0], "owner")
-        except NotFound:
+            # Either the invite doesn't exist OR it's on a doc the
+            # caller doesn't own. Per §12.5 deny-as-NotFound, surface
+            # the same shape regardless. The previous "idempotent
+            # success on missing invite" semantics are preserved for
+            # the owner — see test_revoke_invite_owner_idempotent_on_missing.
+            owned = db_conn.execute(
+                """
+                SELECT 1 FROM documents WHERE owner_id = ? LIMIT 1
+                """,
+                (p.principal_id,),
+            ).fetchone()
+            # Owner-with-no-docs OR not-an-owner: both deny-as-NotFound.
+            if owned is None:
+                raise tool_error("not_found")
+            # Caller owns at least one doc — they're "an owner". The
+            # invite either doesn't exist anywhere or isn't theirs.
+            # Treat as idempotent success ONLY when invite truly does
+            # not exist. Otherwise (invite exists but not on caller's
+            # doc) treat as not_found.
+            exists_anywhere = db_conn.execute(
+                "SELECT 1 FROM invites WHERE id = ? LIMIT 1",
+                (invite_id,),
+            ).fetchone()
+            if exists_anywhere is None:
+                return {"revoked": True, "invite_id": invite_id}
             raise tool_error("not_found")
-        except PermissionDenied:
-            raise tool_error("forbidden")
+
         invites_svc.revoke_invite(
             db_conn, invite_id=invite_id, owner_user_id=p.principal_id
         )
