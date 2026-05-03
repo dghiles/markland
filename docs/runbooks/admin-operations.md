@@ -51,16 +51,38 @@ time, not baked into the token itself.
 ## Minting a test admin token
 
 Tokens are Argon2id-hashed; existing plaintexts are unrecoverable. To get
-a working bearer for `curl`-ing the admin endpoints, mint a fresh one:
+a working bearer for `curl`-ing the admin endpoints, mint a fresh one and
+park it in `.env.local` so subsequent commands don't need to repeat the
+ssh dance.
+
+**One-time setup:**
+
+1. Copy the template if you haven't yet: `cp .env.example .env.local`
+2. Mint the token:
+   ```bash
+   flyctl ssh console -a markland -C "/app/.venv/bin/python scripts/admin/mint_admin_token.py runbook-test"
+   ```
+3. Paste the printed `mk_usr_...` value into `.env.local` as
+   `MARKLAND_PROD_ADMIN_TOKEN`.
+
+`.env.local` is gitignored. Revoke at `/settings/tokens` (find the
+`runbook-test` label) when you're done — leaving long-lived admin bearers
+on disk is a security smell.
+
+## Calling /admin/* endpoints
+
+Once `.env.local` is set, use the helper:
 
 ```bash
-flyctl ssh console -a markland -C "/app/.venv/bin/python scripts/admin/mint_admin_token.py runbook-test"
+./scripts/admin/curl-admin /admin/metrics | jq
+./scripts/admin/curl-admin "/admin/metrics?window_seconds=86400" | jq
+./scripts/admin/curl-admin "/admin/waitlist?limit=10" | jq
 ```
 
-The plaintext is printed exactly once. Save it as `$ADMIN_TOKEN` in your
-shell, then revoke in `/settings/tokens` (or via `list_admin_tokens.py`
-followed by a DELETE) once you're done — leaving long-lived admin bearers
-in shell history is a security smell.
+The helper sources `.env.local`, sets the bearer header, and prefixes
+`MARKLAND_PROD_BASE_URL` (default `https://markland.dev`). Pass any extra
+`curl` args after the path: `./scripts/admin/curl-admin /admin/metrics -i`
+to see headers, etc.
 
 ## How big is the service right now?
 
@@ -81,11 +103,10 @@ markland_admin_metrics(window_seconds=86400)
 
 Window is floored at 60 seconds and capped at 30 days (2_592_000).
 
-**HTTP equivalent:**
+**HTTP equivalent (using the helper):**
 
 ```bash
-curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "https://markland.dev/admin/metrics?window_seconds=86400" | jq
+./scripts/admin/curl-admin "/admin/metrics?window_seconds=86400" | jq
 ```
 
 **Response shape:**
@@ -143,8 +164,7 @@ for programmatic reads.
 histogram and total count.
 
 ```bash
-curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "https://markland.dev/admin/waitlist?limit=50" | jq
+./scripts/admin/curl-admin "/admin/waitlist?limit=50" | jq
 ```
 
 `limit` defaults to 50, capped at 500. Response shape: `{total, by_day:
