@@ -1,5 +1,7 @@
 # Fix Fly Deploy Launch-Group Drift Implementation Plan
 
+> **Status (2026-05-02):** Preserved as diagnostic record — not executed. The `--strategy immediate` workaround in `.github/workflows/deploy.yml` resolved the symptom on 2026-04-30 and CI auto-deploy is back on. Reopen this plan only if the workaround stops working (sibling machines reappear in `flyctl machine list`).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make `flyctl deploy` against the markland app update machine `185191df264378` in place instead of creating a sibling orphan. End state: a routine no-op deploy rolls the existing machine, the release counter advances by exactly one, and zero stray machines/volumes remain.
