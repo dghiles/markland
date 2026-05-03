@@ -31,9 +31,9 @@ COPY src ./src
 
 RUN uv sync --frozen --no-dev
 
-COPY scripts/start.sh /app/start.sh
+COPY scripts /app/scripts
 COPY litestream.yml /etc/litestream.yml
-RUN chmod +x /app/start.sh
+RUN cp /app/scripts/start.sh /app/start.sh && chmod +x /app/start.sh
 
 # Persist SQLite on a volume
 VOLUME ["/data"]

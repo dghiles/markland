@@ -9,42 +9,57 @@ console` (last resort, for things no tool exposes).
 All MCP and HTTP admin paths gate on `users.is_admin = 1`. A non-admin token
 returns `403 forbidden` (HTTP) or a `forbidden` tool error (MCP).
 
+## Admin scripts
+
+Common admin tasks are checked-in scripts under `scripts/admin/`, deployed
+to `/app/scripts/admin/` on the Fly image. Run them with the project's
+venv-resolved Python:
+
+```bash
+flyctl ssh console -a markland -C "/app/.venv/bin/python scripts/admin/<name>.py [args]"
+```
+
+The Fly base image does NOT include the `sqlite3` CLI binary, and system
+Python doesn't have project deps installed — always use
+`/app/.venv/bin/python` with the named scripts below. They import the real
+service helpers, so they survive schema/auth-hash changes.
+
+Available scripts:
+
+| Script | Purpose |
+|---|---|
+| `make_admin.py <email>` | Flip `is_admin=1` on a user. |
+| `mint_admin_token.py [label]` | Mint a fresh user-token bound to the first admin. Plaintext printed once. |
+| `lookup_user.py <email>` | Show user row + doc/grant/token counts. |
+| `list_admin_tokens.py` | List metadata of admin-bound tokens (no plaintexts; revocation cleanup). |
+
 ## Becoming an admin
 
-Admin status is a `users.is_admin` boolean. There is no UI to toggle it - flip
-it directly in SQL the first time, then any further admins can grant
+Admin status is a `users.is_admin` boolean. There is no UI to toggle it -
+flip it directly the first time, then any further admins can grant
 themselves access the same way.
 
-The Fly image does NOT include the `sqlite3` CLI. Use the Python `sqlite3`
-module instead:
-
 ```bash
-flyctl ssh console -a markland -C "python -c 'import sqlite3; c=sqlite3.connect(\"/data/markland.db\"); n=c.execute(\"UPDATE users SET is_admin=1 WHERE email=?\", (\"you@example.com\",)).rowcount; c.commit(); print(f\"updated {n} row(s)\")'"
+flyctl ssh console -a markland -C "/app/.venv/bin/python scripts/admin/make_admin.py you@example.com"
 ```
 
-Verify:
-
-```bash
-flyctl ssh console -a markland -C "python -c 'import sqlite3; c=sqlite3.connect(\"/data/markland.db\"); [print(r) for r in c.execute(\"SELECT id, email, is_admin FROM users WHERE email=?\", (\"you@example.com\",))]'"
-```
-
-After flipping, your existing tokens already carry admin status on the next
-request - the flag is read from the DB at token-resolution time, not baked
-into the token itself.
+You must have signed in (via magic link) at least once for the row to
+exist. After flipping, your existing tokens already carry admin status on
+the next request - `is_admin` is read from the DB at token-resolution
+time, not baked into the token itself.
 
 ## Minting a test admin token
 
-Tokens are stored as SHA-256 hashes; existing token plaintexts are
-unrecoverable. To get a working bearer for `curl`-ing the admin endpoints,
-mint a fresh one:
+Tokens are Argon2id-hashed; existing plaintexts are unrecoverable. To get
+a working bearer for `curl`-ing the admin endpoints, mint a fresh one:
 
 ```bash
-flyctl ssh console -a markland -C "python -c 'import sqlite3, secrets, hashlib; tok=\"mk_usr_\"+secrets.token_urlsafe(32); h=hashlib.sha256(tok.encode()).hexdigest(); c=sqlite3.connect(\"/data/markland.db\"); admin_id=c.execute(\"SELECT id FROM users WHERE is_admin=1 LIMIT 1\").fetchone()[0]; c.execute(\"INSERT INTO tokens (id, token_hash, user_id, label, created_at) VALUES (?, ?, ?, ?, datetime(\\\"now\\\"))\", (\"tok_test_\"+secrets.token_hex(4), h, admin_id, \"runbook-test\")); c.commit(); print(tok)'"
+flyctl ssh console -a markland -C "/app/.venv/bin/python scripts/admin/mint_admin_token.py runbook-test"
 ```
 
 The plaintext is printed exactly once. Save it as `$ADMIN_TOKEN` in your
-shell, then revoke in `/settings/tokens` (or `DELETE FROM tokens WHERE
-label='runbook-test'`) once you're done — leaving long-lived admin bearers
+shell, then revoke in `/settings/tokens` (or via `list_admin_tokens.py`
+followed by a DELETE) once you're done — leaving long-lived admin bearers
 in shell history is a security smell.
 
 ## How big is the service right now?
@@ -151,18 +166,19 @@ current state via `markland_get(doc_id)` - the response includes the
 
 ## Looking up a specific user or document
 
-No dedicated admin tool for this; use direct SQL via the Python module
-(remember: no `sqlite3` CLI on the Fly image). Common queries:
+For users, use the lookup script:
 
 ```bash
-# Find a user by email
-flyctl ssh console -a markland -C "python -c 'import sqlite3; c=sqlite3.connect(\"/data/markland.db\"); [print(r) for r in c.execute(\"SELECT id, email, display_name, is_admin, created_at FROM users WHERE email=?\", (\"alice@example.com\",))]'"
+flyctl ssh console -a markland -C "/app/.venv/bin/python scripts/admin/lookup_user.py alice@example.com"
+```
 
-# How many docs does a user own?
-flyctl ssh console -a markland -C "python -c 'import sqlite3; c=sqlite3.connect(\"/data/markland.db\"); print(c.execute(\"SELECT COUNT(*) FROM documents WHERE owner_id=(SELECT id FROM users WHERE email=?)\", (\"alice@example.com\",)).fetchone()[0])'"
+It prints the user row plus doc-owned, grants-received, and active-token
+counts in one shot.
 
-# Who has access to a specific doc?
-flyctl ssh console -a markland -C "python -c 'import sqlite3; c=sqlite3.connect(\"/data/markland.db\"); [print(r) for r in c.execute(\"SELECT principal_id, principal_type, level FROM grants WHERE doc_id=?\", (\"<doc_id>\",))]'"
+For grants on a specific doc (no script yet — direct SQL):
+
+```bash
+flyctl ssh console -a markland -C "/app/.venv/bin/python -c 'import sqlite3; from markland.config import get_config; c=sqlite3.connect(get_config().db_path); [print(r) for r in c.execute(\"SELECT principal_id, principal_type, level FROM grants WHERE doc_id=?\", (\"<doc_id>\",))]'"
 ```
 
 The `documents` table has `id, title, share_token, is_public, is_featured,
