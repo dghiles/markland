@@ -40,6 +40,7 @@ def summary(
     Returns:
       dict with keys: window_seconds, window_start_iso, window_end_iso,
       signups, publishes, grants_created, invites_accepted, documents_created,
+      documents_updated, documents_deleted, grants_revoked, invites_created,
       users_total, waitlist_total, documents_total, documents_public_total,
       first_mcp_call.
     """
@@ -71,6 +72,26 @@ def summary(
         "AND created_at >= ? AND created_at < ?",
         (start_iso, end_iso),
     )
+    documents_updated = _count(
+        "SELECT COUNT(*) FROM audit_log WHERE action = 'update' "
+        "AND created_at >= ? AND created_at < ?",
+        (start_iso, end_iso),
+    )
+    documents_deleted = _count(
+        "SELECT COUNT(*) FROM audit_log WHERE action = 'delete' "
+        "AND created_at >= ? AND created_at < ?",
+        (start_iso, end_iso),
+    )
+    grants_revoked = _count(
+        "SELECT COUNT(*) FROM audit_log WHERE action = 'revoke' "
+        "AND created_at >= ? AND created_at < ?",
+        (start_iso, end_iso),
+    )
+    invites_created = _count(
+        "SELECT COUNT(*) FROM audit_log WHERE action = 'invite_create' "
+        "AND created_at >= ? AND created_at < ?",
+        (start_iso, end_iso),
+    )
     documents_created = _count(
         "SELECT COUNT(*) FROM documents WHERE created_at >= ? AND created_at < ?",
         (start_iso, end_iso),
@@ -90,6 +111,10 @@ def summary(
         "publishes": publishes,
         "grants_created": grants_created,
         "invites_accepted": invites_accepted,
+        "documents_updated": documents_updated,
+        "documents_deleted": documents_deleted,
+        "grants_revoked": grants_revoked,
+        "invites_created": invites_created,
         "documents_created": documents_created,
         "users_total": users_total,
         "waitlist_total": waitlist_total,

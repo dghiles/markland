@@ -128,3 +128,28 @@ def test_summary_documents_created_in_window(conn):
     result = summary(conn, window_seconds=86400, now_iso="2026-05-01T00:00:00Z")
     assert result["documents_created"] == 1
     assert result["documents_total"] == 2  # unwindowed sees both
+
+
+def test_summary_counts_additional_audit_events_in_window(conn):
+    now = "2026-05-01T00:00:00Z"
+    in_window = "2026-04-30T22:00:00Z"
+    out_of_window = "2026-04-01T22:00:00Z"
+
+    # In window — should be counted
+    _seed_audit(conn, "usr_a", "update", "doc_1", in_window)
+    _seed_audit(conn, "usr_a", "update", "doc_2", in_window)
+    _seed_audit(conn, "usr_a", "delete", "doc_3", in_window)
+    _seed_audit(conn, "usr_a", "revoke", "doc_1", in_window)
+    _seed_audit(conn, "usr_a", "invite_create", "doc_2", in_window)
+
+    # Out of window — should NOT be counted
+    _seed_audit(conn, "usr_a", "update", "doc_4", out_of_window)
+    _seed_audit(conn, "usr_a", "delete", "doc_5", out_of_window)
+    _seed_audit(conn, "usr_a", "revoke", "doc_6", out_of_window)
+    _seed_audit(conn, "usr_a", "invite_create", "doc_7", out_of_window)
+
+    result = summary(conn, window_seconds=86400, now_iso=now)
+    assert result["documents_updated"] == 2
+    assert result["documents_deleted"] == 1
+    assert result["grants_revoked"] == 1
+    assert result["invites_created"] == 1
