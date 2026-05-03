@@ -48,9 +48,16 @@ def test_empty_cookie_value_raises_invalid():
 
 def test_tampered_signature_raises_invalid():
     sealed = issue_agent_token_flash(secret=SECRET, plaintext="mk_agt_abc123")
-    tampered = sealed[:-1] + ("A" if sealed[-1] != "A" else "B")
+    # Flip the FIRST char of the signature segment, not the last. itsdangerous
+    # decodes the signature before HMAC compare, and base64 alignment means
+    # the *last* char of a 20-byte HMAC-SHA1 signature carries only 4 bits of
+    # actual data — so ~6% of last-char flips ('A'↔'B', etc.) decode to the
+    # same bytes and validate, producing a flaky test. The first signature
+    # char carries a full 6 bits, so any flip changes the decoded signature.
+    head, sig = sealed.rsplit(".", 1)
+    tampered_sig = ("A" if sig[0] != "A" else "B") + sig[1:]
     with pytest.raises(InvalidAgentTokenFlash):
-        read_agent_token_flash(tampered, secret=SECRET)
+        read_agent_token_flash(f"{head}.{tampered_sig}", secret=SECRET)
 
 
 def test_wrong_secret_raises_invalid():
