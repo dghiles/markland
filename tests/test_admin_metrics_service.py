@@ -84,3 +84,12 @@ def test_summary_includes_window_start_and_end(conn):
     result = summary(conn, window_seconds=86400, now_iso="2026-05-01T00:00:00Z")
     assert result["window_end_iso"] == "2026-05-01T00:00:00Z"
     assert result["window_start_iso"] == "2026-04-30T00:00:00Z"
+
+
+def test_summary_includes_users_total_unwindowed(conn):
+    # Two users — one inside the window, one outside. Both should be counted.
+    _seed_user(conn, "usr_recent", "r@x.com", "2026-04-30T12:00:00Z")
+    _seed_user(conn, "usr_old", "o@x.com", "2025-01-01T00:00:00Z")
+    result = summary(conn, window_seconds=86400, now_iso="2026-05-01T00:00:00Z")
+    assert result["users_total"] == 2
+    assert result["signups"] == 1  # window-bound, unchanged behavior

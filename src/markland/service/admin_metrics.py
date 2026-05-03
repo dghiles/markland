@@ -71,6 +71,7 @@ def summary(
         (start_iso, end_iso),
     )
     waitlist_total = _count("SELECT COUNT(*) FROM waitlist", ())
+    users_total = _count("SELECT COUNT(*) FROM users", ())
 
     return {
         "window_seconds": window_seconds,
@@ -80,6 +81,7 @@ def summary(
         "publishes": publishes,
         "grants_created": grants_created,
         "invites_accepted": invites_accepted,
+        "users_total": users_total,
         "waitlist_total": waitlist_total,
         "first_mcp_call": None,  # not persisted; see flyctl logs
     }
