@@ -8,6 +8,7 @@ import pytest
 from markland.service.magic_link import (
     MAGIC_LINK_MAX_AGE_SECONDS,
     InvalidMagicLink,
+    _SALT,
     issue_magic_link_token,
     read_magic_link_token,
     safe_return_to,
@@ -113,7 +114,7 @@ def test_send_magic_link_normalizes_email(monkeypatch, tmp_path):
 def test_issue_includes_jti_in_payload():
     from itsdangerous import URLSafeTimedSerializer
     token = issue_magic_link_token("alice@example.com", secret="s")
-    s = URLSafeTimedSerializer("s", salt="mk.magiclink.v1")
+    s = URLSafeTimedSerializer("s", salt=_SALT)
     payload = s.loads(token)
     assert isinstance(payload, dict), f"expected dict payload, got {type(payload)}"
     assert payload["email"] == "alice@example.com"
@@ -125,7 +126,7 @@ def test_two_issuances_have_distinct_jtis():
     t1 = issue_magic_link_token("alice@example.com", secret="s")
     t2 = issue_magic_link_token("alice@example.com", secret="s")
     from itsdangerous import URLSafeTimedSerializer
-    s = URLSafeTimedSerializer("s", salt="mk.magiclink.v1")
+    s = URLSafeTimedSerializer("s", salt=_SALT)
     p1 = s.loads(t1)
     p2 = s.loads(t2)
     assert p1["jti"] != p2["jti"]
