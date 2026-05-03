@@ -19,9 +19,24 @@ _DOC_SUMMARY_FIELDS = (
 
 
 def doc_envelope(
-    raw: dict, *, active_principals: list[dict] | None = None
+    raw: dict,
+    *,
+    active_principals: list[dict] | None = None,
+    strict: bool = False,
 ) -> dict:
-    """Project a service-layer doc dict into the canonical doc_envelope."""
+    """Project a service-layer doc dict into the canonical doc_envelope.
+
+    With strict=True, raises KeyError if any of the 10 required fields
+    is missing from raw — useful for boundary-layer assertions in tests.
+    Default (strict=False) preserves backward compatibility with callers
+    that pass partial dicts.
+    """
+    if strict:
+        missing = [k for k in _DOC_ENVELOPE_FIELDS if k not in raw]
+        if missing:
+            raise KeyError(
+                f"doc_envelope(strict=True) missing required fields: {missing}"
+            )
     env = {k: raw.get(k) for k in _DOC_ENVELOPE_FIELDS}
     if active_principals is not None:
         env["active_principals"] = active_principals

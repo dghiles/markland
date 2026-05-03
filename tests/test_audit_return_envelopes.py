@@ -116,3 +116,28 @@ def test_encode_cursor_requires_one_kwarg():
     from markland._mcp_envelopes import encode_cursor
     with pytest.raises(ValueError, match="last_sort_key"):
         encode_cursor(last_id="x")
+
+
+def test_doc_envelope_strict_mode_rejects_missing_required_field():
+    """Plan-C.6: doc_envelope(raw, strict=True) raises if any required
+    field is missing — catches service-layer regressions at the boundary
+    instead of via snapshot diff."""
+    incomplete = {
+        "id": "doc_abc",
+        "title": "T",
+        # content missing
+        "version": 1,
+        "owner_id": "usr_x",
+        "share_url": "http://x/d/abc",
+        "is_public": False,
+        "is_featured": False,
+        "created_at": "x",
+        "updated_at": "x",
+    }
+    # Default mode tolerates missing fields (today's behavior).
+    env = doc_envelope(incomplete)
+    assert env["content"] is None  # silent None
+
+    # Strict mode raises.
+    with pytest.raises(KeyError, match="content"):
+        doc_envelope(incomplete, strict=True)
