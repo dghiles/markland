@@ -425,13 +425,10 @@ def create_app(
 
     @app.get("/admin/waitlist")
     def admin_waitlist(request: Request, limit: int = 50):
-        from markland.service.auth import resolve_token
-
-        header = request.headers.get("authorization", "")
-        if not header.lower().startswith("bearer "):
-            return JSONResponse({"error": "unauthenticated"}, status_code=401)
-        plaintext = header[7:].strip()
-        principal = resolve_token(db_conn, plaintext)
+        # PrincipalMiddleware has already short-circuited with 401 if the
+        # bearer was missing or invalid (see principal_middleware.py); when
+        # we get here, request.state.principal is guaranteed to be set.
+        principal = getattr(request.state, "principal", None)
         if principal is None:
             return JSONResponse({"error": "unauthenticated"}, status_code=401)
         if not principal.is_admin:
@@ -473,13 +470,9 @@ def create_app(
     @app.get("/admin/metrics")
     def admin_metrics(request: Request, window_seconds: int = 604800):
         from markland.service.admin_metrics import summary
-        from markland.service.auth import resolve_token
 
-        header = request.headers.get("authorization", "")
-        if not header.lower().startswith("bearer "):
-            return JSONResponse({"error": "unauthenticated"}, status_code=401)
-        plaintext = header[7:].strip()
-        principal = resolve_token(db_conn, plaintext)
+        # Bearer is resolved by PrincipalMiddleware; see /admin/waitlist.
+        principal = getattr(request.state, "principal", None)
         if principal is None:
             return JSONResponse({"error": "unauthenticated"}, status_code=401)
         if not principal.is_admin:
