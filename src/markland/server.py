@@ -45,11 +45,6 @@ def _whoami_for_principal(principal: Principal) -> dict:
     }
 
 
-def _feature_requires_admin(principal: Principal) -> None:
-    if not principal.is_admin:
-        raise PermissionError("markland_feature requires admin")
-
-
 def _principal_from_ctx(ctx) -> Principal | None:
     """Ctx surfaces the Principal.
 
@@ -95,7 +90,16 @@ def build_mcp(
 
     def _publish(ctx, content: str, title: str | None = None, public: bool = False):
         p = _require_principal(ctx)
-        raw = docs_svc.publish(db_conn, base_url, p, content, title=title, public=public)
+        try:
+            raw = docs_svc.publish(db_conn, base_url, p, content, title=title, public=public)
+        except PermissionError as exc:
+            # docs_svc.publish raises PermissionError with a structured
+            # message ("invalid_argument: service_agent_cannot_publish")
+            # for service-owned agents. Surface the canonical code so
+            # callers get a debuggable reason instead of internal_error.
+            msg = str(exc)
+            reason = msg.split(": ", 1)[1] if ": " in msg else msg
+            raise tool_error("invalid_argument", reason=reason)
         # Re-fetch via get() to ensure all doc_envelope fields are populated.
         full = docs_svc.get(db_conn, p, raw["id"], base_url=base_url)
         return doc_envelope(full)
@@ -1233,9 +1237,14 @@ def build_mcp(
             raise tool_error("forbidden")
         from markland.service import audit as audit_svc
 
-        rows, next_cursor = audit_svc.list_recent_paginated(
-            db_conn, doc_id=doc_id, limit=int(limit), cursor=cursor,
-        )
+        try:
+            rows, next_cursor = audit_svc.list_recent_paginated(
+                db_conn, doc_id=doc_id, limit=int(limit), cursor=cursor,
+            )
+        except ValueError as exc:
+            # Malformed cursor (decode_cursor raises this; int(last_id)
+            # casts it for audit's integer ID column). Surface canonical.
+            raise tool_error("invalid_argument", reason=str(exc))
         return list_envelope(items=rows, next_cursor=next_cursor)
 
     def _admin_metrics(ctx, window_seconds: int = 604800):
@@ -1249,7 +1258,7 @@ def build_mcp(
         except (TypeError, ValueError):
             raise tool_error(
                 "invalid_argument",
-                message="window_seconds must be an integer",
+                reason="window_seconds must be an integer",
             )
         capped = max(60, min(ws, 30 * 86400))
         return summary(db_conn, window_seconds=capped)

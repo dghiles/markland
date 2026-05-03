@@ -134,8 +134,12 @@ def list_recent_paginated(
         params.append(doc_id)
     if cursor:
         last_id, last_created_at = decode_cursor(cursor)
+        try:
+            last_id_int = int(last_id)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"malformed cursor: last_id not numeric ({exc})") from exc
         where_clauses.append("(created_at, id) < (?, ?)")
-        params.extend([last_created_at, int(last_id)])
+        params.extend([last_created_at, last_id_int])
 
     where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
     sql = (
