@@ -231,7 +231,7 @@ def build_device_router(
             # `?next=/device?code=…` splits at the second `?` and the browser
             # treats `code=…` as a top-level param on /login, dropping it from
             # the next= value entirely.
-            next_path = f"/device?code={user_code}"
+            next_path = f"/device?code={quote(user_code, safe='')}"
             return RedirectResponse(
                 url=f"/login?{urlencode({'next': next_path})}", status_code=303
             )

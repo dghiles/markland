@@ -258,6 +258,31 @@ def test_device_confirm_unauth_redirect_preserves_user_code_through_login(client
     assert "code" not in qs, qs
 
 
+def test_device_confirm_unauth_redirect_escapes_malformed_user_code(client):
+    """A user_code containing `?` or `&` must not break the redirect target.
+
+    The inner `next_path` is `/device?code=<user_code>`; if user_code is
+    naively interpolated, characters like `?` or `&` would let an attacker
+    inject extra query params into /device or break URL parsing entirely.
+    """
+    from urllib.parse import parse_qs, urlparse
+
+    r = client.post(
+        "/device/confirm",
+        data={"user_code": "AB?CD&x=1", "csrf": "x"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    location = r.headers["location"]
+    qs = parse_qs(urlparse(location).query)
+    # The inner `?` and `&` must be percent-encoded inside the next= value.
+    next_val = qs.get("next", [""])[0]
+    assert next_val.startswith("/device?code="), next_val
+    # Raw `?` or `&` after the first `code=` would mean we leaked structure.
+    assert "?" not in next_val[len("/device?code="):], next_val
+    assert "&" not in next_val[len("/device?code="):], next_val
+
+
 def test_device_confirm_happy_path_redirects_to_done(client):
     start = client.post("/api/auth/device-start").json()
     _login(client)
