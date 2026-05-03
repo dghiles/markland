@@ -145,8 +145,15 @@ def test_http_call_publish(mcp_http):
 
 
 def test_http_anon_unauthenticated(mcp_http):
-    r = mcp_http.anon().call_raw("markland_publish", content="x")
-    r.assert_error("unauthenticated")
+    # Plan-C.2: anon HTTP calls are now blocked at the harness layer
+    # because PrincipalMiddleware 401s every /mcp/* request without a
+    # Bearer token — there's no way to actually exercise an anon-allowed
+    # tool over HTTP today. The harness raises early so the limitation
+    # is visible at test-write time. The 401 path itself is still
+    # covered by Layer-1 web tests.
+    from tests._mcp_harness import MCPHarnessError
+    with pytest.raises(MCPHarnessError, match="anon"):
+        mcp_http.anon().call_raw("markland_publish", content="x")
 
 
 def test_http_session_per_caller(mcp_http):
@@ -305,11 +312,11 @@ def test_per_test_isolation(tmp_path):
         b.close()
 
 
-def test_http_mode_preserves_tool_error_code_for_known_error(tmp_path):
+def test_http_mode_preserves_tool_error_code_for_known_error(tmp_path, monkeypatch):
     """Plan-B.3: pin the FastMCP wire-format assumption. If FastMCP ever
     changes how it serializes ToolError messages, this test fails loudly
     instead of every HTTP-mode error silently becoming internal_error."""
-    h = MCPHarness.create(tmp_path, mode="http")
+    h = MCPHarness.create(tmp_path, mode="http", monkeypatch=monkeypatch)
     try:
         alice = h.as_user(email="alice@example.com")
         # markland_get for a doc that doesn't exist → not_found via tool_error.
@@ -324,5 +331,19 @@ def test_http_mode_preserves_tool_error_code_for_known_error(tmp_path):
             f"{r.error_code!r} but should be 'not_found'. Inspect "
             f"_decode_tool_error_text in tests/_mcp_harness.py."
         )
+    finally:
+        h.close()
+
+
+def test_http_anon_to_allowed_tool_raises_harness_error(tmp_path, monkeypatch):
+    """Plan-C.2: until anon-HTTP support is intentional, calling an
+    anon-allowed tool (markland_explore) via HTTP-mode anon should
+    raise MCPHarnessError early rather than producing undefined
+    behavior in the session-init path."""
+    from tests._mcp_harness import MCPHarness, MCPHarnessError
+    h = MCPHarness.create(tmp_path, mode="http", monkeypatch=monkeypatch)
+    try:
+        with pytest.raises(MCPHarnessError, match="anon"):
+            h.anon().call_raw("markland_explore")
     finally:
         h.close()

@@ -384,6 +384,14 @@ def _http_call(
         raise MCPHarnessError(
             "HTTP-mode harness was not initialized with TestClient"
         )
+    if caller.token is None:
+        raise MCPHarnessError(
+            "HTTP-mode anon calls are not yet supported — "
+            "PrincipalMiddleware 401s every /mcp/* request without a "
+            "Bearer token, so even anon-allowed tools (markland_explore, "
+            "markland_get_by_share_token) can't be reached. "
+            "Use direct mode or seed a principal."
+        )
 
     # Lazy session init.
     if caller._http_session_id is None and caller.token is not None:
