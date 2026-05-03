@@ -218,6 +218,17 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_audit_doc_id ON audit_log (doc_id)"
     )
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS magic_link_consumed (
+            jti         TEXT PRIMARY KEY,
+            email       TEXT NOT NULL,
+            consumed_at INTEGER NOT NULL
+        )
+    """)
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_magic_link_consumed_at "
+        "ON magic_link_consumed (consumed_at)"
+    )
     conn.commit()
     return conn
 
