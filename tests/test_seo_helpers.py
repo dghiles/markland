@@ -55,32 +55,34 @@ def test_robots_txt_references_sitemap_and_core_disallows():
 @pytest.mark.parametrize(
     "bot",
     [
-        "CCBot",
-        "anthropic-ai",
-        "Claude-Web",
         "Google-Extended",
         "Bytespider",
     ],
 )
-def test_robots_txt_blocks_ai_training_crawler(bot):
-    """Each AI/training crawler in our blocklist must have its own
-    User-agent stanza followed by a full-site Disallow. Locks in the
-    audit's L3 expansion so a future refactor can't quietly drop a bot."""
+def test_robots_txt_blocks_training_only_crawler(bot):
+    """Crawlers that are PURELY for training (or for non-target markets)
+    stay blocked. Google-Extended is Google's training-opt-out UA that
+    does NOT affect Googlebot/AI-Overviews; Bytespider is ByteDance's
+    crawler for TikTok/Doubao."""
     assert f"User-agent: {bot}\nDisallow: /\n" in ROBOTS_TXT
 
 
-def test_robots_txt_does_not_block_perplexitybot():
-    """PerplexityBot is search-only — blocking it just hides Markland from
-    Perplexity citations with no privacy or training-data upside. Audit G1
-    unblocks it."""
-    assert "User-agent: PerplexityBot" not in ROBOTS_TXT
-
-
-def test_robots_txt_does_not_block_gptbot():
-    """GPTBot is dual-use (training + ChatGPT Search index). Owner decision
-    on 2026-05-03 was to unblock so Markland is citable in ChatGPT Search.
-    OAI-SearchBot and ChatGPT-User were never blocked."""
-    assert "User-agent: GPTBot" not in ROBOTS_TXT
+@pytest.mark.parametrize(
+    "bot",
+    [
+        "PerplexityBot",  # search-only (G1, PR #54)
+        "GPTBot",         # dual-use; chose ChatGPT Search visibility (PR #55)
+        "CCBot",          # Common Crawl — open dataset many AI tools build on
+        "anthropic-ai",   # deprecated (Anthropic moved to ClaudeBot)
+        "Claude-Web",     # deprecated (Anthropic moved to ClaudeBot)
+        "ClaudeBot",      # Anthropic's current crawler — never blocked
+    ],
+)
+def test_robots_txt_does_not_block_ai_search_crawler(bot):
+    """AI-search crawlers must fall through to the wildcard Allow: / so
+    Markland is citable in ChatGPT Search, Perplexity, Claude. Locks in
+    the GEO strategy decision (2026-05-03)."""
+    assert f"User-agent: {bot}\n" not in ROBOTS_TXT
 
 
 def test_build_sitemap_xml_contains_all_urls():

@@ -51,21 +51,17 @@ User-agent: *
 Allow: /
 {_DISALLOW_LINES}
 
-# Block AI training crawlers; real search engines (Googlebot, Bingbot) fall
-# through to the wildcard rule above. Google-Extended is the opt-out for
-# Gemini/Vertex training without affecting Googlebot's regular index crawl.
-# GPTBot and PerplexityBot are deliberately allowed (via the wildcard) so
-# Markland is citable in ChatGPT Search and Perplexity; ChatGPT-User and
-# OAI-SearchBot were never blocked.
-User-agent: CCBot
-Disallow: /
-
-User-agent: anthropic-ai
-Disallow: /
-
-User-agent: Claude-Web
-Disallow: /
-
+# Real search engines (Googlebot, Bingbot) fall through to the wildcard
+# rule above. AI search/browse crawlers (GPTBot, PerplexityBot, ClaudeBot,
+# OAI-SearchBot, ChatGPT-User) are deliberately allowed so Markland is
+# citable in ChatGPT Search, Perplexity, and Claude.
+#
+# Google-Extended is Google's opt-out specifically for Gemini/Vertex
+# training; it does NOT affect Googlebot's regular index or AI Overviews,
+# so blocking it gives a clean training opt-out with zero visibility cost.
+#
+# Bytespider is ByteDance's crawler for TikTok/Doubao — kept blocked
+# until there's a reason to court the Chinese-market AI surface.
 User-agent: Google-Extended
 Disallow: /
 
