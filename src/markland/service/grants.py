@@ -32,6 +32,7 @@ class InvalidGrantLevel(Exception):
 
 
 _VALID_LEVELS = frozenset({"view", "edit"})
+_VALID_PRINCIPAL_TYPES = frozenset({"user", "agent"})
 
 
 def _lookup_user_by_email(conn: sqlite3.Connection, email: str) -> tuple[str, str] | None:
@@ -92,6 +93,15 @@ def grant_by_principal_id(
     """
     if level not in _VALID_LEVELS:
         raise InvalidGrantLevel(f"level must be one of {_VALID_LEVELS}; got {level!r}")
+    if principal_type not in _VALID_PRINCIPAL_TYPES:
+        raise ValueError(
+            f"principal_type must be one of {_VALID_PRINCIPAL_TYPES}; "
+            f"got {principal_type!r}"
+        )
+    if principal_type == "agent" and not principal_id.startswith("agt_"):
+        raise ValueError(
+            f"agent principal_id must start with 'agt_'; got {principal_id!r}"
+        )
     db.upsert_grant(
         conn,
         doc_id=doc_id,

@@ -146,3 +146,35 @@ def test_unauthenticated_returns_401(client):
     doc_id = _publish(c, "alice")
     r = c.get(f"/api/docs/{doc_id}/grants")
     assert r.status_code == 401
+
+
+def test_grant_by_principal_id_rejects_unknown_principal_type(client):
+    """grant_by_principal_id must reject principal_type outside {'user','agent'}."""
+    from markland.service.grants import grant_by_principal_id
+
+    _, conn, _ = client
+    with pytest.raises(ValueError):
+        grant_by_principal_id(
+            conn,
+            doc_id="doc_x",
+            principal_id="usr_bob",
+            principal_type="root",  # not allowed
+            level="view",
+            granted_by="usr_alice",
+        )
+
+
+def test_grant_by_principal_id_requires_agt_prefix_for_agents(client):
+    """Agent grants must use an `agt_` id."""
+    from markland.service.grants import grant_by_principal_id
+
+    _, conn, _ = client
+    with pytest.raises(ValueError):
+        grant_by_principal_id(
+            conn,
+            doc_id="doc_x",
+            principal_id="usr_bob",       # wrong prefix for principal_type=agent
+            principal_type="agent",
+            level="view",
+            granted_by="usr_alice",
+        )
