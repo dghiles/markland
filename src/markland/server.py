@@ -340,17 +340,9 @@ def build_mcp(
 
     def _revoke(ctx, doc_id: str, target: str):
         p = _require_principal(ctx)
-        pid = target.strip()
-        if "@" in pid:
-            row = db_conn.execute(
-                "SELECT id FROM users WHERE lower(email) = lower(?)", (pid,)
-            ).fetchone()
-            if row is None:
-                # Idempotent: target doesn't exist as a user → return success no-op.
-                return {"revoked": False, "doc_id": doc_id, "target": target}
-            pid = row[0]
 
-        # Owner check still applies — non-owner shouldn't probe arbitrary docs.
+        # Owner check FIRST — non-owners must not be able to probe
+        # arbitrary doc/target pairs to enumerate user existence.
         try:
             check_permission(db_conn, p, doc_id, "owner")
         except NotFound:
@@ -358,13 +350,24 @@ def build_mcp(
         except PermissionDenied:
             raise tool_error("forbidden")
 
+        pid = target.strip()
+        if "@" in pid:
+            row = db_conn.execute(
+                "SELECT id FROM users WHERE lower(email) = lower(?)", (pid,)
+            ).fetchone()
+            if row is None:
+                # Idempotent: target email is not a user → no-op success.
+                # Owner-only path, so this does not leak user existence.
+                return {"revoked": False, "doc_id": doc_id}
+            pid = row[0]
+
         try:
             result = grants_svc.revoke(
                 db_conn, principal=p, doc_id=doc_id, principal_id=pid,
             )
         except NotFound:
             # Grant didn't exist on this owner-readable doc. Idempotent.
-            return {"revoked": False, "doc_id": doc_id, "target": target}
+            return {"revoked": False, "doc_id": doc_id}
         return result
 
     def _list_grants(

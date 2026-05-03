@@ -16,8 +16,7 @@
     "kind": "ok",
     "value": {
       "doc_id": "<DOC_ID>",
-      "revoked": false,
-      "target": "nobody@example.com"
+      "revoked": false
     }
   }
 }
