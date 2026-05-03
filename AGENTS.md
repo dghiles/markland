@@ -4,11 +4,14 @@ Guidance for Claude Code, Codex, and other agents working in this repo.
 
 ## One-time setup
 
-Activate the pre-commit hook (refuses commits on non-main branches in the
-primary worktree, see `scripts/git-hooks/pre-commit` for details):
+Activate the worktree-discipline hooks. The `pre-commit` hook refuses commits
+on non-main branches in the primary worktree; `post-checkout` warns the moment
+primary's HEAD moves off main so the surprise is visible immediately. Linked
+worktrees (`.worktrees/*`, `.claude/worktrees/*`) are unaffected by either.
 
 ```bash
-ln -s ../../scripts/git-hooks/pre-commit .git/hooks/pre-commit
+ln -s ../../scripts/git-hooks/pre-commit    .git/hooks/pre-commit
+ln -s ../../scripts/git-hooks/post-checkout .git/hooks/post-checkout
 ```
 
 ## Worktree discipline

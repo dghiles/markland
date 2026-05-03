@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Warn when the PRIMARY worktree HEAD is moved off main.
+#
+# Why: parallel agent sessions share /Users/daveyhiles/Developer/markland.
+# When one agent runs `git checkout feat/foo` here (instead of using
+# `git worktree add .worktrees/foo`), the primary's HEAD silently changes,
+# and the next session inherits the wrong branch — leading to commits on
+# unintended refs, accidental rebases, etc. The pre-commit hook blocks the
+# commit, but by then the surprise has already cost work. This hook surfaces
+# the surprise the moment it happens.
+#
+# Linked worktrees (.worktrees/*, .claude/worktrees/*) are unaffected.
+#
+# Activate (one-time, per clone):
+#     ln -s ../../scripts/git-hooks/post-checkout .git/hooks/post-checkout
+#
+# Silence (when intentionally working on a non-main branch in primary):
+#     POST_CHECKOUT_QUIET=1 git checkout feat/foo
+
+# Args from git: prev-HEAD, new-HEAD, branch-flag (1 = branch, 0 = file)
+prev_head="${1:-}"
+new_head="${2:-}"
+branch_flag="${3:-0}"
+
+# Only react to branch checkouts, not file checkouts.
+[ "$branch_flag" = "1" ] || exit 0
+
+# Detect linked worktree by inspecting the resolved git-dir.
+git_dir=$(git rev-parse --git-dir 2>/dev/null) || exit 0
+case "$git_dir" in
+  */worktrees/*)
+    exit 0
+    ;;
+esac
+
+if [ "${POST_CHECKOUT_QUIET:-}" = "1" ]; then
+  exit 0
+fi
+
+branch=$(git symbolic-ref --short HEAD 2>/dev/null || true)
+
+# Detached HEAD or main: no warning.
+if [ -z "$branch" ] || [ "$branch" = "main" ]; then
+  exit 0
+fi
+
+cat >&2 <<EOF
+
+⚠  Primary worktree is now on '$branch'.
+
+The primary worktree should stay on main. Feature work belongs in a
+linked worktree:
+
+    git checkout main
+    git worktree add .worktrees/<name> -b $branch
+    cd .worktrees/<name>
+
+The pre-commit hook will refuse commits on '$branch' here. Move the
+work, or set POST_CHECKOUT_QUIET=1 / BYPASS_BRANCH_CHECK=1 if this is
+intentional.
+
+EOF
+exit 0
