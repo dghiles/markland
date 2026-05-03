@@ -39,8 +39,8 @@ def summary(
 
     Returns:
       dict with keys: window_seconds, window_start_iso, window_end_iso,
-      signups, publishes, grants_created, invites_accepted, waitlist_total,
-      first_mcp_call.
+      signups, publishes, grants_created, invites_accepted, users_total,
+      waitlist_total, first_mcp_call.
     """
     end_iso = now_iso or _now_iso()
     start_iso = _shift(end_iso, window_seconds)
