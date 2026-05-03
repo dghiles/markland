@@ -262,7 +262,7 @@ These are tradeoff calls that need a decision before any AI-crawler robots.txt c
 
 | Item | Status | Landed in |
 |------|:------:|-----------|
-| G1 — Unblock PerplexityBot | ✅ done | PR #54 (`bcdec8e`); GPTBot also unblocked in PR #55 (`e86f7b3`) — full ChatGPT Search + Perplexity surface now reachable |
+| G1 — Unblock PerplexityBot | ✅ done | PR #54 (`bcdec8e`); GPTBot also unblocked in PR #55 (`e86f7b3`); blocklist further pruned in PR #56 (`7de94b1`) — only `Google-Extended` (Gemini training opt-out) and `Bytespider` (TikTok) remain blocked. ChatGPT Search, Perplexity, Claude all reachable. |
 | G2 — `/llms.txt` route | ✅ done | PR #54 — live at `https://markland.dev/llms.txt` (200, text/plain) |
 | G3 — Question-shaped FAQ | ✅ done | PR #54 — `/`, `/quickstart`, all 5 `/alternatives/{slug}` use `<h3>/<p>`; legacy `<dl>` removed where present |
 | G4 — "What is Markland?" answer block | ✅ done | PR #54 — 143-word section above the hero on `/` |
