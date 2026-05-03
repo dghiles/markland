@@ -39,8 +39,10 @@ def summary(
 
     Returns:
       dict with keys: window_seconds, window_start_iso, window_end_iso,
-      signups, publishes, grants_created, invites_accepted, waitlist_total,
-      first_mcp_call.
+      signups, publishes, grants_created, invites_accepted, documents_created,
+      documents_updated, documents_deleted, grants_revoked, invites_created,
+      users_total, waitlist_total, grants_total, invites_total,
+      documents_total, documents_public_total, first_mcp_call.
     """
     end_iso = now_iso or _now_iso()
     start_iso = _shift(end_iso, window_seconds)
@@ -70,7 +72,45 @@ def summary(
         "AND created_at >= ? AND created_at < ?",
         (start_iso, end_iso),
     )
+    documents_updated = _count(
+        "SELECT COUNT(*) FROM audit_log WHERE action = 'update' "
+        "AND created_at >= ? AND created_at < ?",
+        (start_iso, end_iso),
+    )
+    documents_deleted = _count(
+        "SELECT COUNT(*) FROM audit_log WHERE action = 'delete' "
+        "AND created_at >= ? AND created_at < ?",
+        (start_iso, end_iso),
+    )
+    grants_revoked = _count(
+        "SELECT COUNT(*) FROM audit_log WHERE action = 'revoke' "
+        "AND created_at >= ? AND created_at < ?",
+        (start_iso, end_iso),
+    )
+    invites_created = _count(
+        "SELECT COUNT(*) FROM audit_log WHERE action = 'invite_create' "
+        "AND created_at >= ? AND created_at < ?",
+        (start_iso, end_iso),
+    )
+    documents_created = _count(
+        "SELECT COUNT(*) FROM documents WHERE created_at >= ? AND created_at < ?",
+        (start_iso, end_iso),
+    )
     waitlist_total = _count("SELECT COUNT(*) FROM waitlist", ())
+    users_total = _count("SELECT COUNT(*) FROM users", ())
+    grants_total = _count("SELECT COUNT(*) FROM grants", ())
+    try:
+        invites_total = _count(
+            "SELECT COUNT(*) FROM invites WHERE revoked_at IS NULL", ()
+        )
+    except sqlite3.OperationalError:
+        # invites table created lazily by ensure_invites_schema(); fresh test
+        # DBs that don't run that migration shouldn't break the metrics call.
+        invites_total = 0
+    documents_total = _count("SELECT COUNT(*) FROM documents", ())
+    documents_public_total = _count(
+        "SELECT COUNT(*) FROM documents WHERE is_public = 1", ()
+    )
 
     return {
         "window_seconds": window_seconds,
@@ -80,6 +120,16 @@ def summary(
         "publishes": publishes,
         "grants_created": grants_created,
         "invites_accepted": invites_accepted,
+        "documents_updated": documents_updated,
+        "documents_deleted": documents_deleted,
+        "grants_revoked": grants_revoked,
+        "invites_created": invites_created,
+        "documents_created": documents_created,
+        "users_total": users_total,
         "waitlist_total": waitlist_total,
+        "grants_total": grants_total,
+        "invites_total": invites_total,
+        "documents_total": documents_total,
+        "documents_public_total": documents_public_total,
         "first_mcp_call": None,  # not persisted; see flyctl logs
     }

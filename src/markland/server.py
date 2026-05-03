@@ -1314,8 +1314,9 @@ def build_mcp(
     ) -> dict:
         """Funnel metrics summary over a time window. Admin only.
 
-        Aggregates signups, publishes, grants, and invite_accepts from the
-        existing users/audit_log tables, plus the unwindowed waitlist total.
+        Aggregates signups, publishes, document activity, grants, and invite
+        events from the users/audit_log/documents/grants/invites tables, plus
+        unwindowed totals (users, documents, grants, invites, waitlist).
         Useful for "what does the funnel look like this week?" agent queries.
 
         Args:
@@ -1323,11 +1324,16 @@ def build_mcp(
                 Floored at 60 seconds, capped at 30 days (2_592_000).
 
         Returns:
-            Flat dict with keys: window_seconds, window_start_iso,
-            window_end_iso, signups, publishes, grants_created,
-            invites_accepted, waitlist_total, first_mcp_call.
-            `first_mcp_call` is currently `null` because that event lives in
-            stdout logs only — check `flyctl logs` for now.
+            Flat dict. Keys are grouped (no nesting):
+              Window: window_seconds, window_start_iso, window_end_iso.
+              Totals (unwindowed): users_total, documents_total,
+                documents_public_total, grants_total, invites_total,
+                waitlist_total.
+              Windowed: signups, documents_created, documents_updated,
+                documents_deleted, publishes, grants_created, grants_revoked,
+                invites_created, invites_accepted.
+              Known gap: first_mcp_call (currently null — event lives in
+                stdout logs only; check `flyctl logs`).
 
         Raises:
             forbidden: Caller is not an admin.

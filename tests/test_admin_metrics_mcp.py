@@ -48,6 +48,16 @@ def test_admin_metrics_tool_returns_summary(ctx):
     assert "grants_created" in result
     assert "invites_accepted" in result
     assert "waitlist_total" in result
+    assert "users_total" in result
+    assert "documents_total" in result
+    assert "documents_public_total" in result
+    assert "documents_created" in result
+    assert "documents_updated" in result
+    assert "documents_deleted" in result
+    assert "grants_total" in result
+    assert "grants_revoked" in result
+    assert "invites_total" in result
+    assert "invites_created" in result
     assert result["window_seconds"] == 86400
     assert result["first_mcp_call"] is None
 

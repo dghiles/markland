@@ -60,6 +60,16 @@ def test_admin_metrics_admin_returns_summary(ctx):
     assert "grants_created" in body
     assert "invites_accepted" in body
     assert "waitlist_total" in body
+    assert "users_total" in body
+    assert "documents_total" in body
+    assert "documents_public_total" in body
+    assert "documents_created" in body
+    assert "documents_updated" in body
+    assert "documents_deleted" in body
+    assert "grants_total" in body
+    assert "grants_revoked" in body
+    assert "invites_total" in body
+    assert "invites_created" in body
     assert body["first_mcp_call"] is None
 
 
