@@ -1198,6 +1198,18 @@ def build_mcp(
         """
         return _status(ctx, doc_id, status=status, note=note)
 
+    def _set_status_shim(ctx, doc_id, status, note=None):
+        # JSON-RPC clients can pass any JSON value through the type hint;
+        # the shim's docstring promises invalid_argument when status isn't
+        # in {reading, editing}, so reject None explicitly rather than
+        # silently delegating to the clear path in _status.
+        if status is None:
+            raise tool_error(
+                "invalid_argument",
+                reason="status_must_be_reading_or_editing",
+            )
+        return _status(ctx, doc_id, status=status, note=note)
+
     @mcp.tool()
     def markland_set_status(
         ctx: Context,
@@ -1224,7 +1236,7 @@ def build_mcp(
 
         Idempotency: Idempotent.
         """
-        return _status(ctx, doc_id, status=status, note=note)
+        return _set_status_shim(ctx, doc_id, status=status, note=note)
 
     def _audit(
         ctx,
@@ -1369,9 +1381,7 @@ def build_mcp(
         markland_create_invite=_create_invite,
         markland_list_invites=_list_invites,
         markland_revoke_invite=_revoke_invite,
-        markland_set_status=lambda ctx, doc_id, status, note=None: _status(
-            ctx, doc_id, status=status, note=note
-        ),
+        markland_set_status=_set_status_shim,
         markland_clear_status=lambda ctx, doc_id: _status(
             ctx, doc_id, status=None
         ),

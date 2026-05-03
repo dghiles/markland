@@ -96,3 +96,16 @@ def test_set_status_marked_deprecated(tmp_path):
     desc = mcp._tool_manager.get_tool("markland_set_status").description
     assert "Deprecated" in desc
     assert "markland_status" in desc
+
+
+def test_set_status_shim_rejects_none(tmp_path):
+    """Plan-C.4: the deprecated set_status shim's signature says
+    status: str (not str | None). Passing None should surface as
+    invalid_argument matching the docstring contract — not silently
+    clear the presence."""
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# t")
+
+    r = alice.call_raw("markland_set_status", doc_id=pub["id"], status=None)
+    r.assert_error("invalid_argument")
