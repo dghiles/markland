@@ -134,3 +134,47 @@ def test_revoke_does_not_leak_user_existence_to_non_owner(tmp_path):
     # Both should be not_found per spec §12.5 deny-as-NotFound.
     r_unknown.assert_error("not_found")
     r_known.assert_error("not_found")
+
+
+def test_revoke_invite_does_not_leak_invite_existence_to_non_owner(tmp_path):
+    """Plan-A.2: a non-owner cannot use revoke_invite to probe whether
+    an invite_id exists. Both nonexistent-invite and existing-but-not-owner
+    cases must surface the same error shape."""
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    bob = h.as_user(email="bob@example.com")
+    pub = alice.call("markland_publish", content="# alice's doc")
+    real_invite = alice.call(
+        "markland_create_invite", doc_id=pub["id"], level="view"
+    )
+    real_invite_id = real_invite["invite_id"]
+
+    # bob is authenticated but is not alice's collaborator.
+    r_nonexistent = bob.call_raw(
+        "markland_revoke_invite", invite_id="inv_does_not_exist_12345"
+    )
+    r_existing = bob.call_raw(
+        "markland_revoke_invite", invite_id=real_invite_id
+    )
+
+    assert r_nonexistent.error_code == r_existing.error_code, (
+        f"existence oracle: nonexistent={r_nonexistent.error_code}, "
+        f"existing={r_existing.error_code}"
+    )
+    r_nonexistent.assert_error("not_found")
+    r_existing.assert_error("not_found")
+
+
+def test_revoke_invite_owner_idempotent_on_missing(tmp_path):
+    """Plan-A.2: an owner who calls revoke_invite on a nonexistent
+    invite_id still gets idempotent success — the security fix must
+    not break this contract."""
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    alice.call("markland_publish", content="# alice owns this")  # makes alice "an owner"
+
+    res = alice.call(
+        "markland_revoke_invite", invite_id="inv_does_not_exist_67890"
+    )
+    assert res["revoked"] is True
+    assert res["invite_id"] == "inv_does_not_exist_67890"

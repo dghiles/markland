@@ -435,18 +435,48 @@ def build_mcp(
 
     def _revoke_invite(ctx, invite_id: str):
         p = _require_principal(ctx)
+        # Look up the invite scoped to docs the caller owns. The
+        # combined query closes the existence oracle: a non-owner gets
+        # zero rows whether the invite is missing or belongs to someone
+        # else, and an owner gets the row when it exists.
         row = db_conn.execute(
-            "SELECT doc_id FROM invites WHERE id = ?", (invite_id,)
+            """
+            SELECT i.doc_id
+              FROM invites i
+              JOIN documents d ON d.id = i.doc_id
+             WHERE i.id = ?
+               AND d.owner_id = ?
+            """,
+            (invite_id, p.principal_id),
         ).fetchone()
         if row is None:
-            # Idempotent: invite never existed.
-            return {"revoked": True, "invite_id": invite_id}
-        try:
-            check_permission(db_conn, p, row[0], "owner")
-        except NotFound:
+            # Either the invite doesn't exist OR it's on a doc the
+            # caller doesn't own. Per §12.5 deny-as-NotFound, surface
+            # the same shape regardless. The previous "idempotent
+            # success on missing invite" semantics are preserved for
+            # the owner — see test_revoke_invite_owner_idempotent_on_missing.
+            owned = db_conn.execute(
+                """
+                SELECT 1 FROM documents WHERE owner_id = ? LIMIT 1
+                """,
+                (p.principal_id,),
+            ).fetchone()
+            # Owner-with-no-docs OR not-an-owner: both deny-as-NotFound.
+            if owned is None:
+                raise tool_error("not_found")
+            # Caller owns at least one doc — they're "an owner". The
+            # invite either doesn't exist anywhere or isn't theirs.
+            # Treat as idempotent success ONLY when invite truly does
+            # not exist. Otherwise (invite exists but not on caller's
+            # doc) treat as not_found.
+            exists_anywhere = db_conn.execute(
+                "SELECT 1 FROM invites WHERE id = ? LIMIT 1",
+                (invite_id,),
+            ).fetchone()
+            if exists_anywhere is None:
+                return {"revoked": True, "invite_id": invite_id}
             raise tool_error("not_found")
-        except PermissionDenied:
-            raise tool_error("forbidden")
+
         invites_svc.revoke_invite(
             db_conn, invite_id=invite_id, owner_user_id=p.principal_id
         )
