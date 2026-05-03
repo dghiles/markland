@@ -165,6 +165,11 @@
         }
         .cmp-fit .cell p { color: var(--text-2); font-size: 0.95rem; line-height: 1.55; }
 
+        .cmp-faq { padding: 2rem 0; max-width: 760px; margin: 4rem auto 0; }
+        .cmp-faq h2 { font-family: var(--font-display); font-size: 1.55rem; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 1rem 0; }
+        .cmp-faq h3 { font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; margin: 1.4rem 0 0.4rem 0; line-height: 1.4; }
+        .cmp-faq p { color: var(--text-2); margin: 0 0 0.8rem 0; line-height: 1.65; }
+
         .cmp-cta {
             max-width: 860px;
             margin: 4rem auto 0;
@@ -299,6 +304,14 @@
         <h3>Pick Markland when</h3>
         <p>{{ markland.best_for }}</p>
     </div>
+</section>
+
+<section class="cmp-faq" id="faq">
+    <h2>Frequently asked questions</h2>
+    {% for question, answer in competitor.faqs %}
+    <h3>{{ question }}</h3>
+    <p>{{ answer }}</p>
+    {% endfor %}
 </section>
 
 <section class="cmp-cta">

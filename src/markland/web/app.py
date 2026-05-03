@@ -20,7 +20,7 @@ from markland.db import (
 )
 from markland.web.competitors import COMPETITORS, MARKLAND, get_competitor
 from markland.web.renderer import make_excerpt, render_markdown
-from markland.web.seo import build_sitemap_xml, render_robots_txt
+from markland.web.seo import build_sitemap_xml, render_llms_txt, render_robots_txt, EXPLORE_MIN_PUBLIC_DOCS
 from markland.web.render_helpers import render_with_nav
 from markland.web.session_principal import session_principal
 
@@ -308,6 +308,11 @@ def create_app(
         sitemap_url = f"{_public_host(request, base_url)}/sitemap.xml"
         return PlainTextResponse(render_robots_txt(sitemap_url))
 
+    @app.get("/llms.txt", response_class=PlainTextResponse)
+    def llms_txt(request: Request):
+        host = _public_host(request, base_url)
+        return PlainTextResponse(render_llms_txt(host))
+
     # Path → template object for the sitemap's per-page lastmod (audit M10).
     # /alternatives/{slug} all share the same template file, which is
     # correct: a content edit to a single competitor lives in
@@ -331,7 +336,13 @@ def create_app(
     @app.get("/sitemap.xml", name="sitemap_xml")
     def sitemap_xml(request: Request):
         host = _public_host(request, base_url)
-        paths = list(_PATH_TEMPLATE.keys())
+        public_doc_count = db_conn.execute(
+            "SELECT COUNT(*) FROM documents WHERE is_public = 1"
+        ).fetchone()[0]
+        paths = [
+            p for p in _PATH_TEMPLATE.keys()
+            if p != "/explore" or public_doc_count >= EXPLORE_MIN_PUBLIC_DOCS
+        ]
         paths += [f"/alternatives/{c.slug}" for c in COMPETITORS]
         today = datetime.now(timezone.utc).date().isoformat()
 

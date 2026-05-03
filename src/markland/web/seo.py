@@ -11,6 +11,10 @@ from xml.sax.saxutils import escape
 
 # Path prefixes that must never be indexed. Match both exact paths and
 # children (e.g. "/settings" and "/settings/tokens").
+# Below this public-doc count, /explore is a thin placeholder and we omit it
+# from the sitemap so Google doesn't flag it Crawled-not-indexed (audit G5).
+EXPLORE_MIN_PUBLIC_DOCS = 5
+
 NOINDEX_PATH_PREFIXES: tuple[str, ...] = (
     "/api",
     "/mcp",
@@ -65,9 +69,6 @@ Disallow: /
 User-agent: Google-Extended
 Disallow: /
 
-User-agent: PerplexityBot
-Disallow: /
-
 User-agent: Bytespider
 Disallow: /
 
@@ -78,6 +79,40 @@ Sitemap: {{sitemap_url}}
 def render_robots_txt(sitemap_url: str) -> str:
     """Return robots.txt body with the sitemap URL filled in."""
     return ROBOTS_TXT.format(sitemap_url=sitemap_url)
+
+
+LLMS_TXT = """\
+# Markland
+> Agent-native publishing for markdown documents. Claude Code and other
+> MCP-compatible AI agents publish a markdown document with one tool
+> call and share it as a link — no Git repo, no Notion block model, no
+> account wall for the reader. Markland stores the bytes the agent
+> wrote and serves them back unchanged.
+
+## Core
+- [Markland — overview]({base}/): what Markland is, who it's for, how it works
+- [Quickstart]({base}/quickstart): wire up the MCP server in five steps
+- [Alternatives]({base}/alternatives): how Markland differs from Notion, Google Docs, Git/GitHub, HackMD, Markshare
+
+## Per-tool comparisons
+- [vs Notion]({base}/alternatives/notion): block model vs raw markdown
+- [vs Google Docs]({base}/alternatives/google-docs): rich-text vs markdown-first
+- [vs Git/GitHub]({base}/alternatives/github): repo-as-share vs doc-as-share
+- [vs HackMD]({base}/alternatives/hackmd): live collab vs MCP-native publishing
+- [vs Markshare]({base}/alternatives/markshare): CLI upload vs MCP server
+
+## About
+- [About / philosophy]({base}/about): why Markland exists
+- [Security]({base}/security): bearer tokens, hashing, hosting region
+- [Privacy]({base}/privacy): what's stored, what isn't
+- [Terms]({base}/terms): beta-stage software, acceptable use
+"""
+
+
+def render_llms_txt(base_url: str) -> str:
+    """Return llms.txt body with base_url substituted into every link.
+    Strips a trailing slash from base_url to avoid double slashes."""
+    return LLMS_TXT.format(base=base_url.rstrip("/"))
 
 
 def build_sitemap_xml(

@@ -71,7 +71,8 @@ def test_sitemap_contains_core_marketing_urls(client):
     assert '<?xml version="1.0" encoding="UTF-8"?>' in body
     assert "<loc>http://testserver/</loc>" in body
     assert "<loc>http://testserver/quickstart</loc>" in body
-    assert "<loc>http://testserver/explore</loc>" in body
+    # /explore is gated behind EXPLORE_MIN_PUBLIC_DOCS; the shared fixture has
+    # no public docs so we do NOT assert it here.
     assert "<loc>http://testserver/alternatives</loc>" in body
 
 
@@ -87,3 +88,36 @@ def test_sitemap_excludes_auth_and_api_paths(client):
     body = r.text
     for forbidden in ("/settings", "/dashboard", "/api/", "/mcp/", "/login", "/resume", "/health"):
         assert forbidden not in body
+
+
+def test_sitemap_excludes_explore_when_no_public_docs(tmp_path, monkeypatch):
+    """/explore is a thin placeholder until there are public docs to feature.
+    Including it in the sitemap invites Google to flag it as Crawled-not-indexed,
+    which drags aggregate site quality down."""
+    from markland.db import init_db
+    from markland.web.app import create_app
+    from fastapi.testclient import TestClient
+    monkeypatch.setenv("MARKLAND_RATE_LIMIT_ANON_PER_MIN", "1000")
+    conn = init_db(tmp_path / "t.db")
+    app = create_app(conn, mount_mcp=False, base_url="https://markland.test")
+    r = TestClient(app).get("/sitemap.xml")
+    assert r.status_code == 200
+    assert "<loc>https://markland.test/explore</loc>" not in r.text
+    # Sanity: marketing URLs we always want still present
+    assert "<loc>https://markland.test/quickstart</loc>" in r.text
+    assert "<loc>https://markland.test/about</loc>" in r.text
+
+
+def test_sitemap_includes_explore_once_public_docs_exist(tmp_path, monkeypatch):
+    from markland.db import init_db, insert_document
+    from markland.web.app import create_app
+    from fastapi.testclient import TestClient
+    monkeypatch.setenv("MARKLAND_RATE_LIMIT_ANON_PER_MIN", "1000")
+    conn = init_db(tmp_path / "t.db")
+    # EXPLORE_MIN_PUBLIC_DOCS = 5; insert exactly that many.
+    for i in range(5):
+        insert_document(conn, f"d{i}", f"Title {i}", "Body", f"tok{i}", is_public=True)
+    app = create_app(conn, mount_mcp=False, base_url="https://markland.test")
+    r = TestClient(app).get("/sitemap.xml")
+    assert r.status_code == 200
+    assert "<loc>https://markland.test/explore</loc>" in r.text

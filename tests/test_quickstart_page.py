@@ -77,3 +77,43 @@ def test_quickstart_has_meta_description(client):
     r = client.get("/quickstart")
     assert '<meta name="description"' in r.text
     assert "MCP" in r.text
+
+
+def test_quickstart_has_faq_section(tmp_path, monkeypatch):
+    """Quickstart page must include a FAQ section with question-shaped H3s
+    so it gets cited in 'how do I use Markland with X' AI queries (G3b)."""
+    import re
+    from fastapi.testclient import TestClient
+    from markland.db import init_db
+    from markland.web.app import create_app
+    monkeypatch.setenv("MARKLAND_RATE_LIMIT_ANON_PER_MIN", "1000")
+    conn = init_db(tmp_path / "t.db")
+    app = create_app(conn, mount_mcp=False, base_url="https://markland.test")
+    r = TestClient(app).get("/quickstart")
+    assert r.status_code == 200
+    h3_questions = re.findall(r'<h3[^>]*>[^<]*\?', r.text)
+    assert len(h3_questions) >= 4, (
+        f"quickstart needs ≥4 question-shaped <h3> headings, found {len(h3_questions)}"
+    )
+    # Specific high-intent questions
+    for q in [
+        "Do I need an Anthropic account?",
+        "Does Markland work with Cursor",
+    ]:
+        assert q in r.text, f"missing FAQ entry: {q!r}"
+
+
+def test_quickstart_has_no_legacy_dl_faq(tmp_path, monkeypatch):
+    """The quickstart FAQ must use <h3>/<p> only — no legacy <dl> markup
+    (G3b regression guard)."""
+    from fastapi.testclient import TestClient
+    from markland.db import init_db
+    from markland.web.app import create_app
+    monkeypatch.setenv("MARKLAND_RATE_LIMIT_ANON_PER_MIN", "1000")
+    conn = init_db(tmp_path / "t.db")
+    app = create_app(conn, mount_mcp=False, base_url="https://markland.test")
+    r = TestClient(app).get("/quickstart")
+    assert r.status_code == 200
+    assert "<dl" not in r.text, "quickstart still has legacy <dl> FAQ markup"
+    assert "<dt>" not in r.text, "quickstart still has legacy <dt> markup"
+    assert "<dd>" not in r.text, "quickstart still has legacy <dd> markup"

@@ -451,16 +451,16 @@
         /* --- FAQ section — plain markup, no FAQPage schema (rich-result
            restricted to gov/health since Aug 2023). The content alone
            still helps GEO citability for AI Overviews / Perplexity. --- */
-        .faq dl { display: grid; gap: 1.6rem; max-width: 760px; }
-        .faq dt {
+        .faq { display: grid; gap: 1.6rem; max-width: 760px; }
+        .faq h3 {
             font-family: var(--font-display);
             font-size: 1.1rem;
             font-weight: 700;
             letter-spacing: -0.015em;
             color: var(--text);
-            margin-bottom: 0.4rem;
+            margin: 0 0 0.4rem;
         }
-        .faq dd {
+        .faq p {
             margin: 0;
             color: var(--text-2);
             line-height: 1.6;
@@ -589,6 +589,14 @@
       New here? <a href="/quickstart">Start with the 5-step quickstart &rarr;</a>
     </p>
     <span class="cta-hint">Pre-launch &middot; we'll email when it's ready</span>
+</section>
+
+<section class="section" id="what-is-markland">
+    <div class="section-head">
+        <div class="section-eyebrow eb-blue">What is it?</div>
+        <h2 class="section-title">What is Markland?</h2>
+    </div>
+    <p class="answer-block">Markland is a markdown publishing platform built for AI agents. Claude Code, Cursor, and any other MCP-compatible client can publish a markdown document with one tool call and share it as a link &mdash; no Git repository, no Notion block model, no account wall for the reader. Markland stores the exact bytes your agent wrote and serves them back unchanged on a public or share-token URL, so handoff between agents and humans works without round-tripping through a tool that mangles the content. Because every document is versioned and addressable, a second agent can pick up exactly where the first one stopped &mdash; no copy-pasting, no context window bloat. The product surface is an MCP server with eight tools (<code>markland_publish</code>, <code>markland_grant</code>, <code>markland_search</code>, and the rest); the reader surface is a plain HTTPS link that any browser or agent can fetch.</p>
 </section>
 
 <section class="section">
@@ -742,22 +750,20 @@
         <div class="section-eyebrow eb-red">Common questions</div>
         <h2 class="section-title">Quick answers.</h2>
     </div>
-    <dl>
-        <dt>Is Markland free?</dt>
-        <dd>Yes during the public beta. There is no paid tier yet and no credit card to enter. Pricing will land before general availability and will not retroactively gate beta usage.</dd>
+        <h3>Is Markland free?</h3>
+        <p>Yes during the public beta. There is no paid tier yet and no credit card to enter. Pricing will land before general availability and will not retroactively gate beta usage.</p>
 
-        <dt>Does it work with ChatGPT, Cursor, or other MCP clients?</dt>
-        <dd>Yes. Markland exposes a standard MCP server, so any client that can register an MCP server &mdash; Claude Code, Claude Desktop, Cursor, Codex, custom agents &mdash; can call <code>markland_publish</code>, <code>markland_grant</code>, <code>markland_search</code>, and the rest of the toolset. The <a href="/quickstart">quickstart</a> uses Claude Code as the example client because it has the cleanest <code>claude mcp add</code> CLI.</dd>
+        <h3>Does it work with ChatGPT, Cursor, or other MCP clients?</h3>
+        <p>Yes. Markland exposes a standard MCP server, so any client that can register an MCP server &mdash; Claude Code, Claude Desktop, Cursor, Codex, custom agents &mdash; can call <code>markland_publish</code>, <code>markland_grant</code>, <code>markland_search</code>, and the rest of the toolset. The <a href="/quickstart">quickstart</a> uses Claude Code as the example client because it has the cleanest <code>claude mcp add</code> CLI.</p>
 
-        <dt>How is this different from Git or GitHub?</dt>
-        <dd>Git&rsquo;s sharing unit is a repository; Markland&rsquo;s is a single document. To share one private file via GitHub, your reader needs a GitHub account and org membership. Markland hands you back a URL the reader opens in any browser. <a href="/alternatives/github">Read the side-by-side</a>.</dd>
+        <h3>How is this different from Git or GitHub?</h3>
+        <p>Git&rsquo;s sharing unit is a repository; Markland&rsquo;s is a single document. To share one private file via GitHub, your reader needs a GitHub account and org membership. Markland hands you back a URL the reader opens in any browser. <a href="/alternatives/github">Read the side-by-side</a>.</p>
 
-        <dt>Where does my content live?</dt>
-        <dd>Documents are stored in SQLite on the application server, currently hosted on Fly.io in the US-East region. Markland does not train AI on your documents and does not share them with advertisers. See <a href="/privacy">/privacy</a> for what is and isn&rsquo;t stored.</dd>
+        <h3>Where does my content live?</h3>
+        <p>Documents are stored in SQLite on the application server, currently hosted on Fly.io in the US-East region. Markland does not train AI on your documents and does not share them with advertisers. See <a href="/privacy">/privacy</a> for what is and isn&rsquo;t stored.</p>
 
-        <dt>What about CRDTs and real-time co-editing?</dt>
-        <dd>Out of scope for v1. Concurrent writes use an <code>if_version</code> argument that returns a clean conflict instead of clobbering the loser &mdash; safe for two-party editing, but not the cursor-presence experience Google Docs gives a meeting-note workflow. <a href="/alternatives/google-docs">When to use which</a>.</dd>
-    </dl>
+        <h3>What about CRDTs and real-time co-editing?</h3>
+        <p>Out of scope for v1. Concurrent writes use an <code>if_version</code> argument that returns a clean conflict instead of clobbering the loser &mdash; safe for two-party editing, but not the cursor-presence experience Google Docs gives a meeting-note workflow. <a href="/alternatives/google-docs">When to use which</a>.</p>
 </section>
 
 <script>

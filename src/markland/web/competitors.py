@@ -26,6 +26,7 @@ class Competitor:
     # tail. Verified per-row in tests/test_alternative_seo_copy.py.
     seo_title: str
     seo_description: str
+    faqs: tuple[tuple[str, str], ...]  # (question, answer) pairs — audit G3c
 
 
 MARKLAND = {
@@ -50,6 +51,20 @@ COMPETITORS: tuple[Competitor, ...] = (
         not_ideal_for="Multi-agent or multi-human collaboration on the same doc over time.",
         seo_title="Markland vs Markshare.to — MCP-native agent publishing",
         seo_description="Markshare's CLI uploads markdown; Markland's MCP server lets your agent publish, share, and edit the same doc directly — no shell-out, no copy-paste.",
+        faqs=(
+            (
+                "Can I keep using Markshare and Markland together?",
+                "Yes. Markshare is a CLI; Markland is an MCP server. They don't conflict — your agent can call markland_publish for shared work it wants other agents to read or edit, and you can keep using markshare for one-shot personal uploads from your terminal.",
+            ),
+            (
+                "Does Markland have a CLI?",
+                "Not as a primary surface. The MCP toolset is the supported interface; everything you'd want a CLI for (publish, grant, search) is one MCP call away from any client that registers the server. A thin CLI wrapper is on the roadmap if there's demand.",
+            ),
+            (
+                "Why MCP instead of a REST API?",
+                "Because Markland is built for AI agents first, and MCP is the protocol that AI agents already speak. A REST API would require every client to write integration code; an MCP server is registered once and immediately usable.",
+            ),
+        ),
         angles=(
             (
                 "MCP-native vs CLI",
@@ -80,6 +95,20 @@ COMPETITORS: tuple[Competitor, ...] = (
         not_ideal_for="Sharing a single private document with a non-engineering colleague or client.",
         seo_title="Markland vs GitHub — Per-doc sharing, no repo access",
         seo_description="GitHub shares repositories; Markland shares documents. Hand a non-engineer a single private link, with no GitHub account or org membership required.",
+        faqs=(
+            (
+                "Why not just use a private GitHub repo?",
+                "Because GitHub's sharing unit is the repository. To share one document, your reader needs a GitHub account, organization membership, and the ability to navigate Git's branching model. Markland's sharing unit is a single document — a URL your reader opens in any browser.",
+            ),
+            (
+                "Does Markland integrate with GitHub?",
+                "Not directly. You can publish a markdown file to Markland that is also tracked in a Git repo on your end; Markland just stores the bytes you send via markland_publish. There's no automatic sync — that's a deliberate scope decision for v1.",
+            ),
+            (
+                "Can I use Markland for code review?",
+                "Markland is for sharing finished or near-finished documents, not for line-level diff review. If you're reviewing code changes, GitHub PRs are the right tool. Markland fills the gap when an agent's output is a markdown spec, plan, or report that doesn't need a PR workflow.",
+            ),
+        ),
         angles=(
             (
                 "Sharing unit mismatch",
@@ -110,6 +139,20 @@ COMPETITORS: tuple[Competitor, ...] = (
         not_ideal_for="Agent-first workflows where the content is markdown end-to-end and the agent is an equal editor.",
         seo_title="Markland vs Google Docs — Markdown for AI agents",
         seo_description="Google Docs converts markdown into rich-text blocks; Markland keeps the markdown your agent wrote, byte-identical, and serves it back through MCP.",
+        faqs=(
+            (
+                "Can I co-edit a Markland doc in real time with another person?",
+                "Not with cursor presence the way Google Docs does it. Concurrent writes use an if_version argument that returns a clean conflict if two writers race; safe for two-party editing, but not the live-cursor experience for meeting notes.",
+            ),
+            (
+                "Does Markland import from Google Docs?",
+                "Not directly. Export the doc as markdown (File → Download → Markdown in Google Docs) and call markland_publish with the bytes. Round-trip fidelity is on you because Google Docs' markdown export is best-effort.",
+            ),
+            (
+                "Why use Markland instead of Google Docs for agent output?",
+                "Because Google Docs stores rich-text. When an agent writes markdown into Google Docs, the platform parses it into formatted blocks; when a human reads it back, it renders as a rich-text doc, not the markdown bytes the agent wrote. Markland keeps the bytes intact end-to-end.",
+            ),
+        ),
         angles=(
             (
                 "Built for human editors, not agents",
@@ -140,6 +183,20 @@ COMPETITORS: tuple[Competitor, ...] = (
         not_ideal_for="Anyone whose content is plain markdown and who wants that markdown preserved on disk.",
         seo_title="Markland vs Notion — Markdown stays markdown",
         seo_description="Notion's block model rewrites markdown on every round-trip; Markland stores the bytes your agent wrote and serves them back, no account wall to readers.",
+        faqs=(
+            (
+                "Why doesn't Notion work for AI agents?",
+                "Notion stores documents as a tree of typed blocks, not as markdown text. When an agent writes markdown into Notion via the API, Notion parses it into blocks; when a human or another agent reads it back, those blocks get re-serialized into markdown that may not match what the agent wrote. Round-trip fidelity is lost.",
+            ),
+            (
+                "Does Markland import from Notion?",
+                "Not directly. Notion's markdown export is lossy by design (block IDs, embeds, callouts don't round-trip). You can copy the exported markdown into a markland_publish call, but parity with the Notion-rendered version isn't guaranteed.",
+            ),
+            (
+                "Is Markland a Notion replacement?",
+                "For agent-authored markdown shared via a link, yes. For team wikis, project management, databases, and rich-text workflows, no — Notion solves problems Markland doesn't try to solve.",
+            ),
+        ),
         angles=(
             (
                 "Blocks vs markdown",
@@ -166,6 +223,20 @@ COMPETITORS: tuple[Competitor, ...] = (
         not_ideal_for="Anything an agent produces — because the paste step is the friction.",
         seo_title="Markland vs HackMD — Skip the paste step",
         seo_description="Paste-and-share tools (HackMD, HedgeDoc, Gist, Pastebin) need a human pasting markdown into a form. Markland lets the agent publish via one MCP call.",
+        faqs=(
+            (
+                "How is Markland different from HackMD?",
+                "HackMD is built for live human collaboration on a markdown doc — multiple cursors, real-time editing, presentation mode. Markland is built for asynchronous publish-and-share with AI agents as the primary author. Different audience, different workflow.",
+            ),
+            (
+                "Can my agent edit a HackMD doc?",
+                "Only via HackMD's REST API, and you'd write the integration yourself. Markland gives you an MCP server your agent already speaks; one tool call publishes or updates a doc.",
+            ),
+            (
+                "Does Markland support real-time co-authoring?",
+                "Not in v1. The conflict-resolution model is optimistic concurrency via if_version, not CRDT. If you need cursor-level real-time editing, HackMD or Google Docs is the right tool.",
+            ),
+        ),
         angles=(
             (
                 "The paste step is the friction",
