@@ -347,3 +347,10 @@ def test_http_anon_to_allowed_tool_raises_harness_error(tmp_path, monkeypatch):
             h.anon().call_raw("markland_explore")
     finally:
         h.close()
+
+
+def test_as_envelope_masks_id_shaped_strings_inside_lists():
+    """Plan-C.8: bare-hex doc IDs inside a list should still be masked."""
+    payload = {"doc_ids": ["6d164947bd16f07f", "abcdef0123456789"]}
+    out = as_envelope(payload)
+    assert out == {"doc_ids": ["<DOC_ID>", "<DOC_ID>"]}
