@@ -24,29 +24,30 @@ Current selection: **"Shared notes for you and your agents."** — collaboration
 
 ---
 
-## Where we are (2026-05-01)
+## Where we are (2026-05-03)
 
-Live at **`https://markland.dev`** as of 2026-05-01. **Cutover complete:**
-all 12 tasks of `docs/plans/2026-04-29-cutover-to-markland-dev.md` shipped
-today — dedicated Fly IPv4 (149.248.214.141) + v6, Porkbun-direct DNS, Fly
-cert issued, `MARKLAND_BASE_URL` flipped, deploy verified, end-to-end
-magic-link tested (Resend DNS verified — daveyhiles@gmail.com signed in via
-real link from `notifications@markland.dev`), 301 redirect from
-`markland.fly.dev` → `markland.dev` live (`FlyDevRedirectMiddleware`),
-GSC domain property + sitemap submitted (TXT verify via Porkbun API,
-sitemap.xml accepted). Hosted_smoke green on cutover-relevant checks
-(/health, landing, MCP unauth/auth gating, whoami principal); a residual
-grep-on-escaped-JSON false-positive in the smoke script's whoami assertion
-is logged for separate fix.
+Live at **`https://markland.dev`**. Cutover complete 2026-05-01 (full
+write-up in the Shipped log). Two days of polish + hardening since:
+**MCP audit done through Plan 6** (axis 5 — five new tools shipped in PR
+#38) plus a three-PR retrospective sweep (Plan A security, Plan B error
+model, Plan C hygiene — PRs #45/#46/#47). **Security follow-ups batch
+landed** (PR #49 — all 6 items: `user_code` redirect escape, per-IP rate
+limit on `/device/confirm`, lock-after-N-fails, `grant_by_principal_id`
+defensive check, append-only `audit_log` enforcement, `/admin/audit`
+middleware widening). **Agent token query-string leak fixed** via signed
+flash cookie (PR #41). **Umami Cloud analytics live** (PR #37 + CSP fix
+#43). **SEO audit complete** — every C/H/M/L item from
+`docs/audits/2026-04-24-seo-audit/ACTION-PLAN.md` is done or obsolete
+(C3 branded 404, C4 trust pages ≥250w, L3 AI-crawler blocklist, L4
+`/admin/*` middleware dedupe, L5 post-cutover sitemap/GSC). **Fresh
+strategic input:** GEO / AI-search readiness analysis at
+`docs/audits/2026-05-03-geo-analysis/GEO-ANALYSIS.md` scored us 62/100 —
+solid SSR + JSON-LD foundation, but the AI-crawler blocklist is currently
+locking us out of Perplexity and (partially) Claude Web. Decision pending.
 
-MCP audit advancing fast: Plans 1–5 of 7 shipped (harness + axes 1+6, 2+7,
-3, 4+8, plus Plan 5 axis-4/8 idempotency). Two plans left — Plan 6 (axis 5,
-new tools, in flight at `.worktrees/mcp-axis-5`) and Plan 7 (deprecation/
-removal). Code-complete on the v1 build (10 plans, 864 tests). Marketing
-surface up. SEO foundation shipped through batches 1–3 of the post-audit
-action plan plus self-hosted Figtree/DM Mono/Newsreader. Install-flow
-fixes from the 2026-04-24 dogfood landed. `markland_admin_metrics` MCP
-tool + admin endpoint shipped today.
+One MCP audit plan left — Plan 7 (Phase B deprecation/removal of 4
+shims). Code-complete on the v1 build (10 plans, 864 tests).
+`markland_admin_metrics` MCP tool live since 2026-05-01.
 
 ---
 
@@ -54,21 +55,19 @@ tool + admin endpoint shipped today.
 
 Active or imminent. Items here have a plan or a clear next action.
 
-- **MCP audit + test harness** — spec at `docs/specs/2026-04-27-mcp-audit-design.md`; seven implementation plans landed 2026-04-28 under `docs/plans/2026-04-27-mcp-{harness-and-baseline,axis-1-6-naming-docstrings,axis-2-7-return-shapes-pagination,axis-3-error-model,axis-4-8-granularity-idempotency,axis-5-new-tools,phase-b-deprecation-removal}.md`. Plans 1-6 shipped (harness + baselines, axes 1/6, 2/7, 3, 4/8, and 5). Plan 6 (axis 5) added 5 new tools — `markland_get_by_share_token`, `markland_list_invites`, `markland_explore`, `markland_fork`, `markland_revisions` — with Layer B baselines and an extended idempotency catalog. Next action: Plan 7 (Phase B deprecation/removal) opens 30 days after the `mcp-audit-axis-5-released` tag is laid; 4 deprecation shims (`markland_set_visibility`, `markland_feature`, `markland_set_status`, `markland_clear_status`) remain to be removed.
-- **SEO action plan batch 2+** — remaining items from `docs/audits/2026-04-24-seo-audit/ACTION-PLAN.md`. Critical leftovers: **C3** (HTML 404 page), **C4** (expand `/about /security /privacy /terms` to 250-300 words each — content, not code). High items beyond H2/H3/H5/H6 (already in batch 1).
-- **Install/onboarding flow simplification** — first-time CLI install today is six steps across two channels: CLI shows `user_code` → visit `/device` → email form → check inbox → click magic link → bounce back → enter code → confirm. Device-flow assumes you're already signed in, and magic-link is the sign-in primitive, so they stack. Plan `docs/plans/2026-04-24-setup-install-ux-fix.md` captures the four leverage-ordered cleanup options. **Option 1 shipped 2026-04-28 (PR #12 + #13)**: `?next=` now threads through `/login` → magic-link → `/verify` and is url-encoded so the `user_code` survives the `/device/confirm` bounce. Remaining: (2) prefill `user_code` via `/device?code=…` (route already supports it — runbook needs to construct the link); (3) single-link install — CLI runbook generates one `/device?code=…` URL so sign-in + code-entry happen on the same page; (4) skip device flow for browser-first users — sign in, hit "Connect Claude Code", copy one-shot token from `/me/tokens` into `claude mcp add`. Worth a brainstorm pass on (2)-(4) before launch — right answer depends on whether the primary install audience is browser-first humans or CLI-first agents.
+- **GEO / AI-search posture decision** — fresh analysis at `docs/audits/2026-05-03-geo-analysis/GEO-ANALYSIS.md` (score 62/100). Concrete trade: today's robots.txt blocks `PerplexityBot`, `GPTBot`, and the deprecated `Claude-Web`/`anthropic-ai` UAs (modern `ClaudeBot` is allowed via wildcard). Doing nothing keeps us out of Perplexity and ChatGPT's offline index. Next action is a call: unblock named AI-search crawlers (Perplexity + GPTBot for ChatGPT Search) and ship `/llms.txt` + question-shaped H2/H3 + a small FAQ block, OR keep the block and accept the visibility cost. Plan-pending until the call is made.
+- **MCP audit Plan 7 — Phase B deprecation/removal** — opens 30 days after the `mcp-audit-axis-5-released` tag (laid 2026-05-01, so window opens **2026-05-31**). Removes 4 deprecation shims: `markland_set_visibility`, `markland_feature`, `markland_set_status`, `markland_clear_status`. Plan: `docs/plans/2026-04-27-mcp-phase-b-deprecation-removal.md`.
+- **Install/onboarding flow simplification** — Option 1 shipped (PR #12 + #13). Remaining: (2) prefill `user_code` via `/device?code=…` (route already supports it — runbook needs to construct the link); (3) single-link install — CLI runbook generates one `/device?code=…` URL so sign-in + code-entry happen on the same page; (4) skip device flow for browser-first users — sign in, hit "Connect Claude Code", copy one-shot token from `/me/tokens` into `claude mcp add`. Plan `docs/plans/2026-04-24-setup-install-ux-fix.md`. Worth a brainstorm pass on (2)-(4) before launch — right answer depends on whether the primary install audience is browser-first humans or CLI-first agents.
 
 ## Next
 
-Queued. All cutover blockers are clear — these are the next moves now that the
-domain is live and magic-link works end-to-end.
+Queued. The big security/analytics/MCP-axis batches all landed; what's
+left is launch-readiness polish.
 
-- **Phase 0 dogfooding walkthrough** against live deploy — plan: `docs/plans/2026-04-28-phase-0-dogfood.md` (operationalizes `docs/runbooks/phase-0-checklist.md`). **Now unblocked** — Resend verified end-to-end 2026-05-01.
-- **CSRF on save routes** — `/d/{t}/fork`, `/d/{t}/bookmark` accept plain form/fetch with `SameSite=Lax`. First user-authored mutating POSTs in the app; ship before any real users.
-- **Agent token query-string leak** — plan: `docs/plans/2026-04-28-agent-token-leak-fix.md`. Replace `routes_agents.py:223-225` redirect with signed flash-cookie pattern.
-- **Security follow-ups batch** — plan: `docs/plans/2026-04-28-security-followups-batch.md`. Six items (`user_code` redirect escape, per-IP rate limit on `/device/confirm`, lock-after-N-failed-confirms, `grant_by_principal_id` defensive check, append-only audit enforcement, `/admin/audit` middleware widening).
-- **Sentry DSN + alert wiring** — plan: `docs/plans/2026-04-28-sentry-dsn-alerts.md`.
-- **Umami analytics** — PR #37 open (admin-excluded, env-gated drop-in). Just needs review/merge.
+- **Phase 0 dogfooding walkthrough** against live deploy — plan: `docs/plans/2026-04-28-phase-0-dogfood.md` (operationalizes `docs/runbooks/phase-0-checklist.md`). Resend verified, magic-link tested end-to-end — fully unblocked.
+- **CSRF on save routes** — `/d/{t}/fork`, `/d/{t}/bookmark`, `DELETE /d/{t}/bookmark` accept plain form/fetch with `SameSite=Lax`. First user-authored mutating POSTs in the app; ship before any real users. No plan yet — small.
+- **Sentry DSN + alert wiring** — plan: `docs/plans/2026-04-28-sentry-dsn-alerts.md`. Code path lives (`config.sentry_dsn` + conditional init in `run_app.py`); operator action is provisioning the DSN secret and wiring the three alerts (5xx spike, ConflictError spike, EmailSendError spike).
+- **Soak-window analytics check** — beads `markland-fjd` (2 weeks post-launch): pull Umami stats + `/admin/metrics` 14d funnel snapshot + cross-reference signups vs Umami sessions, post a 1-message summary.
 
 ## Later
 
@@ -89,6 +88,8 @@ date it landed.
 
 ### Hosted infrastructure + ops
 
+- **2026-05-03** — Rate-limiter memory bound: periodic stale-key GC on the hit-counter dicts so `/device/confirm`'s per-IP limiter can't grow without bound (PR #51, beads `markland-77d`).
+- **2026-05-03** — `/admin/*` bearer-resolution dedupe (SEO audit L4): single helper across `/admin/waitlist` + `/admin/metrics` + drops a redundant `last_used_at` write per request (PR #50).
 - **2026-05-01** — **Cutover to `markland.dev` complete.** All 12 tasks of `docs/plans/2026-04-29-cutover-to-markland-dev.md` shipped: dedicated Fly IPv4 (149.248.214.141) + IPv6 (2a09:8280:1::107:b98d:0), Porkbun-direct A/AAAA at apex (Porkbun API DNS edits), Fly TLS cert issued, `MARKLAND_BASE_URL` flipped to `https://markland.dev`, machine rolled in place via `flyctl deploy --strategy immediate`, `FlyDevRedirectMiddleware` 301s the old `markland.fly.dev` host (`076a3c2`), Resend DNS records (SPF/DKIM/DMARC) verified end-to-end via real magic-link sign-in from `notifications@markland.dev`, GSC domain property added with TXT verification + sitemap.xml submitted. Hosted_smoke green on cutover-relevant checks; a residual grep-on-escaped-JSON false-positive in the smoke whoami assertion is logged in FOLLOW-UPS for separate fix.
 - **2026-05-01** — `markland_admin_metrics` MCP tool + `GET /admin/metrics` JSON endpoint. Aggregates signups, publishes, grants_created, invites_accepted from existing tables over a configurable window (default 7d, cap 30d) plus unwindowed waitlist_total. Admin-only via existing `is_admin` gate. `first_mcp_call` returned as null pending event-table follow-up.
 - **2026-04-29** — Domain `markland.dev` registered at Porkbun (registry expires 2027-04-29, locked, contact privacy on, Porkbun nameservers active). Unblocks the cutover sequence.
@@ -98,6 +99,15 @@ date it landed.
 - **2026-04-20** — CI auto-deploy working end-to-end (release v3 from `deploy.yml`).
 - **2026-04-20** — First Fly.io deploy (`markland` app, iad, 1 GB volume, shared-cpu-1x). Live at `https://markland.fly.dev/`. `MARKLAND_SESSION_SECRET` set; Resend / R2 / Sentry deferred.
 - **2026-04-19** — Plan 1 hosted-infra Tasks 1-10: Dockerfile, Fly config, Litestream config, GH Actions workflows, `run_app.py` entrypoint, Sentry-conditional init, Resend client wrapper.
+
+### Build (v1 plans + post-launch security/MCP)
+
+- **2026-05-03** — **Security follow-ups batch (PR #49)** — all 6 items from `docs/plans/2026-04-28-security-followups-batch.md`: `user_code` redirect escape via `urllib.parse.quote`, per-IP rate limit on `POST /device/confirm`, lock-after-N-failed-confirms on the device row, `grant_by_principal_id` defensive `principal_type` check, append-only `audit_log` enforcement (DB trigger), `/admin/audit` middleware coverage widened.
+- **2026-05-01** — **Agent token query-string leak fixed (PR #41)** — `routes_agents.py:223-225` no longer redirects with `?new_token=…`. Now writes the token to a signed flash cookie (`URLSafeTimedSerializer`, mirrors `pending_intent.py`) read once on the next page render, then cleared.
+- **2026-05-01** — **MCP audit Plan 6 — axis 5 (PR #38)** — five new tools: `markland_get_by_share_token`, `markland_list_invites`, `markland_explore`, `markland_fork`, `markland_revisions`. Layer B baselines + extended idempotency catalog.
+- **2026-05-01** — **MCP audit Plan 5 — axis 4/8 (PR #36)** — granularity + idempotency.
+- **2026-05-01** — **MCP audit Plan 4 — axis 2/7 (PR #33)** — return shapes + pagination.
+- **2026-05-03** — **MCP retrospective Plans A/B/C** — three follow-ups from the audit's own retrospective: Plan A security hardening (PR #45), Plan B error-model completion (PR #46), Plan C hygiene (PR #47).
 
 ### Build (v1 plans, all 2026-04-19 unless noted)
 
@@ -113,6 +123,8 @@ date it landed.
 
 ### Marketing + UX surface
 
+- **2026-05-01** — **Umami Cloud analytics live (PR #37 + CSP fix #43)** — env-gated drop-in (`UMAMI_WEBSITE_ID`, `UMAMI_SCRIPT_URL`), admin paths excluded, `<script defer>` only when configured, two-host topology (`cloud.umami.is` + `api-gateway.umami.dev`) allowed in `connect-src`. Privacy-first, cookieless, no PII; disclosed on `/security`.
+- **2026-05-01** — Signed-in banner coverage on every authed page + overflow fix (PR #39); themed login/magic-link/verify pages (PR #40, #34); "Sign in" link in header for signed-out visitors (PR #42).
 - **2026-04-28** — Install-flow fixes from 2026-04-24 dogfood run (PR #12 + #13). `?next=` thread-through (`/login` → magic-link → `/verify` preserves intended landing); url-encoded `next=` so a `user_code` containing `&` or `?` survives the `/device/confirm` bounce; "For humans" preamble on `/setup`; runbook fixed to use the `/install` Claude Code command rather than the unsupported `claude mcp add markland <url>`; `claude mcp add` references swept across docs; trust `X-Forwarded-Proto` so the `/mcp` redirect preserves https behind Fly's proxy.
 - **2026-04-20** — `/alternatives` hub + per-competitor comparison pages (markshare.to + 4 others).
 - **2026-04-20** — Save-to-Markland CTA partial (desktop popover + mobile sheet); `/fork` and `/bookmark` routes with logged-out intent capture; `/resume` + magic-link hook for post-login action resume; signed pending-intent cookie via `URLSafeTimedSerializer`; `bookmarks` table + `forked_from_doc_id` column; "Saved" dashboard section; "Forked from" attribution on viewer.
@@ -122,6 +134,8 @@ date it landed.
 
 ### SEO foundation
 
+- **2026-05-03** — GEO / AI-search readiness analysis published at `docs/audits/2026-05-03-geo-analysis/GEO-ANALYSIS.md` (score 62/100). Live curl + static-HTML inspection of 7 sitemap URLs, platform-by-platform breakdown (Google AIO, ChatGPT Search, Perplexity, Claude Web, Bing Copilot), AI-crawler access matrix.
+- **2026-05-03** — **SEO audit complete** — every C/H/M/L item from `docs/audits/2026-04-24-seo-audit/ACTION-PLAN.md` shipped or marked obsolete. Final landings: C3 branded HTML 404 (`tests/test_404_page.py`), C4 trust pages expanded ≥250 words with E-E-A-T signal (`48dc2df`), L3 robots.txt AI-crawler blocklist expanded (PR #48), L4 `/admin/*` middleware dedupe (PR #50), L5 post-cutover sitemap submitted + GSC verified.
 - **2026-04-28** — Self-hosted Figtree, DM Mono, Newsreader (perf/SEO Task 10). Variable woff2 files served from `src/markland/web/assets/fonts/`, `@font-face` declarations in `base.html`, Newsreader italic axis widened to weight 600, `tests/test_self_hosted_fonts.py` verifies presence and font-face declarations.
 - **2026-04-27** — SEO batch 1 from 2026-04-24 audit: `/alternatives` competitor cards as `<h2>` (C1), `Offer` on `SoftwareApplication` JSON-LD (C2), `BreadcrumbList` on per-competitor pages (H2), `logo` + `sameAs` on `Organization` (H3), additional H5/H6/M8 quick wins. Audit artifacts committed under `docs/audits/2026-04-24-seo-audit/`. HackMD coverage test added.
 - **2026-04-22** — `_seo_meta.html` partial (canonical, OG, Twitter, JSON-LD); per-page meta descriptions; homepage retitle for MCP + Claude Code; GEO definitional paragraph for AI Overviews / LLM citation; expanded `/quickstart` (600+ words, H2 steps, templated host); trust-floor stub pages (`about/security/privacy/terms`) + footer; dynamic `/robots.txt` and `/sitemap.xml` (sourced from `COMPETITORS`); `SecurityHeadersMiddleware` (HSTS, CSP, XFO, XCTO, Referrer-Policy, Permissions-Policy, per-path `X-Robots-Tag`).
