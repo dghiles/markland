@@ -80,12 +80,16 @@ def test_set_status_shim_delegates(tmp_path):
 
 
 def test_clear_status_shim_delegates(tmp_path):
+    # Plan-C.5 restored the legacy {ok: true} shape; the shim still
+    # delegates to _status under the hood, just with a translated
+    # response so existing callers don't break before the 30-day
+    # removal deadline.
     h = MCPHarness.create(tmp_path, mode="direct")
     alice = h.as_user(email="alice@example.com")
     pub = alice.call("markland_publish", content="# t")
     alice.call("markland_set_status", doc_id=pub["id"], status="reading")
     res = alice.call("markland_clear_status", doc_id=pub["id"])
-    assert res["cleared"] is True
+    assert res == {"ok": True}
 
 
 def test_set_status_marked_deprecated(tmp_path):
@@ -109,3 +113,19 @@ def test_set_status_shim_rejects_none(tmp_path):
 
     r = alice.call_raw("markland_set_status", doc_id=pub["id"], status=None)
     r.assert_error("invalid_argument")
+
+
+def test_clear_status_shim_returns_legacy_ok_true_shape(tmp_path):
+    """Plan-C.5: the deprecated clear_status shim must preserve its
+    pre-deprecation response shape {ok: true} so existing callers
+    don't break before the 30-day removal deadline."""
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    pub = alice.call("markland_publish", content="# t")
+    alice.call("markland_set_status", doc_id=pub["id"], status="reading")
+
+    res = alice.call("markland_clear_status", doc_id=pub["id"])
+    assert res == {"ok": True}, (
+        f"shim returned {res!r}; expected legacy {{'ok': True}} until "
+        "the deprecation window closes"
+    )

@@ -1336,6 +1336,12 @@ def build_mcp(
         """
         return _admin_metrics(ctx, window_seconds=window_seconds)
 
+    def _clear_status_shim(ctx, doc_id):
+        _status(ctx, doc_id, status=None)
+        # Preserve the pre-deprecation {ok: true} shape so existing
+        # callers don't break before the 30-day removal deadline.
+        return {"ok": True}
+
     @mcp.tool()
     def markland_clear_status(ctx: Context, doc_id: str) -> dict:
         """Deprecated. Use markland_status(doc_id, status=None) instead.
@@ -1346,11 +1352,11 @@ def build_mcp(
             doc_id: The document whose presence row should be removed.
 
         Returns:
-            {doc_id, cleared: true}.
+            {ok: true} — the pre-deprecation shape, preserved for back-compat.
 
         Idempotency: Idempotent — safe to call even if no presence row exists.
         """
-        return _status(ctx, doc_id, status=None)
+        return _clear_status_shim(ctx, doc_id)
 
     handlers.update(
         markland_whoami=_whoami,
@@ -1382,9 +1388,7 @@ def build_mcp(
         markland_list_invites=_list_invites,
         markland_revoke_invite=_revoke_invite,
         markland_set_status=_set_status_shim,
-        markland_clear_status=lambda ctx, doc_id: _status(
-            ctx, doc_id, status=None
-        ),
+        markland_clear_status=_clear_status_shim,
         markland_status=_status,
         markland_audit=_audit,
         markland_admin_metrics=_admin_metrics,

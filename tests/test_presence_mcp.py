@@ -82,13 +82,14 @@ def test_set_status_rejects_invalid_status(conn):
 
 
 def test_clear_status_removes_row(conn):
+    # Plan-C.5: clear_status shim returns the legacy {ok: true} shape
+    # for back-compat. The row removal is verified directly via SQL.
     mcp = build_mcp(conn, base_url="http://localhost:8950")
     alice = _principal("usr_alice")
     _call(mcp, "markland_set_status", alice,
           doc_id="doc_1", status="reading", note=None)
     out = _call(mcp, "markland_clear_status", alice, doc_id="doc_1")
-    assert out["cleared"] is True
-    assert out["doc_id"] == "doc_1"
+    assert out == {"ok": True}
     assert conn.execute("SELECT COUNT(*) FROM presence").fetchone()[0] == 0
 
 
