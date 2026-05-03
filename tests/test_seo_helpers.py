@@ -55,7 +55,6 @@ def test_robots_txt_references_sitemap_and_core_disallows():
 @pytest.mark.parametrize(
     "bot",
     [
-        "GPTBot",
         "CCBot",
         "anthropic-ai",
         "Claude-Web",
@@ -75,6 +74,13 @@ def test_robots_txt_does_not_block_perplexitybot():
     Perplexity citations with no privacy or training-data upside. Audit G1
     unblocks it."""
     assert "User-agent: PerplexityBot" not in ROBOTS_TXT
+
+
+def test_robots_txt_does_not_block_gptbot():
+    """GPTBot is dual-use (training + ChatGPT Search index). Owner decision
+    on 2026-05-03 was to unblock so Markland is citable in ChatGPT Search.
+    OAI-SearchBot and ChatGPT-User were never blocked."""
+    assert "User-agent: GPTBot" not in ROBOTS_TXT
 
 
 def test_build_sitemap_xml_contains_all_urls():
