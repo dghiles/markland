@@ -39,8 +39,8 @@ def summary(
 
     Returns:
       dict with keys: window_seconds, window_start_iso, window_end_iso,
-      signups, publishes, grants_created, invites_accepted, users_total,
-      waitlist_total, documents_total, documents_public_total,
+      signups, publishes, grants_created, invites_accepted, documents_created,
+      users_total, waitlist_total, documents_total, documents_public_total,
       first_mcp_call.
     """
     end_iso = now_iso or _now_iso()
@@ -71,6 +71,10 @@ def summary(
         "AND created_at >= ? AND created_at < ?",
         (start_iso, end_iso),
     )
+    documents_created = _count(
+        "SELECT COUNT(*) FROM documents WHERE created_at >= ? AND created_at < ?",
+        (start_iso, end_iso),
+    )
     waitlist_total = _count("SELECT COUNT(*) FROM waitlist", ())
     users_total = _count("SELECT COUNT(*) FROM users", ())
     documents_total = _count("SELECT COUNT(*) FROM documents", ())
@@ -86,6 +90,7 @@ def summary(
         "publishes": publishes,
         "grants_created": grants_created,
         "invites_accepted": invites_accepted,
+        "documents_created": documents_created,
         "users_total": users_total,
         "waitlist_total": waitlist_total,
         "documents_total": documents_total,

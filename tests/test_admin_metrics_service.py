@@ -119,3 +119,12 @@ def test_summary_documents_total_counts_all_docs(conn):
     result = summary(conn, window_seconds=86400, now_iso="2026-05-02T00:00:00Z")
     assert result["documents_total"] == 3
     assert result["documents_public_total"] == 2
+
+
+def test_summary_documents_created_in_window(conn):
+    # One inside the 24h window, one outside.
+    _seed_doc(conn, "d_recent", created_at="2026-04-30T12:00:00Z")
+    _seed_doc(conn, "d_old", created_at="2026-04-01T12:00:00Z")
+    result = summary(conn, window_seconds=86400, now_iso="2026-05-01T00:00:00Z")
+    assert result["documents_created"] == 1
+    assert result["documents_total"] == 2  # unwindowed sees both
