@@ -38,6 +38,23 @@ def _seed_audit(
     conn.commit()
 
 
+def _seed_doc(
+    conn: sqlite3.Connection,
+    doc_id: str,
+    *,
+    is_public: int = 0,
+    created_at: str = "2026-05-01T00:00:00Z",
+    owner_id: str | None = None,
+) -> None:
+    # documents has UNIQUE share_token NOT NULL — pass through doc_id as a stand-in.
+    conn.execute(
+        "INSERT INTO documents (id, title, content, share_token, created_at, updated_at, is_public, owner_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (doc_id, "t", "c", f"tok_{doc_id}", created_at, created_at, is_public, owner_id),
+    )
+    conn.commit()
+
+
 def test_summary_empty_db(conn):
     result = summary(conn, window_seconds=86400)
     assert result["window_seconds"] == 86400
@@ -93,3 +110,12 @@ def test_summary_includes_users_total_unwindowed(conn):
     result = summary(conn, window_seconds=86400, now_iso="2026-05-01T00:00:00Z")
     assert result["users_total"] == 2
     assert result["signups"] == 1  # window-bound, unchanged behavior
+
+
+def test_summary_documents_total_counts_all_docs(conn):
+    _seed_doc(conn, "d1", is_public=0)
+    _seed_doc(conn, "d2", is_public=1)
+    _seed_doc(conn, "d3", is_public=1)
+    result = summary(conn, window_seconds=86400, now_iso="2026-05-02T00:00:00Z")
+    assert result["documents_total"] == 3
+    assert result["documents_public_total"] == 2

@@ -40,7 +40,8 @@ def summary(
     Returns:
       dict with keys: window_seconds, window_start_iso, window_end_iso,
       signups, publishes, grants_created, invites_accepted, users_total,
-      waitlist_total, first_mcp_call.
+      waitlist_total, documents_total, documents_public_total,
+      first_mcp_call.
     """
     end_iso = now_iso or _now_iso()
     start_iso = _shift(end_iso, window_seconds)
@@ -72,6 +73,10 @@ def summary(
     )
     waitlist_total = _count("SELECT COUNT(*) FROM waitlist", ())
     users_total = _count("SELECT COUNT(*) FROM users", ())
+    documents_total = _count("SELECT COUNT(*) FROM documents", ())
+    documents_public_total = _count(
+        "SELECT COUNT(*) FROM documents WHERE is_public = 1", ()
+    )
 
     return {
         "window_seconds": window_seconds,
@@ -83,5 +88,7 @@ def summary(
         "invites_accepted": invites_accepted,
         "users_total": users_total,
         "waitlist_total": waitlist_total,
+        "documents_total": documents_total,
+        "documents_public_total": documents_public_total,
         "first_mcp_call": None,  # not persisted; see flyctl logs
     }
