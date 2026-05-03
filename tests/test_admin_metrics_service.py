@@ -130,6 +130,23 @@ def test_summary_documents_created_in_window(conn):
     assert result["documents_total"] == 2  # unwindowed sees both
 
 
+def test_summary_grants_total_counts_active_rows(conn):
+    # Seed two grant rows directly.
+    conn.execute(
+        "INSERT INTO grants (doc_id, principal_id, principal_type, level, granted_by, granted_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        ("doc_1", "usr_b", "user", "view", "usr_a", "2026-04-30T22:00:00Z"),
+    )
+    conn.execute(
+        "INSERT INTO grants (doc_id, principal_id, principal_type, level, granted_by, granted_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        ("doc_2", "usr_c", "user", "edit", "usr_a", "2025-01-01T00:00:00Z"),
+    )
+    conn.commit()
+    result = summary(conn, window_seconds=86400, now_iso="2026-05-01T00:00:00Z")
+    assert result["grants_total"] == 2  # unwindowed
+
+
 def test_summary_counts_additional_audit_events_in_window(conn):
     now = "2026-05-01T00:00:00Z"
     in_window = "2026-04-30T22:00:00Z"
