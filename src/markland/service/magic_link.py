@@ -8,6 +8,8 @@ has no server-side state (the 15-minute expiry is the belt-and-braces).
 from __future__ import annotations
 
 import logging
+import sqlite3
+import time
 import uuid
 from urllib.parse import urlencode
 
@@ -84,7 +86,7 @@ def read_magic_link_token(
 def consume_magic_link_token(
     token: str,
     *,
-    conn,  # sqlite3.Connection — not annotated to avoid the import here
+    conn: sqlite3.Connection,
     secret: str,
     max_age_seconds: int = MAGIC_LINK_MAX_AGE_SECONDS,
 ) -> str:
@@ -99,8 +101,6 @@ def consume_magic_link_token(
     signature check rejects tokens older than that anyway, GC'd rows can
     never collide with a valid future consume.
     """
-    import time as _time
-
     try:
         payload = _serializer(secret).loads(token, max_age=max_age_seconds)
     except SignatureExpired as e:
@@ -114,7 +114,7 @@ def consume_magic_link_token(
     if not isinstance(email, str) or not isinstance(jti, str):
         raise InvalidMagicLink("invalid magic link payload")
 
-    now = int(_time.time())
+    now = int(time.time())
     cutoff = now - max_age_seconds
 
     # Opportunistic GC. Cheap (indexed scan, ~one row per consume in the worst case).

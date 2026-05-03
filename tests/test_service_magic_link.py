@@ -182,7 +182,8 @@ def test_consume_records_row_in_table(tmp_path):
     ).fetchall()
     assert len(rows) == 1
     assert rows[0][0] == "alice@example.com"
-    assert isinstance(rows[0][1], int) and rows[0][1] > 0
+    assert isinstance(rows[0][1], int)
+    assert abs(rows[0][1] - int(time.time())) < 5  # within ~5s of "now"
 
 
 def test_consume_two_distinct_tokens_for_same_email_both_succeed(tmp_path):
