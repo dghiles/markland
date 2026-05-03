@@ -295,7 +295,7 @@ def list_for_doc_paginated(
     next_cursor = None
     if has_more and page:
         next_cursor = encode_cursor(
-            last_id=page[-1]["id"], last_updated_at=page[-1]["created_at"],
+            last_id=page[-1]["id"], last_sort_key=page[-1]["created_at"],
         )
     items = [
         {

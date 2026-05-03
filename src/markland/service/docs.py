@@ -181,7 +181,7 @@ def list_for_principal_paginated(
     if has_more and page:
         last = page[-1]
         next_cursor = encode_cursor(
-            last_id=last.id, last_updated_at=last.updated_at
+            last_id=last.id, last_sort_key=last.updated_at
         )
 
     # Project to dict form (full doc fields) so the caller can apply
@@ -309,7 +309,7 @@ def search_paginated(
     if has_more and page:
         last = page[-1]
         next_cursor = encode_cursor(
-            last_id=last.id, last_updated_at=last.updated_at
+            last_id=last.id, last_sort_key=last.updated_at
         )
 
     page_dicts = [
@@ -419,7 +419,7 @@ def list_revisions_paginated(
     if has_more and page:
         next_cursor = encode_cursor(
             last_id=str(page[-1]["id"]),
-            last_updated_at=page[-1]["created_at"],
+            last_sort_key=page[-1]["created_at"],
         )
     items = [
         {
@@ -470,7 +470,7 @@ def list_public_paginated(
     if has_more and page:
         last = page[-1]
         next_cursor = encode_cursor(
-            last_id=last.id, last_updated_at=last.updated_at,
+            last_id=last.id, last_sort_key=last.updated_at,
         )
     page_dicts = [
         {

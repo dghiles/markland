@@ -181,3 +181,42 @@ def test_audit_pagination_limit_and_cursor(tmp_path):
         for item in page1["items"] + page2["items"] + page3["items"]
     }
     assert len(seen) == 5
+
+
+def test_list_pagination_stable_across_equal_updated_at(tmp_path):
+    """Plan-C.9: keyset pagination must not skip or duplicate rows
+    when multiple rows share the same updated_at. SQLite's row-tuple
+    comparison handles this natively; this test pins the contract
+    so a future query rewrite can't silently break it."""
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+
+    # Publish 4 docs and force them to share an updated_at.
+    ids = []
+    for i in range(4):
+        d = alice.call("markland_publish", content=f"# {i}")
+        ids.append(d["id"])
+    h.db.execute(
+        "UPDATE documents SET updated_at = ? WHERE owner_id = ?",
+        ("2026-05-01T12:00:00Z", alice.principal_id),
+    )
+    h.db.commit()
+
+    # Walk the cursor with limit=2; collect all observed IDs.
+    seen = []
+    cursor = None
+    while True:
+        page = alice.call("markland_list", limit=2, cursor=cursor)
+        seen.extend(item["id"] for item in page["items"])
+        cursor = page["next_cursor"]
+        if cursor is None:
+            break
+        if len(seen) > 100:
+            raise AssertionError(
+                "pagination loop did not terminate — likely a cursor bug"
+            )
+
+    # No duplicates, no skips.
+    assert sorted(seen) == sorted(ids), (
+        f"pagination skipped or duplicated rows: seen={seen}, expected={ids}"
+    )

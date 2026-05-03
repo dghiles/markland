@@ -2,15 +2,13 @@
   "existing": {
     "kind": "ok",
     "value": {
-      "cleared": true,
-      "doc_id": "<DOC_ID>"
+      "ok": true
     }
   },
   "idempotent_no_existing": {
     "kind": "ok",
     "value": {
-      "cleared": true,
-      "doc_id": "<DOC_ID>"
+      "ok": true
     }
   }
 }

@@ -158,7 +158,7 @@ def list_paginated(
     if has_more and items:
         last = items[-1]
         next_cursor = encode_cursor(
-            last_id=last["id"], last_updated_at=last["created_at"]
+            last_id=last["id"], last_sort_key=last["created_at"]
         )
     return items, next_cursor
 

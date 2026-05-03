@@ -1198,6 +1198,18 @@ def build_mcp(
         """
         return _status(ctx, doc_id, status=status, note=note)
 
+    def _set_status_shim(ctx, doc_id, status, note=None):
+        # JSON-RPC clients can pass any JSON value through the type hint;
+        # the shim's docstring promises invalid_argument when status isn't
+        # in {reading, editing}, so reject None explicitly rather than
+        # silently delegating to the clear path in _status.
+        if status is None:
+            raise tool_error(
+                "invalid_argument",
+                reason="status_must_be_reading_or_editing",
+            )
+        return _status(ctx, doc_id, status=status, note=note)
+
     @mcp.tool()
     def markland_set_status(
         ctx: Context,
@@ -1224,7 +1236,7 @@ def build_mcp(
 
         Idempotency: Idempotent.
         """
-        return _status(ctx, doc_id, status=status, note=note)
+        return _set_status_shim(ctx, doc_id, status=status, note=note)
 
     def _audit(
         ctx,
@@ -1324,6 +1336,12 @@ def build_mcp(
         """
         return _admin_metrics(ctx, window_seconds=window_seconds)
 
+    def _clear_status_shim(ctx, doc_id):
+        _status(ctx, doc_id, status=None)
+        # Preserve the pre-deprecation {ok: true} shape so existing
+        # callers don't break before the 30-day removal deadline.
+        return {"ok": True}
+
     @mcp.tool()
     def markland_clear_status(ctx: Context, doc_id: str) -> dict:
         """Deprecated. Use markland_status(doc_id, status=None) instead.
@@ -1334,11 +1352,11 @@ def build_mcp(
             doc_id: The document whose presence row should be removed.
 
         Returns:
-            {doc_id, cleared: true}.
+            {ok: true} — the pre-deprecation shape, preserved for back-compat.
 
         Idempotency: Idempotent — safe to call even if no presence row exists.
         """
-        return _status(ctx, doc_id, status=None)
+        return _clear_status_shim(ctx, doc_id)
 
     handlers.update(
         markland_whoami=_whoami,
@@ -1369,12 +1387,8 @@ def build_mcp(
         markland_create_invite=_create_invite,
         markland_list_invites=_list_invites,
         markland_revoke_invite=_revoke_invite,
-        markland_set_status=lambda ctx, doc_id, status, note=None: _status(
-            ctx, doc_id, status=status, note=note
-        ),
-        markland_clear_status=lambda ctx, doc_id: _status(
-            ctx, doc_id, status=None
-        ),
+        markland_set_status=_set_status_shim,
+        markland_clear_status=_clear_status_shim,
         markland_status=_status,
         markland_audit=_audit,
         markland_admin_metrics=_admin_metrics,

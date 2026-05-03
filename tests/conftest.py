@@ -31,8 +31,8 @@ def mcp(tmp_path, request) -> MCPHarness:
 
 
 @pytest.fixture
-def mcp_http(tmp_path, request) -> MCPHarness:
-    h = MCPHarness.create(tmp_path, mode="http")
+def mcp_http(tmp_path, monkeypatch, request) -> MCPHarness:
+    h = MCPHarness.create(tmp_path, mode="http", monkeypatch=monkeypatch)
     h._snapshot_update = request.config.getoption("--snapshot-update")
     yield h
     h.close()

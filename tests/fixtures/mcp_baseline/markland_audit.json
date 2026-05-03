@@ -7,7 +7,7 @@
           "action": "publish",
           "created_at": "<TIMESTAMP>",
           "doc_id": "<DOC_ID>",
-          "id": "<ID>",
+          "id": 1,
           "metadata": {
             "is_public": false,
             "title": "t"
@@ -27,7 +27,7 @@
           "action": "publish",
           "created_at": "<TIMESTAMP>",
           "doc_id": "<DOC_ID>",
-          "id": "<ID>",
+          "id": 1,
           "metadata": {
             "is_public": false,
             "title": "t"

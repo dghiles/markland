@@ -412,7 +412,7 @@ def list_grants_paginated(
     if has_more and items:
         last = items[-1]
         next_cursor = encode_cursor(
-            last_id=last["principal_id"], last_updated_at=last["granted_at"]
+            last_id=last["principal_id"], last_sort_key=last["granted_at"]
         )
 
     return items, next_cursor
