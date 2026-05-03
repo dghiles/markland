@@ -81,6 +81,60 @@ def read_magic_link_token(
     return email
 
 
+def consume_magic_link_token(
+    token: str,
+    *,
+    conn,  # sqlite3.Connection — not annotated to avoid the import here
+    secret: str,
+    max_age_seconds: int = MAGIC_LINK_MAX_AGE_SECONDS,
+) -> str:
+    """Verify and atomically consume a magic-link token.
+
+    On success: records the JTI in `magic_link_consumed` and returns the
+    email. On replay: raises `InvalidMagicLink("magic link already used")`.
+    On bad signature / expiry: raises `InvalidMagicLink` with the
+    appropriate message.
+
+    Also opportunistically GCs rows older than `max_age_seconds`. Since the
+    signature check rejects tokens older than that anyway, GC'd rows can
+    never collide with a valid future consume.
+    """
+    import time as _time
+
+    try:
+        payload = _serializer(secret).loads(token, max_age=max_age_seconds)
+    except SignatureExpired as e:
+        raise InvalidMagicLink("magic link expired") from e
+    except BadSignature as e:
+        raise InvalidMagicLink("invalid magic link") from e
+    if not isinstance(payload, dict):
+        raise InvalidMagicLink("invalid magic link payload")
+    email = payload.get("email")
+    jti = payload.get("jti")
+    if not isinstance(email, str) or not isinstance(jti, str):
+        raise InvalidMagicLink("invalid magic link payload")
+
+    now = int(_time.time())
+    cutoff = now - max_age_seconds
+
+    # Opportunistic GC. Cheap (indexed scan, ~one row per consume in the worst case).
+    conn.execute(
+        "DELETE FROM magic_link_consumed WHERE consumed_at < ?",
+        (cutoff,),
+    )
+
+    # Atomic single-use: INSERT OR IGNORE returns rowcount=0 if the JTI already exists.
+    cur = conn.execute(
+        "INSERT OR IGNORE INTO magic_link_consumed (jti, email, consumed_at) "
+        "VALUES (?, ?, ?)",
+        (jti, email, now),
+    )
+    conn.commit()
+    if cur.rowcount == 0:
+        raise InvalidMagicLink("magic link already used")
+    return email
+
+
 def send_magic_link(
     *,
     dispatcher,

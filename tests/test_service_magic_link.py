@@ -131,3 +131,87 @@ def test_two_issuances_have_distinct_jtis():
     p2 = s.loads(t2)
     assert p1["jti"] != p2["jti"]
     assert t1 != t2
+
+
+import sqlite3 as _sqlite3
+from markland.db import init_db
+
+
+def test_consume_returns_email_on_first_use(tmp_path):
+    conn = init_db(tmp_path / "t.db")
+    from markland.service.magic_link import consume_magic_link_token
+    token = issue_magic_link_token("alice@example.com", secret="s")
+    email = consume_magic_link_token(token, conn=conn, secret="s")
+    assert email == "alice@example.com"
+
+
+def test_consume_rejects_replay(tmp_path):
+    conn = init_db(tmp_path / "t.db")
+    from markland.service.magic_link import consume_magic_link_token
+    token = issue_magic_link_token("alice@example.com", secret="s")
+    consume_magic_link_token(token, conn=conn, secret="s")  # first use OK
+    with pytest.raises(InvalidMagicLink) as ei:
+        consume_magic_link_token(token, conn=conn, secret="s")  # second use rejected
+    assert "already used" in str(ei.value).lower()
+
+
+def test_consume_rejects_expired(tmp_path):
+    conn = init_db(tmp_path / "t.db")
+    from markland.service.magic_link import consume_magic_link_token
+    token = issue_magic_link_token("alice@example.com", secret="s", max_age_seconds=1)
+    time.sleep(2)
+    with pytest.raises(InvalidMagicLink):
+        consume_magic_link_token(token, conn=conn, secret="s", max_age_seconds=1)
+
+
+def test_consume_rejects_wrong_secret(tmp_path):
+    conn = init_db(tmp_path / "t.db")
+    from markland.service.magic_link import consume_magic_link_token
+    token = issue_magic_link_token("alice@example.com", secret="s")
+    with pytest.raises(InvalidMagicLink):
+        consume_magic_link_token(token, conn=conn, secret="other")
+
+
+def test_consume_records_row_in_table(tmp_path):
+    conn = init_db(tmp_path / "t.db")
+    from markland.service.magic_link import consume_magic_link_token
+    token = issue_magic_link_token("alice@example.com", secret="s")
+    consume_magic_link_token(token, conn=conn, secret="s")
+    rows = conn.execute(
+        "SELECT email, consumed_at FROM magic_link_consumed"
+    ).fetchall()
+    assert len(rows) == 1
+    assert rows[0][0] == "alice@example.com"
+    assert isinstance(rows[0][1], int) and rows[0][1] > 0
+
+
+def test_consume_two_distinct_tokens_for_same_email_both_succeed(tmp_path):
+    """Each issuance has its own JTI, so two separately-issued tokens for the
+    same email are independently consumable."""
+    conn = init_db(tmp_path / "t.db")
+    from markland.service.magic_link import consume_magic_link_token
+    t1 = issue_magic_link_token("alice@example.com", secret="s")
+    t2 = issue_magic_link_token("alice@example.com", secret="s")
+    assert t1 != t2  # JTI guarantees distinct tokens
+    assert consume_magic_link_token(t1, conn=conn, secret="s") == "alice@example.com"
+    assert consume_magic_link_token(t2, conn=conn, secret="s") == "alice@example.com"
+
+
+def test_consume_garbage_collects_old_rows(tmp_path):
+    """Rows older than 15 min should be cleaned up opportunistically on consume."""
+    conn = init_db(tmp_path / "t.db")
+    from markland.service.magic_link import consume_magic_link_token, MAGIC_LINK_MAX_AGE_SECONDS
+    # Insert an old row directly.
+    old_ts = int(time.time()) - (MAGIC_LINK_MAX_AGE_SECONDS + 60)
+    conn.execute(
+        "INSERT INTO magic_link_consumed (jti, email, consumed_at) VALUES (?, ?, ?)",
+        ("stale-jti", "stale@example.com", old_ts),
+    )
+    conn.commit()
+    # Now consume a fresh token — GC should fire.
+    token = issue_magic_link_token("alice@example.com", secret="s")
+    consume_magic_link_token(token, conn=conn, secret="s")
+    remaining_jtis = {r[0] for r in conn.execute("SELECT jti FROM magic_link_consumed").fetchall()}
+    assert "stale-jti" not in remaining_jtis
+    # The fresh consumption row should still be present.
+    assert len(remaining_jtis) == 1
