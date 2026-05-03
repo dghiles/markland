@@ -108,3 +108,25 @@ def test_send_magic_link_normalizes_email(monkeypatch, tmp_path):
     )
     assert disp.enqueued[0]["to"] == "alice@example.com"
     reset_config()
+
+
+def test_issue_includes_jti_in_payload():
+    from itsdangerous import URLSafeTimedSerializer
+    token = issue_magic_link_token("alice@example.com", secret="s")
+    s = URLSafeTimedSerializer("s", salt="mk.magiclink.v1")
+    payload = s.loads(token)
+    assert isinstance(payload, dict), f"expected dict payload, got {type(payload)}"
+    assert payload["email"] == "alice@example.com"
+    assert isinstance(payload["jti"], str)
+    assert len(payload["jti"]) >= 16
+
+
+def test_two_issuances_have_distinct_jtis():
+    t1 = issue_magic_link_token("alice@example.com", secret="s")
+    t2 = issue_magic_link_token("alice@example.com", secret="s")
+    from itsdangerous import URLSafeTimedSerializer
+    s = URLSafeTimedSerializer("s", salt="mk.magiclink.v1")
+    p1 = s.loads(t1)
+    p2 = s.loads(t2)
+    assert p1["jti"] != p2["jti"]
+    assert t1 != t2

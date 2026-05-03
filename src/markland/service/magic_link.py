@@ -8,6 +8,7 @@ has no server-side state (the 15-minute expiry is the belt-and-braces).
 from __future__ import annotations
 
 import logging
+import uuid
 from urllib.parse import urlencode
 
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
@@ -45,8 +46,13 @@ def issue_magic_link_token(
     secret: str,
     max_age_seconds: int = MAGIC_LINK_MAX_AGE_SECONDS,  # kept for symmetry; serializer ignores
 ) -> str:
-    """Sign a token carrying this email."""
-    return _serializer(secret).dumps(email.strip().lower())
+    """Sign a token carrying this email plus a unique JTI.
+
+    The JTI is what makes server-side single-use enforcement possible — it
+    gives us a stable per-issuance key to record in `magic_link_consumed`.
+    """
+    payload = {"email": email.strip().lower(), "jti": uuid.uuid4().hex}
+    return _serializer(secret).dumps(payload)
 
 
 def read_magic_link_token(
@@ -55,13 +61,24 @@ def read_magic_link_token(
     secret: str,
     max_age_seconds: int = MAGIC_LINK_MAX_AGE_SECONDS,
 ) -> str:
-    """Return the email encoded in `token`. Raises `InvalidMagicLink`."""
+    """Return the email encoded in `token`. Raises `InvalidMagicLink`.
+
+    NOTE: This decodes without enforcing single-use. Production verify routes
+    must use `consume_magic_link_token` instead. This helper is kept for tests
+    and debugging.
+    """
     try:
-        return _serializer(secret).loads(token, max_age=max_age_seconds)
+        payload = _serializer(secret).loads(token, max_age=max_age_seconds)
     except SignatureExpired as e:
         raise InvalidMagicLink("magic link expired") from e
     except BadSignature as e:
         raise InvalidMagicLink("invalid magic link") from e
+    if not isinstance(payload, dict) or "email" not in payload:
+        raise InvalidMagicLink("invalid magic link payload")
+    email = payload["email"]
+    if not isinstance(email, str):
+        raise InvalidMagicLink("invalid magic link payload")
+    return email
 
 
 def send_magic_link(
