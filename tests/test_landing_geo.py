@@ -57,3 +57,38 @@ def test_landing_answer_block_word_count_is_in_citation_window(client):
     assert 120 <= body_words <= 180, (
         f"answer block is {body_words} words; want 120–180 (target 140)"
     )
+
+
+def test_landing_faq_uses_h3_headings(client):
+    """FAQ questions must be in <h3> tags so AI/SEO crawlers see them as
+    headings, not definition terms. Audit G3a."""
+    import re
+    r = client.get("/")
+    # Count question-shaped <h3> elements (containing '?')
+    h3_questions = re.findall(r'<h3[^>]*>[^<]*\?', r.text)
+    assert len(h3_questions) >= 4, (
+        f"want ≥4 question-shaped <h3> headings, found {len(h3_questions)}"
+    )
+    # Specific load-bearing questions must be present
+    for q in [
+        "Is Markland free?",
+        "How is this different from Git or GitHub?",
+        "Where does my content live?",
+    ]:
+        assert re.search(rf"<h3[^>]*>{re.escape(q)}</h3>", r.text), (
+            f"missing '{q}' as <h3>"
+        )
+
+
+def test_landing_faq_has_no_legacy_dt_markup(client):
+    """Definition-list markup is the legacy form — assert it's gone so a
+    future template change doesn't silently re-introduce it."""
+    r = client.get("/")
+    # The FAQ section markers
+    assert 'class="section faq"' in r.text or 'id="faq"' in r.text
+    # No <dt> or <dd> tags inside the FAQ section
+    faq_start = r.text.find('id="faq"')
+    faq_end = r.text.find("</section>", faq_start)
+    faq_block = r.text[faq_start:faq_end]
+    assert "<dt>" not in faq_block, "FAQ still uses <dt> — should be <h3>"
+    assert "<dd>" not in faq_block, "FAQ still uses <dd> — should be <p>"
