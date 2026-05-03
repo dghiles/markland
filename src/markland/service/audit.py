@@ -175,6 +175,6 @@ def list_recent_paginated(
     if has_more and rows:
         last = rows[-1]
         next_cursor = encode_cursor(
-            last_id=str(last["id"]), last_updated_at=last["created_at"]
+            last_id=str(last["id"]), last_sort_key=last["created_at"]
         )
     return rows, next_cursor

@@ -100,3 +100,19 @@ def test_update_returns_doc_envelope(tmp_path):
         "id", "title", "content", "version", "owner_id", "share_url",
         "is_public", "is_featured", "created_at", "updated_at",
     }
+
+
+def test_encode_cursor_accepts_last_sort_key():
+    """Plan-C.3: encode_cursor accepts the renamed kwarg; legacy
+    last_updated_at kwarg still works for compatibility."""
+    from markland._mcp_envelopes import encode_cursor
+    new_kw = encode_cursor(last_id="x", last_sort_key="2026-05-01T00:00:00Z")
+    legacy_kw = encode_cursor(last_id="x", last_updated_at="2026-05-01T00:00:00Z")
+    assert new_kw == legacy_kw  # same on-wire format
+
+
+def test_encode_cursor_requires_one_kwarg():
+    """encode_cursor without either kwarg raises ValueError."""
+    from markland._mcp_envelopes import encode_cursor
+    with pytest.raises(ValueError, match="last_sort_key"):
+        encode_cursor(last_id="x")

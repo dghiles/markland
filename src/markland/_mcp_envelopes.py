@@ -39,22 +39,41 @@ def list_envelope(*, items: list[Any], next_cursor: str | None) -> dict:
     return {"items": list(items), "next_cursor": next_cursor}
 
 
-def encode_cursor(*, last_id: str, last_updated_at: str) -> str:
-    """Encode pagination state as opaque base64-JSON.
+def encode_cursor(
+    *,
+    last_id: str,
+    last_sort_key: str | None = None,
+    last_updated_at: str | None = None,
+) -> str:
+    """Encode an opaque pagination cursor.
 
-    Consumers must use ORDER BY (updated_at DESC, id DESC) and WHERE
-    (updated_at, id) < (?, ?) for stable pagination across rows with equal
-    updated_at."""
+    Use `last_sort_key` for the timestamp (or other monotonic value) the
+    underlying query orders by — could be updated_at, created_at, or any
+    other column you ORDER BY. The legacy `last_updated_at` kwarg is kept
+    for backwards compatibility.
+
+    Consumers must use ORDER BY (sort_key DESC, id DESC) and WHERE
+    (sort_key, id) < (?, ?) for stable pagination across rows with equal
+    sort_key.
+    """
+    if last_sort_key is None:
+        last_sort_key = last_updated_at
+    if last_sort_key is None:
+        raise ValueError("encode_cursor requires last_sort_key")
     payload = json.dumps(
-        {"last_id": last_id, "last_updated_at": last_updated_at},
+        {"last_id": last_id, "last_updated_at": last_sort_key},
         sort_keys=True,
     )
     return base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
 
 
 def decode_cursor(cursor: str) -> tuple[str, str]:
-    """Decode an opaque cursor. Returns (last_id, last_updated_at).
-    Raises ValueError on malformed input."""
+    """Decode an opaque cursor.
+
+    Returns (last_id, last_sort_key) where last_sort_key is the value the
+    query orders by (updated_at, created_at, etc.) — caller knows which.
+    Raises ValueError on malformed input.
+    """
     pad = "=" * (-len(cursor) % 4)
     try:
         payload = json.loads(base64.urlsafe_b64decode(cursor + pad).decode())
