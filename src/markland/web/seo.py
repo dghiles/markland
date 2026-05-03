@@ -54,9 +54,9 @@ Allow: /
 # Block AI training crawlers; real search engines (Googlebot, Bingbot) fall
 # through to the wildcard rule above. Google-Extended is the opt-out for
 # Gemini/Vertex training without affecting Googlebot's regular index crawl.
-User-agent: GPTBot
-Disallow: /
-
+# GPTBot and PerplexityBot are deliberately allowed (via the wildcard) so
+# Markland is citable in ChatGPT Search and Perplexity; ChatGPT-User and
+# OAI-SearchBot were never blocked.
 User-agent: CCBot
 Disallow: /
 
