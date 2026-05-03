@@ -11,6 +11,10 @@ from xml.sax.saxutils import escape
 
 # Path prefixes that must never be indexed. Match both exact paths and
 # children (e.g. "/settings" and "/settings/tokens").
+# Below this public-doc count, /explore is a thin placeholder and we omit it
+# from the sitemap so Google doesn't flag it Crawled-not-indexed (audit G5).
+EXPLORE_MIN_PUBLIC_DOCS = 5
+
 NOINDEX_PATH_PREFIXES: tuple[str, ...] = (
     "/api",
     "/mcp",

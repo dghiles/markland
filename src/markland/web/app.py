@@ -20,7 +20,7 @@ from markland.db import (
 )
 from markland.web.competitors import COMPETITORS, MARKLAND, get_competitor
 from markland.web.renderer import make_excerpt, render_markdown
-from markland.web.seo import build_sitemap_xml, render_robots_txt
+from markland.web.seo import build_sitemap_xml, render_robots_txt, EXPLORE_MIN_PUBLIC_DOCS
 from markland.web.render_helpers import render_with_nav
 from markland.web.session_principal import session_principal
 
@@ -331,7 +331,13 @@ def create_app(
     @app.get("/sitemap.xml", name="sitemap_xml")
     def sitemap_xml(request: Request):
         host = _public_host(request, base_url)
-        paths = list(_PATH_TEMPLATE.keys())
+        public_doc_count = db_conn.execute(
+            "SELECT COUNT(*) FROM documents WHERE is_public = 1"
+        ).fetchone()[0]
+        paths = [
+            p for p in _PATH_TEMPLATE.keys()
+            if p != "/explore" or public_doc_count >= EXPLORE_MIN_PUBLIC_DOCS
+        ]
         paths += [f"/alternatives/{c.slug}" for c in COMPETITORS]
         today = datetime.now(timezone.utc).date().isoformat()
 
