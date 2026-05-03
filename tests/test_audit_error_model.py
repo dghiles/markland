@@ -95,3 +95,29 @@ def test_publish_service_agent_is_invalid_argument(tmp_path):
     r = caller.call_raw("markland_publish", content="# probe")
     r.assert_error("invalid_argument")
     assert "service_agent_cannot_publish" in r.error_data.get("reason", "")
+
+
+def test_audit_malformed_cursor_with_non_numeric_id_is_invalid_argument(tmp_path):
+    """Plan-B.4: a tampered audit cursor whose last_id is non-numeric must
+    surface as invalid_argument (or at least not as internal_error from
+    a raw int() ValueError). Today it leaks the int-cast exception."""
+    import base64
+    import json
+
+    h = MCPHarness.create(tmp_path, mode="direct")
+    admin = h.as_admin()
+
+    # Build a cursor whose last_id is a string that int() rejects.
+    payload = json.dumps(
+        {"last_id": "not-a-number", "last_updated_at": "2026-05-01T00:00:00Z"},
+        sort_keys=True,
+    )
+    bad_cursor = base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
+
+    r = admin.call_raw("markland_audit", cursor=bad_cursor)
+    # Either invalid_argument (preferred) or any clean tool_error code —
+    # but NOT internal_error from a raw exception.
+    assert r.error_code != "internal_error", (
+        f"audit cursor ValueError leaks as internal_error; expected a "
+        f"canonical code (invalid_argument). Got data: {r.error_data!r}"
+    )

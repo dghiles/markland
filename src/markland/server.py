@@ -1195,9 +1195,14 @@ def build_mcp(
             raise tool_error("forbidden")
         from markland.service import audit as audit_svc
 
-        rows, next_cursor = audit_svc.list_recent_paginated(
-            db_conn, doc_id=doc_id, limit=int(limit), cursor=cursor,
-        )
+        try:
+            rows, next_cursor = audit_svc.list_recent_paginated(
+                db_conn, doc_id=doc_id, limit=int(limit), cursor=cursor,
+            )
+        except ValueError as exc:
+            # Malformed cursor (decode_cursor raises this; int(last_id)
+            # casts it for audit's integer ID column). Surface canonical.
+            raise tool_error("invalid_argument", reason=str(exc))
         return list_envelope(items=rows, next_cursor=next_cursor)
 
     def _admin_metrics(ctx, window_seconds: int = 604800):
