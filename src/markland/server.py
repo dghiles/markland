@@ -1264,7 +1264,11 @@ def build_mcp(
 
         try:
             rows, next_cursor = audit_svc.list_recent_paginated(
-                db_conn, doc_id=doc_id, limit=int(limit), cursor=cursor,
+                db_conn,
+                doc_id=doc_id,
+                limit=int(limit),
+                cursor=cursor,
+                principal=p,
             )
         except ValueError as exc:
             # Malformed cursor (decode_cursor raises this; int(last_id)

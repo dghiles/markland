@@ -128,13 +128,26 @@ def list_recent_paginated(
     limit: int = 100,
     cursor: str | None = None,
     cap: int = 1000,
+    principal: Principal | None = None,
 ) -> tuple[list[dict[str, Any]], str | None]:
     """Paginated audit-log read. Returns (rows, next_cursor).
 
     Audit rows are immutable; we order by (created_at DESC, id DESC) and
     use keyset pagination on (created_at, id). The cursor's
     `last_updated_at` field carries the row's `created_at` value.
+
+    Defense-in-depth admin gate (P3 / markland-vrm): mirrors
+    `list_recent`'s gate. The MCP tool layer (`server._audit`) gates
+    above this call too, but we self-gate so a future caller that
+    forgets to plumb the check fails closed. Unlike `list_recent`,
+    `principal=None` is also rejected — there is no legacy back-compat
+    path here that calls without a principal.
     """
+    if principal is None or not principal.is_admin:
+        from markland.service.permissions import PermissionDenied
+
+        raise PermissionDenied("audit.list_recent_paginated requires admin")
+
     from markland._mcp_envelopes import decode_cursor, encode_cursor
 
     limit = min(max(1, int(limit)), cap)
