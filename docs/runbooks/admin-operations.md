@@ -195,15 +195,78 @@ flyctl ssh console -a markland -C "/app/.venv/bin/python scripts/admin/lookup_us
 It prints the user row plus doc-owned, grants-received, and active-token
 counts in one shot.
 
-For grants on a specific doc (no script yet — direct SQL):
+For anything not covered by an existing script, see "One-off SQL queries"
+below — that's the pattern for ad-hoc reads.
+
+The `documents` table has `id, title, share_token, is_public, is_featured,
+owner_id, version, created_at, updated_at`. Use `share_token` (not `id`) to
+construct the share URL: `https://markland.dev/d/<share_token>`.
+
+## One-off SQL queries
+
+For ad-hoc reads not worth scripting (forensics, "show me X for one user",
+debugging in production), the pattern is `flyctl ssh console` + the
+project's venv Python + an inline `python -c`. Use this template:
+
+```bash
+flyctl ssh console -a markland -C "/app/.venv/bin/python -c '
+import sqlite3
+from markland.config import get_config
+c = sqlite3.connect(get_config().db_path)
+for r in c.execute(\"<YOUR SELECT HERE>\"):
+    print(r)
+'"
+```
+
+Notes:
+- Always use `/app/.venv/bin/python` (system Python lacks project deps).
+- `get_config().db_path` is the canonical path — don't hard-code
+  `/data/markland.db`.
+- Wrap multi-line bodies in single quotes; escape inner double quotes with
+  `\"`. Use parameterised queries (`?` placeholders + a tuple) for any
+  user-supplied value to avoid SQL-injection in your own scripts.
+- This is a **read** pattern. For writes, prefer a checked-in script under
+  `scripts/admin/` so the change is reviewable and idempotent — see
+  `scripts/admin/make_admin.py` as a template.
+
+### Common one-liners
+
+**List all users (most-recent first):**
+
+```bash
+flyctl ssh console -a markland -C "/app/.venv/bin/python -c 'import sqlite3; from markland.config import get_config; c=sqlite3.connect(get_config().db_path); [print(r) for r in c.execute(\"SELECT email, display_name, is_admin, created_at FROM users ORDER BY created_at DESC\")]'"
+```
+
+**Grants on a specific document:**
 
 ```bash
 flyctl ssh console -a markland -C "/app/.venv/bin/python -c 'import sqlite3; from markland.config import get_config; c=sqlite3.connect(get_config().db_path); [print(r) for r in c.execute(\"SELECT principal_id, principal_type, level FROM grants WHERE doc_id=?\", (\"<doc_id>\",))]'"
 ```
 
-The `documents` table has `id, title, share_token, is_public, is_featured,
-owner_id, version, created_at, updated_at`. Use `share_token` (not `id`) to
-construct the share URL: `https://markland.dev/d/<share_token>`.
+**Documents owned by a user (by email):**
+
+```bash
+flyctl ssh console -a markland -C "/app/.venv/bin/python -c 'import sqlite3; from markland.config import get_config; c=sqlite3.connect(get_config().db_path); [print(r) for r in c.execute(\"SELECT id, title, is_public, created_at FROM documents WHERE owner_id=(SELECT id FROM users WHERE email=?)\", (\"alice@example.com\",))]'"
+```
+
+**Recent audit rows for a principal:**
+
+```bash
+flyctl ssh console -a markland -C "/app/.venv/bin/python -c 'import sqlite3; from markland.config import get_config; c=sqlite3.connect(get_config().db_path); [print(r) for r in c.execute(\"SELECT created_at, action, doc_id, metadata FROM audit_log WHERE principal_id=? ORDER BY id DESC LIMIT 50\", (\"<principal_id>\",))]'"
+```
+
+If you find yourself running the same query repeatedly, promote it to a
+checked-in script under `scripts/admin/` — same pattern as the existing
+ones (see `lookup_user.py` for shape).
+
+### PII reminder
+
+User emails, audit metadata, and document content are all PII. Reads via
+this pattern are NOT logged in the audit table — they bypass the
+application entirely. Treat these queries the same way you'd treat looking
+at someone's inbox: only when there's a concrete operational reason, and
+don't paste results into anywhere they'll be retained (chat, screenshots,
+public docs).
 
 ## Reading metrics from the host
 
