@@ -81,6 +81,31 @@ Example:
 - token_id (PK in DB): `tok_a7c3f9d2b8e6014f`
 - plaintext shown to user: `mk_usr_a7c3f9d2b8e6014f_<urlsafe32>`
 
+- [ ] **Step 0: Pre-flight grep — find every caller of the old API**
+
+Before changing anything, run:
+
+```bash
+grep -rn "_generate_user_token_plaintext\|_generate_agent_token_plaintext\|mk_usr_\|mk_agt_" \
+  src/ tests/ scripts/ docs/
+```
+
+Expected hits (anything else is a candidate to break on Task 1's commit):
+- `src/markland/service/auth.py` — the helpers themselves; will be updated.
+- `tests/test_service_auth.py` and other test files — test fixtures
+  that mint or assert on plaintext shape; will need updating.
+- `scripts/admin/*` — provisioning scripts may call the old minter or
+  hand-construct plaintexts. Note these for Step 4.
+- `docs/runbooks/*` — example plaintexts in operator docs; cosmetic
+  but update them so they don't mislead.
+- User-facing templates / FAQs — `grep src/markland/web/templates/`
+  separately; if any UI shows the format, update post-Task-1.
+
+If any caller is found that you didn't expect, **fix it in this same
+task** — Step 4 raises `NotImplementedError` from
+`_generate_user_token_plaintext`, which will break any caller on
+first import.
+
 - [ ] **Step 1: Write the failing test**
 
 ```python
@@ -101,6 +126,23 @@ def test_parse_legacy_token_returns_none():
     plaintext = "mk_usr_aGVsbG93b3JsZA"  # legacy: no embedded token_id
     parsed = _parse_token_plaintext(plaintext)
     assert parsed is None
+
+def test_parse_legacy_token_that_happens_to_match_regex_falls_through():
+    """A legacy plaintext whose secret happens to start with 16 lowercase
+    hex chars and an underscore would match the new-format regex. The
+    parser correctly returns ParsedToken; resolve_token's fast path
+    will then PK-miss and MUST fall through to legacy. See Task 2.
+
+    Probability of natural occurrence: ~2.3e-12 per minted token.
+    Probability of attacker-engineered occurrence: 1 (they control
+    the secret-shaped input). Neither must silently break auth.
+    """
+    plaintext = "mk_usr_a7c3f9d2b8e6014f_legacysecretpart"
+    parsed = _parse_token_plaintext(plaintext)
+    # Parser does match — that's correct behavior.
+    assert parsed is not None
+    assert parsed.token_id == "tok_a7c3f9d2b8e6014f"
+    # The resolver-level fall-through is tested in Task 2.
 ```
 
 - [ ] **Step 2: Run tests to verify failure**
@@ -243,20 +285,126 @@ def test_resolve_token_legacy_format_still_works(tmp_path):
     p = resolve_token(conn, legacy_plaintext)
     assert p.principal_id == "usr_bob"
 
-def test_resolve_token_argon2_verify_call_count_for_new_shape(tmp_path, mocker):
-    """Confirms O(1): exactly ONE argon2 verify call regardless of #tokens."""
+def test_resolve_token_argon2_verify_call_count_for_new_shape(tmp_path, monkeypatch):
+    """Confirms O(1) on the happy path: exactly ONE argon2 verify call when
+    a real new-shape token is presented, regardless of #tokens in the DB.
+
+    NOTE: a parser-matching plaintext that PK-misses falls through to legacy
+    and does 1 + N verifies — that's covered separately by
+    test_resolve_token_falls_through_to_legacy_on_pk_miss. This test is
+    explicitly about the happy path, where the fast path resolves and
+    no fall-through occurs.
+    """
     conn = sqlite3.connect(":memory:")
     init_db(conn)
     insert_user(conn, "usr_carol")
-    # Mint 50 tokens for usr_carol.
     plaintexts = []
     for i in range(50):
         _tok_id, plaintext = create_user_token(conn, user_id="usr_carol", label=f"t{i}")
         plaintexts.append(plaintext)
-    # Spy on verify.
-    spy = mocker.spy(markland.service.auth, "verify_token")
-    resolve_token(conn, plaintexts[42])
-    assert spy.call_count == 1
+    from unittest.mock import patch
+    from markland.service.auth import verify_token as real_verify
+    with patch("markland.service.auth.verify_token", wraps=real_verify) as spy:
+        # Resolving an existing new-shape token: one PK hit, one verify.
+        resolve_token(conn, plaintexts[42])
+        assert spy.call_count == 1
+
+
+# CRITICAL — false-positive fall-through
+
+def test_resolve_token_falls_through_to_legacy_on_pk_miss(tmp_path):
+    """A legacy plaintext whose secret happens to start with 16-hex-then-_
+    will parse as new-format. The PK lookup misses (no row at that id).
+    Resolver MUST fall through to the legacy O(N) scan, not return None.
+
+    Without this fall-through, ~2.3e-12 fraction of legacy tokens silently
+    stop working; an attacker with a leaked legacy plaintext could also
+    forge a parser-matching shape to grief auth.
+    """
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_user(conn, "usr_dan")
+    # Construct a legacy plaintext whose secret is hex16+_+rest — would
+    # parse but will PK-miss because the id "tok_a7c3f9d2b8e6014f" isn't
+    # the token's actual primary key.
+    legacy_plaintext = "mk_usr_a7c3f9d2b8e6014f_legacysecretpart"
+    legacy_id = "tok_realdiffer123"  # different from the parsed prefix
+    conn.execute(
+        "INSERT INTO tokens(id, token_hash, label, principal_type, principal_id, created_at) "
+        "VALUES (?, ?, 'legacy', 'user', 'usr_dan', '2026-01-01T00:00:00+00:00')",
+        (legacy_id, hash_token(legacy_plaintext)),
+    )
+    conn.commit()
+    p = resolve_token(conn, legacy_plaintext)
+    assert p is not None
+    assert p.principal_id == "usr_dan"
+
+
+# Additional coverage requested by review
+
+def test_resolve_token_type_mismatch_returns_none(tmp_path):
+    """An attacker forges mk_usr_<id>_x where the actual row is type=agent.
+    Argon2 will mismatch (different secret) so this is mostly defense-in-
+    depth, but the type-cross-check is the layer that rejects without
+    even running argon2 if the row exists with a different type."""
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    # Create an agent token, then probe with usr_-shaped plaintext using
+    # the same token_id.
+    insert_user(conn, "usr_eve")
+    insert_agent(conn, agent_id="agt_abc123def456789a", owner="usr_eve")
+    _, agent_plaintext = create_agent_token(
+        conn, agent_id="agt_abc123def456789a", owner_user_id="usr_eve", label="t"
+    )
+    parsed = _parse_token_plaintext(agent_plaintext)
+    forged = f"mk_usr_{parsed.token_id.removeprefix('tok_')}_garbage"
+    assert resolve_token(conn, forged) is None
+
+
+def test_resolve_token_revoked_row_returns_none_in_fast_path(tmp_path):
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_user(conn, "usr_frank")
+    _, plaintext = create_user_token(conn, user_id="usr_frank", label="t")
+    parsed = _parse_token_plaintext(plaintext)
+    conn.execute(
+        "UPDATE tokens SET revoked_at = ? WHERE id = ?",
+        ("2026-01-01T00:00:00+00:00", parsed.token_id),
+    )
+    conn.commit()
+    assert resolve_token(conn, plaintext) is None
+
+
+def test_resolve_token_agent_fast_path_happy(tmp_path):
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_user(conn, "usr_grace")
+    insert_agent(conn, agent_id="agt_aaa111bbb222ccc3", owner="usr_grace")
+    _, plaintext = create_agent_token(
+        conn, agent_id="agt_aaa111bbb222ccc3", owner_user_id="usr_grace", label="t"
+    )
+    p = resolve_token(conn, plaintext)
+    assert p is not None
+    assert p.principal_type == "agent"
+    assert p.principal_id == "agt_aaa111bbb222ccc3"
+    assert p.user_id == "usr_grace"
+
+
+def test_resolve_token_fast_path_updates_last_used_at(tmp_path):
+    conn = sqlite3.connect(":memory:")
+    init_db(conn)
+    insert_user(conn, "usr_hank")
+    _, plaintext = create_user_token(conn, user_id="usr_hank", label="t")
+    parsed = _parse_token_plaintext(plaintext)
+    before = conn.execute(
+        "SELECT last_used_at FROM tokens WHERE id = ?", (parsed.token_id,)
+    ).fetchone()[0]
+    assert before is None
+    resolve_token(conn, plaintext)
+    after = conn.execute(
+        "SELECT last_used_at FROM tokens WHERE id = ?", (parsed.token_id,)
+    ).fetchone()[0]
+    assert after is not None
 ```
 
 - [ ] **Step 2: Run tests to verify failure**
@@ -276,13 +424,27 @@ def resolve_token(conn: sqlite3.Connection, plaintext: str) -> Principal | None:
     Legacy path (old-shape tokens, no embedded token_id): scan all
     non-revoked rows. This bounds at the count of pre-migration tokens,
     which only decreases over time.
+
+    CRITICAL: the fast path can produce a false-positive parse on a
+    legacy plaintext whose secret happens to start with 16 hex chars +
+    underscore. In that case the PK lookup misses (or argon2 verify
+    fails on a wrong row, or principal_type cross-check fails) and
+    we MUST fall through to the legacy scan — otherwise the legacy
+    token silently stops working. Probability of natural occurrence
+    is ~2.3e-12 per minted token; an attacker with a leaked legacy
+    plaintext could also engineer this shape, so the fall-through
+    closes both correctness and grief vectors.
     """
     if not plaintext:
         return None
 
     parsed = _parse_token_plaintext(plaintext)
     if parsed is not None:
-        return _resolve_by_token_id(conn, parsed, plaintext)
+        result = _resolve_by_token_id(conn, parsed, plaintext)
+        if result is not None:
+            return result
+        # Fast path missed (PK absent, verify mismatch, or type mismatch).
+        # Fall through to the legacy scan — see CRITICAL note above.
 
     return _resolve_legacy(conn, plaintext)
 
@@ -290,6 +452,11 @@ def resolve_token(conn: sqlite3.Connection, plaintext: str) -> Principal | None:
 def _resolve_by_token_id(
     conn: sqlite3.Connection, parsed: ParsedToken, plaintext: str
 ) -> Principal | None:
+    """Returns Principal on success, None on PK miss / verify miss / type mismatch.
+
+    Caller MUST treat None as "fall through to legacy", not "auth failed."
+    See resolve_token docstring.
+    """
     row = conn.execute(
         """
         SELECT id, token_hash, principal_type, principal_id
@@ -301,10 +468,11 @@ def _resolve_by_token_id(
     if row is None:
         return None
     token_id, token_hash, principal_type, principal_id = row
-    if not verify_token(plaintext, token_hash):
-        return None
+    # Cross-check type before argon2 — saves the expensive verify on
+    # a forged-prefix attack against an existing row of the wrong type.
     if principal_type != parsed.principal_type:
-        # type mismatch between embedded prefix and DB row — corrupted; reject.
+        return None
+    if not verify_token(plaintext, token_hash):
         return None
     return _build_principal_and_touch(
         conn, token_id, principal_type, principal_id
@@ -348,12 +516,20 @@ Run: `.venv/bin/pytest tests/test_service_auth.py -v -k "resolve_token or id_pre
 Expected: PASS, including the call-count test asserting exactly one
 verify on a 50-token user.
 
-- [ ] **Step 5: Run full suite**
+- [ ] **Step 5: Update docstrings**
+
+Update the module docstring and `resolve_token`'s docstring to
+describe the fast/legacy split, the false-positive fall-through, and
+the planned removal of the legacy path. The CRITICAL note already
+written into the resolver docstring (see Step 3) is the canonical
+explanation; the module-level docstring should briefly reference it.
+
+- [ ] **Step 6: Run full suite**
 
 Run: `.venv/bin/pytest -q --tb=short`
 Expected: full pass.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add src/markland/service/auth.py tests/test_service_auth.py
@@ -362,57 +538,42 @@ git commit -m "feat(auth): O(1) resolve_token via embedded token_id prefix (mark
 
 ---
 
-## Task 3 — Confirm no other callers depend on the old plaintext format
+## Task 3 — Post-flight verification grep
 
-**Files:**
-- Search: `grep -rn "mk_usr_\|mk_agt_" src/ tests/ scripts/`
-- Modify any caller that splits/parses the plaintext outside of
-  `service/auth.py`.
+**Rationale:** Task 1 Step 0 was the pre-flight grep before any code
+changed. This task is the post-flight verification: now that all code
+is in place, ensure no caller still uses the old API or constructs
+plaintexts manually.
 
-The plaintext format is mostly opaque to callers — it's shown to the
-user once and validated on Bearer-auth requests via `resolve_token`.
-Some places (admin scripts, tests) might string-split plaintexts.
-
-- [ ] **Step 1: Run the grep.**
+- [ ] **Step 1: Run the grep again.**
 
 ```bash
-grep -rn "mk_usr_\|mk_agt_" src/ tests/ scripts/
+grep -rn "mk_usr_\|mk_agt_\|_generate_user_token_plaintext\|_generate_agent_token_plaintext" \
+  src/ tests/ scripts/ docs/
 ```
 
-For each hit:
-- If it's in `service/auth.py` — already updated.
-- If it's in `tests/` — likely a test fixture; verify the new format
-  works or update the fixture.
-- If it's in `scripts/` (e.g. provisioning helpers) — probably builds
-  a plaintext; route it through the new `_mint_user_token_plaintext_with_id`.
-- If it's in user-facing strings (templates, docstrings) — update the
-  format example.
+Expected hits at this point:
+- `service/auth.py` — the new helpers and `_TOKEN_PARSE_RE`. OK.
+- `service/auth.py:_generate_user_token_plaintext` — kept as a stub
+  that raises `NotImplementedError`. OK (signals breakage to any
+  rogue importer).
+- Tests — fixture mints + assertions. Should all use the new helpers.
+- `docs/` — example plaintexts updated to the new shape.
 
-- [ ] **Step 2: Update each as needed; commit per logical chunk.**
+If any hit looks like a real caller that the implementer missed,
+back-fill it now.
 
----
-
-## Task 4 — Document the migration
-
-**Files:**
-- Modify: docstring of `resolve_token` and the module-level docstring.
-- Add: a note in `docs/runbooks/` or `docs/ARCHITECTURE.md` describing
-  the legacy-fallback behaviour and when it can be removed.
-
-The legacy fallback can be removed once we're confident no
-pre-migration tokens remain. Rough criteria: 90 days post-deploy AND
-admin queries `SELECT COUNT(*) FROM tokens WHERE revoked_at IS NULL
-AND created_at < '<deploy-date>'` returns < some small threshold (e.g.
-< 5).
-
-- [ ] **Step 1: Add the note.**
-
-- [ ] **Step 2: Commit.**
+- [ ] **Step 2: Run the full suite.**
 
 ```bash
-git add src/markland/service/auth.py docs/
-git commit -m "docs(auth): document token-id prefix and legacy fallback (markland-9dm)"
+.venv/bin/pytest -q --tb=short
 ```
+
+Expected: full pass.
+
+(No commit for this task — it's a verification step. If you found a
+caller to fix, that fix folds into Task 1 or Task 2's commit via
+`--amend` or a follow-up commit.)
 
 ---
 
@@ -428,6 +589,26 @@ git commit -m "docs(auth): document token-id prefix and legacy fallback (marklan
 - [ ] No collision risk: `secrets.token_hex(8)` = 64 bits → ~1-in-4-billion collision over a million tokens. Acceptable; document the bound.
 
 ---
+
+## Before opening the PR — file the follow-up bead
+
+The legacy fallback path in `_resolve_legacy` becomes load-bearing
+legacy code unless someone schedules its removal. File the follow-up
+NOW so it's not forgotten:
+
+```bash
+bd create --title="Remove resolve_token legacy fallback path" \
+  --type=task --priority=3 \
+  --description="Once 90 days have passed since markland-9dm shipped AND
+SELECT COUNT(*) FROM tokens WHERE revoked_at IS NULL AND created_at < '<9dm-deploy-date>'
+returns < 5: delete _resolve_legacy and the fall-through in resolve_token.
+Keep the parser; new tokens are the only shape by then." \
+  --defer "$(date -d '+90 days' -I 2>/dev/null || date -v +90d -I)"
+bd sync
+```
+
+(`bd create --defer` per repo convention; per the user's MEMORY this
+is preferred over `/schedule` for time-deferred follow-ups.)
 
 ## PR checklist
 
