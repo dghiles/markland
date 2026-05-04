@@ -47,11 +47,26 @@
         <input type="text" name="label" placeholder="token label" required>
         <button type="submit">Mint token</button>
       </form>
-      <form class="inline" method="post" action="/settings/agents/{{ a.id }}/delete"
-            onsubmit="return confirm('Revoke agent {{ a.display_name }}? This cannot be undone.');">
+      <form class="inline js-revoke-agent" method="post"
+            action="/settings/agents/{{ a.id }}/delete"
+            data-display-name="{{ a.display_name }}">
         <button type="submit">Revoke agent</button>
       </form>
     </div>
   {% endfor %}
 </section>
+<script>
+  // Read the display name from a data-* attribute (HTML-escaped by Jinja
+  // autoescape) rather than interpolating it into a JS string literal in an
+  // onsubmit attribute, where a stray apostrophe would break out of the
+  // string and execute arbitrary JS.
+  document.querySelectorAll('.js-revoke-agent').forEach(function (form) {
+    form.addEventListener('submit', function (event) {
+      var name = form.dataset.displayName || 'this agent';
+      if (!window.confirm('Revoke agent ' + name + '? This cannot be undone.')) {
+        event.preventDefault();
+      }
+    });
+  });
+</script>
 {% endblock %}

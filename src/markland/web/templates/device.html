@@ -22,7 +22,12 @@
   <h1>Authorize a device</h1>
 
   {% if not session %}
-    <p>Please <a href="/login?next=/device{% if code %}?code={{ code }}{% endif %}">sign in</a>
+    {# URL-encode the code value so unusual characters (&, #, spaces) cannot
+       break out of the query-string context. Jinja's HTML autoescape only
+       covers attribute-quoting; ``urlencode`` covers URL-component encoding.
+       The literal ``?code=`` separator is intentional and unencoded so the
+       target URL stays a normal ``/device?code=...`` query-string. #}
+    <p>Please <a href="/login?next=/device{% if code %}?code={{ code | urlencode }}{% endif %}">sign in</a>
        to continue. After you sign in you'll be brought back here to enter the code.</p>
   {% else %}
     <p>Hi {{ session.display_name or session.user_id }} — a CLI is requesting

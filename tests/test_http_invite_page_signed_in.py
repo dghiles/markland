@@ -77,6 +77,27 @@ def test_invite_page_gone_for_unknown_token(client):
     assert r.status_code == 410
 
 
+def test_invite_page_tokens_are_json_encoded_in_js(client):
+    """Tokens interpolated into JS string contexts must use ``| tojson``.
+
+    Even if today's tokens are URL-safe alphanumerics, defence-in-depth means
+    the rendered page should never have a raw ``{{ token }}`` inside a JS
+    string literal. We assert the tokens appear in JSON form (quoted) and
+    that the unsafe pattern of ``/api/invites/<token>/accept`` interpolated
+    directly is gone.
+    """
+    c, conn = client
+    token = _token_for_new_invite(conn, level="edit")
+    c.cookies.set(SESSION_COOKIE_NAME, issue_session("usr_bob", secret=SECRET))
+    r = c.get(f"/invite/{token}")
+    assert r.status_code == 200
+    body = r.text
+    # JSON-encoded form (quoted with double quotes) must be present.
+    assert f'"{token}"' in body
+    # The unsafe inline interpolation must not be present.
+    assert f"/api/invites/{token}/accept" not in body
+
+
 def test_invite_page_gone_after_revoke(client):
     c, conn = client
     token = _token_for_new_invite(conn)

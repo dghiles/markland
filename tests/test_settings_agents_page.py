@@ -134,3 +134,27 @@ def test_settings_agents_ignores_query_string_new_token(client):
     r = c.get("/settings/agents?new_token=mk_agt_should_not_render")
     assert r.status_code == 200
     assert "mk_agt_should_not_render" not in r.text
+
+
+def test_settings_agents_revoke_uses_data_attribute_not_inline_js(client):
+    """Adversarial display_name with apostrophes must not break out of JS.
+
+    Previously the revoke form used onsubmit="return confirm('Revoke agent
+    {{ a.display_name }}?...')" which is XSS-vulnerable. The fix moves the
+    name to a data-* attribute (autoescaped by Jinja) and reads it from a
+    JS handler at the bottom of the page.
+    """
+    c, conn = client
+    payload = "x'); alert('pwn');//"
+    agents_svc.create_agent(conn, "usr_alice", payload)
+    r = c.get("/settings/agents")
+    assert r.status_code == 200
+    body = r.text
+    # No inline confirm() with a quote-escaped name (the legacy unsafe form).
+    assert "onsubmit=" not in body
+    assert "alert('pwn')" not in body
+    assert "alert(\"pwn\")" not in body
+    # Name is rendered (HTML-escaped) inside the data-* attribute.
+    assert "data-display-name=" in body
+    # The single quote should be HTML-entity-encoded by Jinja autoescape.
+    assert "&#39;" in body or "&apos;" in body or "&#x27;" in body

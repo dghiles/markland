@@ -120,3 +120,71 @@ def test_excerpt_no_ellipsis_when_short():
     from markland.web.renderer import make_excerpt
     result = make_excerpt("Short text.", length=50)
     assert "…" not in result
+
+
+# ---------------------------------------------------------------------------
+# Link-scheme allowlist (P0 stored-XSS fix)
+# ---------------------------------------------------------------------------
+
+
+def test_link_rejects_javascript_scheme():
+    html = render_markdown("[click](javascript:alert(1))")
+    # Crucial: no anchor pointing at a javascript: URL.
+    assert 'href="javascript:' not in html.lower()
+    # markdown-it's behaviour for rejected validateLink is to drop the link
+    # entirely, leaving the literal markdown source as text — that's safe.
+    assert "<a " not in html or 'href=""' in html
+
+
+def test_link_rejects_javascript_scheme_mixed_case():
+    html = render_markdown("[click](JaVaScRiPt:alert(1))")
+    assert "href=\"javascript:" not in html.lower()
+    assert "href=\"javascript:" not in html.lower()
+    # No <a> with the original mixed-case scheme either.
+    assert "JaVaScRiPt:" not in (
+        # Look only inside href attributes; if there's no <a> tag at all the
+        # text content may still contain the literal source.
+        "".join(part for part in html.split() if part.startswith("href"))
+    )
+
+
+def test_link_rejects_data_scheme():
+    html = render_markdown("[bad](data:text/html,<script>alert(1)</script>)")
+    assert 'href="data:' not in html
+    # autoescape from markdown-it (html=False) protects against literal <script>
+    assert "<script>" not in html
+
+
+def test_link_rejects_vbscript_scheme():
+    html = render_markdown("[bad](vbscript:msgbox)")
+    assert 'href="vbscript:' not in html.lower()
+
+
+def test_link_rejects_file_scheme():
+    html = render_markdown("[bad](file:///etc/passwd)")
+    assert 'href="file:' not in html
+
+
+def test_link_allows_https():
+    html = render_markdown("[ok](https://example.com)")
+    assert 'href="https://example.com"' in html
+
+
+def test_link_allows_http():
+    html = render_markdown("[ok](http://example.com)")
+    assert 'href="http://example.com"' in html
+
+
+def test_link_allows_mailto():
+    html = render_markdown("[ok](mailto:me@example.com)")
+    assert 'href="mailto:me@example.com"' in html
+
+
+def test_link_allows_relative_path():
+    html = render_markdown("[ok](/relative/path)")
+    assert 'href="/relative/path"' in html
+
+
+def test_link_allows_fragment_only():
+    html = render_markdown("[ok](#section)")
+    assert 'href="#section"' in html
