@@ -178,3 +178,15 @@ def test_verify_get_rejects_replay(client_and_conn):
     body = r2.text.lower()
     assert "expired" in body or "invalid" in body
     assert "already used" not in body
+
+
+def test_security_page_renders_single_use_wording(client_and_conn):
+    """Regression: post single-use enforcement, /security must claim
+    'single-use' and must NOT carry the old 'captured link can be used'
+    caveat."""
+    client, _, _ = client_and_conn
+    r = client.get("/security")
+    assert r.status_code == 200
+    body_lower = r.text.lower()
+    assert "single-use" in body_lower
+    assert "captured link can be used" not in body_lower
