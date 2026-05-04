@@ -105,10 +105,25 @@ LLMS_TXT = """\
 """
 
 
-def render_llms_txt(base_url: str) -> str:
+_LLMS_BLOG_HEADER = "\n## Blog\n- [Blog index]({base}/blog): notes on agent-native publishing, MCP, and the agent-to-human workflow gap\n- [Atom feed]({base}/blog/feed.xml): subscribe via any feed reader\n"
+
+
+def render_llms_txt(base_url: str, blog_posts: tuple = ()) -> str:
     """Return llms.txt body with base_url substituted into every link.
-    Strips a trailing slash from base_url to avoid double slashes."""
-    return LLMS_TXT.format(base=base_url.rstrip("/"))
+
+    Strips a trailing slash from base_url to avoid double slashes. If
+    `blog_posts` is non-empty, appends a `## Blog` section listing each
+    post (title, URL, one-line description). Posts are expected to be
+    `markland.web.blog.Post` instances or any object exposing
+    `slug`, `title`, `description` attributes.
+    """
+    base = base_url.rstrip("/")
+    body = LLMS_TXT.format(base=base)
+    if blog_posts:
+        body += _LLMS_BLOG_HEADER.format(base=base)
+        for p in blog_posts:
+            body += f"- [{p.title}]({base}/blog/{p.slug}): {p.description}\n"
+    return body
 
 
 def build_sitemap_xml(
