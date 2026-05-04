@@ -1,106 +1,22 @@
-"""ProxyHeadersMiddleware integration: redirects must preserve HTTPS.
+"""ProxyHeadersMiddleware wiring: pin uvicorn invocation flags.
 
-Background: Fly's proxy terminates TLS and forwards to the app over HTTP.
-Without proxy_headers=True on uvicorn, Starlette builds redirect URLs from
-the inner scheme, downgrading https -> http and exposing bearer tokens to
-any client that follows the redirect. These tests pin the fix.
+Background: Fly's proxy terminates TLS and forwards over HTTP. Without
+proxy_headers=True on uvicorn, Starlette would build URLs from the inner
+scheme, downgrading https -> http. Historically this mattered most for the
+/mcp mount-trailing-slash redirect; that redirect was eliminated in
+markland-dfj, but proxy_headers=True remains correct defensively for any
+future redirects (e.g. trailing-slash on other routes, manually-issued
+RedirectResponse).
 
-Two complementary assertions:
-
-1. Behavior: with uvicorn's ProxyHeadersMiddleware wrapping the app, a POST
-   /mcp that lands on Starlette's Mount-trailing-slash redirect produces
-   an https:// Location header. Without the wrap, it produces http://.
-
-2. Wiring: src/markland/run_app.py's uvicorn.run(...) call passes
-   proxy_headers=True and forwarded_allow_ips="*" so production actually
-   installs the middleware.
-
-The behavior test is the why; the wiring test is the what.
+This file now only verifies the wiring (uvicorn.run kwargs); behavioral
+redirect tests previously here were removed when the /mcp redirect itself
+was eliminated.
 """
 
 from __future__ import annotations
 
 import ast
 from pathlib import Path
-
-import pytest
-from fastapi.testclient import TestClient
-from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
-
-from markland.config import reset_config
-from markland.db import init_db
-from markland.service.auth import create_user_token
-from markland.service.users import create_user
-from markland.web.app import create_app
-
-
-@pytest.fixture
-def app_with_token(tmp_path, monkeypatch):
-    """Real app + a real bearer token so we get past auth and hit the
-    Mount-level trailing-slash redirect that exhibits the bug."""
-    monkeypatch.setenv("MARKLAND_DATA_DIR", str(tmp_path))
-    reset_config()
-    conn = init_db(tmp_path / "test.db")
-    user = create_user(conn, email="proxytest@example.com", display_name="Proxy Test")
-    _, plaintext = create_user_token(conn, user_id=user.id, label="proxy-test")
-    app = create_app(
-        conn,
-        mount_mcp=True,
-        base_url="http://testserver",
-        session_secret="test-secret",
-    )
-    return app, plaintext
-
-
-def test_mcp_redirect_downgrades_without_proxy_headers(app_with_token):
-    """Sanity check: confirm the bug exists without the middleware.
-
-    If this stops failing-as-described, ProxyHeadersMiddleware behavior or
-    Starlette's redirect logic has changed and the fix may no longer be
-    needed -- or the test no longer pins what it claims to.
-    """
-    app, token = app_with_token
-    client = TestClient(app)
-    resp = client.post(
-        "/mcp",
-        headers={
-            "X-Forwarded-Proto": "https",
-            "X-Forwarded-Host": "markland.fly.dev",
-            "Authorization": f"Bearer {token}",
-        },
-        follow_redirects=False,
-    )
-    assert resp.status_code in (301, 302, 307, 308), (
-        f"Expected a redirect from /mcp to /mcp/, got {resp.status_code}"
-    )
-    location = resp.headers.get("location", "")
-    assert location.startswith("http://"), (
-        f"Without ProxyHeadersMiddleware, redirect should keep inner http "
-        f"scheme; got: {location!r}"
-    )
-
-
-def test_mcp_redirect_preserves_https_with_proxy_headers(app_with_token):
-    """With uvicorn's ProxyHeadersMiddleware, POST /mcp's redirect uses https."""
-    app, token = app_with_token
-    wrapped = ProxyHeadersMiddleware(app, trusted_hosts="*")
-    client = TestClient(wrapped)
-    resp = client.post(
-        "/mcp",
-        headers={
-            "X-Forwarded-Proto": "https",
-            "X-Forwarded-Host": "markland.fly.dev",
-            "Authorization": f"Bearer {token}",
-        },
-        follow_redirects=False,
-    )
-    assert resp.status_code in (301, 302, 307, 308), (
-        f"Expected a redirect from /mcp to /mcp/, got {resp.status_code}"
-    )
-    location = resp.headers.get("location", "")
-    assert location.startswith("https://"), (
-        f"Redirect Location must use https, got: {location!r}"
-    )
 
 
 def test_run_app_passes_proxy_headers_to_uvicorn():
