@@ -16,12 +16,16 @@ The plaintext is shown exactly once. If you lose it, revoke and create a new one
 ## 2. Add the MCP server to Claude Code
 
 ```bash
-claude mcp add markland \
-  --token "mk_usr_..." \
-  https://markland.dev/mcp
+claude mcp add --transport http --scope user markland \
+  --header "Authorization: Bearer mk_usr_..." \
+  https://markland.dev/mcp/
 ```
 
-Claude Code stores the token; restart the session if you had Claude Code open already. You'll see `markland_*` tools available the next time you open a session.
+`--scope user` registers Markland globally — it'll be available no matter which directory you launch Claude Code from. Drop the flag (or use `--scope project`) if you only want it active in one project.
+
+The trailing slash on `https://markland.dev/mcp/` is intentional — without it, every request gets a 307 redirect, which adds noticeable latency to session startup.
+
+Claude Code stores the header; restart the session if you had Claude Code open already. You'll see `markland_*` tools available the next time you open a session.
 
 ## 3. First five tool calls
 
@@ -87,7 +91,7 @@ If `markland_whoami()` returns your email and the publish flow above works end-t
 
 If something fails, check:
 
-1. `claude mcp list` — confirms `markland` is registered.
+1. `claude mcp list` — confirms `markland` is registered. If you used `--scope user` it shows up regardless of your current directory; if you used the default (project scope), you'll only see it from the project where you ran `mcp add`.
 2. The token starts with `mk_usr_` and was copied without truncation.
 3. `https://markland.dev/health` returns `{"status": "ok"}` (rules out service-side issues).
 
