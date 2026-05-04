@@ -70,6 +70,18 @@ per-plan reviews. None block v1; all are first-sprint-after-launch candidates.
   troubleshooting" + § "Republishing the live Quickstart doc".
   Open follow-up: markland-dfj (server-side fix to accept `/mcp` without
   redirect to `/mcp/`).
+- MCP `/mcp` 307 redirect eliminated on 2026-05-04 (markland-dfj PR #71).
+  Authenticated `POST /mcp` (no trailing slash) was 307-redirecting to
+  `/mcp/` via Starlette's mount semantics; in a real Claude Code session
+  this compounded to ~18s of cold-connect latency. Fix: explicit ASGI
+  route at `/mcp` (registered BEFORE the Starlette mount in router order)
+  delegates to the same FastMCP sub-app with `scope["path"]` rewritten
+  to `/`. The route handler is wrapped in a `_McpNoSlashASGI` class with
+  `__call__` so Starlette treats it as raw ASGI rather than a
+  request-response handler. PrincipalMiddleware unchanged. Two stale
+  redirect-pinning tests in `tests/test_proxy_headers.py` removed.
+  Production-verified: `POST /mcp` returns HTTP/2 200 `text/event-stream`
+  with `mcp-session-id`, no `Location:` header.
 
 ### Human gates remaining
 - Phase 0 §14 dogfooding walkthrough — recruit a non-engineer friend ("Alex")
