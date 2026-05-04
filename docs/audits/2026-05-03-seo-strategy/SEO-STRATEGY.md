@@ -307,8 +307,12 @@ Already in §1 Discovery — the 12-month grid. Re-check at end of each phase:
 ## Appendix C — What to file as new beads after reading this
 
 1. **`/blog` infrastructure spec** (Phase 2 week 1-2) — FastAPI route + Article JSON-LD + Person author + RSS feed. P3.
+   ✅ filed as `markland-xgj`, **shipped same day in PR #63 (`c9a6c16`)**.
 2. **Anchor blog post #1: "What is agent-native publishing?"** — P3, blocked by #1.
+   ✅ filed as `markland-380`, **shipped in same PR #63 — live at https://markland.dev/blog/agent-native-publishing**.
 3. **Author "About" page with Person schema** — P4, do alongside post #1.
+   ✅ filed as `markland-0yy` (still open). Inline `Person` schema is embedded on each blog post pending the dedicated `/about/dghiles` page; canonical `@id` already established.
 4. **LinkedIn presence + add to Organization.sameAs** — P4, no urgency.
+   ✅ filed as `markland-xfc` (still open).
 
-I'd file these only if/when you decide to commit to the content phase. Filing them prematurely creates noise.
+**Phase 2 progress as of 2026-05-04:** the first blog post is live one day after this strategy was written. Cadence target is one post / 2 weeks; next post (~2026-05-17) should be #2 from §4 ("How to share Claude Code output without copy-pasting") or #4 ("MCP, explained for developers") depending on which lands the better hook.
