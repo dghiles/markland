@@ -162,6 +162,121 @@ def test_service_agent_cannot_publish(env):
         )
 
 
+def test_agent_with_owning_user_as_doc_owner_can_view(env):
+    """P1-B: when the agent's owning user IS the doc owner, the agent
+    inherits view access on the doc (no explicit grant needed)."""
+    conn, _ = env
+    # Bob owns the agent + a doc.
+    bob_doc = docs_svc.publish(
+        conn,
+        base_url="http://t",
+        principal=_UserPrincipal("usr_bob"),
+        content="bob's doc",
+        title="bob",
+    )
+    agent = agents_svc.create_agent(conn, "usr_bob", "bob-agent")
+    tag = check_permission(
+        conn, _AgentPrincipal(agent.id, "usr_bob"), bob_doc["id"], "view"
+    )
+    assert tag in ("owner", "view", "edit")
+
+
+def test_agent_with_owning_user_as_doc_owner_can_edit(env):
+    """P1-B: agent inherits edit access on its owning user's docs."""
+    conn, _ = env
+    bob_doc = docs_svc.publish(
+        conn,
+        base_url="http://t",
+        principal=_UserPrincipal("usr_bob"),
+        content="bob's doc",
+        title="bob",
+    )
+    agent = agents_svc.create_agent(conn, "usr_bob", "bob-agent")
+    tag = check_permission(
+        conn, _AgentPrincipal(agent.id, "usr_bob"), bob_doc["id"], "edit"
+    )
+    assert tag in ("owner", "edit")
+
+
+def test_agent_cannot_get_owner_action_on_owning_user_doc(env):
+    """P1-B / markland-b42: an agent token MUST NOT inherit owner-action
+    rights on its owning user's docs. A leaked agent token must not be
+    able to delete/flip-visibility on the user's docs."""
+    conn, _ = env
+    bob_doc = docs_svc.publish(
+        conn,
+        base_url="http://t",
+        principal=_UserPrincipal("usr_bob"),
+        content="bob's doc",
+        title="bob",
+    )
+    agent = agents_svc.create_agent(conn, "usr_bob", "bob-agent")
+    with pytest.raises(PermissionDenied):
+        check_permission(
+            conn, _AgentPrincipal(agent.id, "usr_bob"), bob_doc["id"], "owner"
+        )
+
+
+def test_agent_cannot_get_owner_action_via_inherited_edit_grant(env):
+    """P1-B: even when the owning user has an explicit edit grant, the
+    agent cannot perform owner actions on that doc."""
+    conn, doc = env
+    grants_svc.grant(
+        conn,
+        base_url="http://t",
+        principal=_UserPrincipal("usr_alice"),
+        doc_id=doc["id"],
+        target="bob@x",
+        level="edit",
+        email_client=None,
+    )
+    agent = agents_svc.create_agent(conn, "usr_bob", "bob-agent")
+    with pytest.raises(PermissionDenied):
+        check_permission(
+            conn, _AgentPrincipal(agent.id, "usr_bob"), doc["id"], "owner"
+        )
+
+
+def test_agent_cannot_delete_owning_user_doc(env):
+    """P1-B integration: agent calling delete on owning user's doc must
+    fail with PermissionDenied (not silently succeed)."""
+    conn, _ = env
+    bob_doc = docs_svc.publish(
+        conn,
+        base_url="http://t",
+        principal=_UserPrincipal("usr_bob"),
+        content="bob's doc",
+        title="bob",
+    )
+    agent = agents_svc.create_agent(conn, "usr_bob", "bob-agent")
+    with pytest.raises(PermissionDenied):
+        docs_svc.delete(
+            conn, _AgentPrincipal(agent.id, "usr_bob"), bob_doc["id"]
+        )
+
+
+def test_agent_cannot_set_visibility_on_owning_user_doc(env):
+    """P1-B integration: agent calling set_visibility on owning user's doc
+    must fail."""
+    conn, _ = env
+    bob_doc = docs_svc.publish(
+        conn,
+        base_url="http://t",
+        principal=_UserPrincipal("usr_bob"),
+        content="bob's doc",
+        title="bob",
+    )
+    agent = agents_svc.create_agent(conn, "usr_bob", "bob-agent")
+    with pytest.raises(PermissionDenied):
+        docs_svc.set_visibility(
+            conn,
+            "http://t",
+            _AgentPrincipal(agent.id, "usr_bob"),
+            bob_doc["id"],
+            True,
+        )
+
+
 def test_user_owned_agent_publishes_with_owner_id(env):
     conn, _ = env
     agent = agents_svc.create_agent(conn, "usr_bob", "bob-agent")

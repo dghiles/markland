@@ -138,16 +138,38 @@ def test_non_owner_cannot_grant(harness):
     assert exc_info.value.data["code"] == "forbidden"
 
 
-def test_grant_with_unknown_email_returns_invalid_argument(harness):
+def test_grant_with_unknown_email_silently_creates_invite(harness):
+    """P2-E / markland-yi1: an MCP grant to an unknown email no longer
+    raises invalid_argument with reason=target_not_found (which leaked
+    membership). It silently creates an invite and returns the same
+    grant-shaped envelope."""
+    conn, h, _ = harness
+    alice = _user("usr_alice")
+    a = h["markland_publish"](_Ctx(alice), content="x", title="A")
+    result = h["markland_grant"](
+        _Ctx(alice), doc_id=a["id"], principal="nobody@x", level="view"
+    )
+    # Same shape as a successful grant.
+    assert result["doc_id"] == a["id"]
+    assert result["level"] == "view"
+    # Invite was created.
+    rows = conn.execute(
+        "SELECT id FROM invites WHERE doc_id = ?", (a["id"],)
+    ).fetchall()
+    assert len(rows) == 1
+
+
+def test_grant_with_non_email_target_still_invalid_argument(harness):
+    """A non-email, non-agt_ target (typo) still raises invalid_argument
+    — this is a real input error, not enumeration."""
     _, h, _ = harness
     alice = _user("usr_alice")
     a = h["markland_publish"](_Ctx(alice), content="x", title="A")
     with pytest.raises(ToolError) as exc_info:
         h["markland_grant"](
-            _Ctx(alice), doc_id=a["id"], principal="nobody@x", level="view"
+            _Ctx(alice), doc_id=a["id"], principal="not-an-email", level="view"
         )
     assert exc_info.value.data["code"] == "invalid_argument"
-    assert exc_info.value.data["reason"] == "target_not_found"
 
 
 def test_grant_with_unknown_agent_id_returns_not_found(harness):

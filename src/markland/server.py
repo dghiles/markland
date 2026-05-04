@@ -92,6 +92,10 @@ def build_mcp(
         p = _require_principal(ctx)
         try:
             raw = docs_svc.publish(db_conn, base_url, p, content, title=title, public=public)
+        except docs_svc.ContentTooLarge as exc:
+            # P2-D / markland-o1u: surface the storage-DoS cap to callers
+            # so they can shrink the payload instead of seeing internal_error.
+            raise tool_error("invalid_argument", reason=str(exc))
         except PermissionError as exc:
             # docs_svc.publish raises PermissionError with a structured
             # message ("invalid_argument: service_agent_cannot_publish")
@@ -217,6 +221,9 @@ def build_mcp(
             doc = docs_svc.update(
                 db_conn, doc_id, p, content=content, title=title, if_version=if_version
             )
+        except docs_svc.ContentTooLarge as exc:
+            # P2-D / markland-o1u: storage-DoS cap.
+            raise tool_error("invalid_argument", reason=str(exc))
         except NotFound:
             raise tool_error("not_found")
         except PermissionDenied:
@@ -288,6 +295,12 @@ def build_mcp(
                 docs_svc.feature(db_conn, p, doc_id, featured)
             except NotFound:
                 raise tool_error("not_found")
+            except PermissionDenied:
+                # P2-G: docs_svc.feature now self-gates on admin. The
+                # tool-layer check above already raised forbidden for
+                # non-admins, but a future caller path that bypasses
+                # the tool gate would still be caught here.
+                raise tool_error("forbidden")
 
         # Return the freshly-loaded doc as a doc_envelope.
         doc = db_module.get_document(db_conn, doc_id)

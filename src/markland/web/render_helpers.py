@@ -46,6 +46,23 @@ def _canonical_host(request: Request, base_url: str) -> str:
     return f"{scheme}://{request.url.netloc}"
 
 
+def _csp_nonce_for(request: Request) -> str:
+    """Return the per-request CSP nonce set by SecurityHeadersMiddleware.
+
+    P2-B / markland-yxv: middleware stashes a fresh nonce on
+    `request.state.csp_nonce` per request. Templates pull it via the
+    `csp_nonce` context kwarg so inline `<script nonce="…">` blocks
+    pass CSP `script-src 'nonce-…'` without `'unsafe-inline'`.
+
+    Returns "" when the middleware did not run (e.g. tests that render
+    a template in isolation without the full app stack). Templates
+    handle the empty string gracefully — `nonce=""` is invalid in CSP,
+    but in those test paths the inline script is never validated by a
+    real browser.
+    """
+    return getattr(request.state, "csp_nonce", "")
+
+
 def render_with_nav(
     tpl,
     request: Request,
@@ -61,6 +78,7 @@ def render_with_nav(
         - signed_in_user: dict with `email`, or None (for the banner partial)
         - request: the FastAPI Request itself (for _seo_meta)
         - canonical_host: scheme+host string (for _seo_meta + JSON-LD)
+        - csp_nonce: the per-request CSP nonce (P2-B / markland-yxv)
 
     Caller-provided kwargs win — pass `signed_in_user=None` (etc.) to
     override the auto-resolution. Used today for: admin-impersonation
@@ -75,4 +93,6 @@ def render_with_nav(
         ctx["request"] = request
     if "canonical_host" not in ctx:
         ctx["canonical_host"] = _canonical_host(request, base_url)
+    if "csp_nonce" not in ctx:
+        ctx["csp_nonce"] = _csp_nonce_for(request)
     return tpl.render(**ctx)

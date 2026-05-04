@@ -22,7 +22,7 @@
       <form id="accept-form">
         <button type="submit">Accept and open document</button>
       </form>
-      <script>
+      <script nonce="{{ csp_nonce }}">
         // JSON-encode server-supplied tokens so unusual characters (e.g. an
         // accidentally-permitted backslash or quote) cannot break out of the
         // JS string context. Jinja autoescape only handles HTML contexts.

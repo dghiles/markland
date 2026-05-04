@@ -542,6 +542,28 @@ def set_visibility(
     return get_document(conn, doc_id)
 
 
+def rotate_share_token(
+    conn: sqlite3.Connection, doc_id: str
+) -> Document | None:
+    """Generate a fresh share_token for `doc_id` and return the updated doc.
+
+    P2-F / markland-1e8: called on grant-revoke for private docs so that
+    revoking access actually severs URL-based access. The old token
+    becomes a 404. Public docs keep their share_token (the URL is the
+    public capability).
+    """
+    doc = get_document(conn, doc_id)
+    if doc is None:
+        return None
+    new_token = Document.generate_share_token()
+    conn.execute(
+        "UPDATE documents SET share_token = ? WHERE id = ?",
+        (new_token, doc_id),
+    )
+    conn.commit()
+    return get_document(conn, doc_id)
+
+
 def set_featured(
     conn: sqlite3.Connection, doc_id: str, is_featured: bool
 ) -> Document | None:

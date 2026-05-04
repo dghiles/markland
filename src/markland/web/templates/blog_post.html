@@ -10,7 +10,7 @@
 {%- set _post_url = canonical_host ~ "/blog/" ~ post.slug -%}
 {%- set _author_id = canonical_host ~ "/about/dghiles#person" -%}
 {%- set _logo_url = canonical_host ~ "/og.png" -%}
-<script type="application/ld+json">
+<script type="application/ld+json" nonce="{{ csp_nonce }}">
 {
   "@context": "https://schema.org",
   "@type": "Article",
@@ -33,7 +33,7 @@
   }
 }
 </script>
-<script type="application/ld+json">
+<script type="application/ld+json" nonce="{{ csp_nonce }}">
 {
   "@context": "https://schema.org",
   "@type": "Person",
@@ -45,7 +45,7 @@
   ]
 }
 </script>
-<script type="application/ld+json">
+<script type="application/ld+json" nonce="{{ csp_nonce }}">
 {
   "@context": "https://schema.org",
   "@type": "BreadcrumbList",

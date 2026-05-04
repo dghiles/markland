@@ -106,10 +106,11 @@ def build_device_router(
     _device_confirm_limiter = SlidingWindowRateLimiter(limit=10, window=60)
 
     def _client_ip(request: Request) -> str:
-        xff = request.headers.get("x-forwarded-for", "")
-        if xff:
-            return xff.split(",")[0].strip()
-        return request.client.host if request.client else "unknown"
+        # P2-C / markland-91j: only `Fly-Client-IP` is trusted. Reading
+        # the first hop of X-Forwarded-For would let an attacker spoof
+        # their rate-limit key for /device/start and /device/confirm.
+        from markland.web._request_ip import trusted_client_ip
+        return trusted_client_ip(request)
 
     def _rate_limit_device_start(ip: str) -> tuple[bool, int]:
         return _device_start_limiter.check(ip)

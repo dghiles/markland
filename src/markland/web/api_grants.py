@@ -57,7 +57,16 @@ def build_router(
         content = body.get("content", "")
         title = body.get("title")
         public = bool(body.get("public", False))
-        return docs_svc.publish(conn, base_url, p, content, title=title, public=public)
+        try:
+            return docs_svc.publish(
+                conn, base_url, p, content, title=title, public=public
+            )
+        except docs_svc.ContentTooLarge as exc:
+            # P2-D / markland-o1u
+            return JSONResponse(
+                {"error": "invalid_argument", "reason": str(exc)},
+                status_code=400,
+            )
 
     @r.get("/docs/{doc_id}")
     def api_get_doc(doc_id: str, request: Request):
@@ -93,6 +102,12 @@ def build_router(
                 content=content,
                 title=title,
                 if_version=parsed,
+            )
+        except docs_svc.ContentTooLarge as exc:
+            # P2-D / markland-o1u
+            return JSONResponse(
+                {"error": "invalid_argument", "reason": str(exc)},
+                status_code=400,
             )
         except (NotFound, ValueError):
             raise HTTPException(status_code=404, detail={"error": "not_found"})

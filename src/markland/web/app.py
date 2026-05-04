@@ -565,7 +565,9 @@ def create_app(
 
         from markland.service import audit as audit_svc
 
-        rows = audit_svc.list_recent(db_conn, limit=200)
+        # P2-G: pass principal so audit.list_recent enforces its own
+        # admin gate (defense-in-depth on top of the route check above).
+        rows = audit_svc.list_recent(db_conn, limit=200, principal=principal)
         for r in rows:
             r["metadata_json"] = json.dumps(r["metadata"], sort_keys=True)
         return HTMLResponse(admin_audit_tpl.render(rows=rows))
@@ -671,6 +673,15 @@ def create_app(
             principal_user_id = (
                 getattr(principal, "user_id", None) or principal.principal_id
             )
+        # P1-E / markland-7e1: when no Bearer principal is set (the common
+        # browser path), fall back to the session cookie so that signed-in
+        # viewers see full presence identity. Anonymous (no cookie) viewers
+        # remain principal_user_id=None and trigger the strip path below.
+        if principal_user_id is None and session_secret:
+            from markland.web.session_principal import session_principal as _sp
+            sp = _sp(request, db_conn, secret=session_secret)
+            if sp is not None:
+                principal_user_id = sp.principal_id
         is_owner = bool(
             principal_user_id and doc.owner_id and principal_user_id == doc.owner_id
         )
@@ -683,18 +694,40 @@ def create_app(
             ]
         from markland.service import presence as _presence
         actives = _presence.list_active(db_conn, doc_id=doc.id)
-        active_principals = [
-            {
-                "principal_id": a.principal_id,
-                "principal_type": a.principal_type,
-                "display_name": a.display_name or a.principal_id,
-                "status": a.status,
-                "note": a.note,
-                "updated_at": a.updated_at,
-                "minutes_ago": _minutes_ago(a.updated_at),
-            }
-            for a in actives
-        ]
+        # P1-E / markland-7e1: anonymous viewers (no session, no agent
+        # token) MUST NOT see other viewers' identities. For a public
+        # doc, anyone on the internet would otherwise learn who is
+        # currently reading/editing including their display_name and
+        # free-text note. Strip identity fields for anonymous viewers
+        # while still surfacing presence count + status, which is part
+        # of the social experience for signed-in viewers.
+        viewer_is_anonymous = principal_user_id is None
+        if viewer_is_anonymous:
+            active_principals = [
+                {
+                    "principal_id": None,
+                    "principal_type": a.principal_type,
+                    "display_name": "Someone",
+                    "status": a.status,
+                    "note": "",
+                    "updated_at": a.updated_at,
+                    "minutes_ago": _minutes_ago(a.updated_at),
+                }
+                for a in actives
+            ]
+        else:
+            active_principals = [
+                {
+                    "principal_id": a.principal_id,
+                    "principal_type": a.principal_type,
+                    "display_name": a.display_name or a.principal_id,
+                    "status": a.status,
+                    "note": a.note,
+                    "updated_at": a.updated_at,
+                    "minutes_ago": _minutes_ago(a.updated_at),
+                }
+                for a in actives
+            ]
         forked_from = None
         forked_from_visible = False
         if doc.forked_from_doc_id:
@@ -849,11 +882,15 @@ def create_app(
 
     from markland.web.security_headers_middleware import (
         SecurityHeadersMiddleware,
-        build_csp,
     )
+    # P2-B / markland-yxv: pass umami_script_url instead of a static csp
+    # so SecurityHeadersMiddleware can mint a fresh nonce per request
+    # and weave it into the CSP header.
     app.add_middleware(
         SecurityHeadersMiddleware,
-        csp=build_csp(umami_script_url=_cfg.umami_script_url if _cfg.umami_website_id else ""),
+        umami_script_url=(
+            _cfg.umami_script_url if _cfg.umami_website_id else ""
+        ),
     )
 
     from markland.web.fly_dev_redirect_middleware import FlyDevRedirectMiddleware

@@ -63,7 +63,7 @@
     </div>
   {% endfor %}
 </section>
-<script>
+<script nonce="{{ csp_nonce }}">
   // Read the display name from a data-* attribute (HTML-escaped by Jinja
   // autoescape) rather than interpolating it into a JS string literal in an
   // onsubmit attribute, where a stray apostrophe would break out of the

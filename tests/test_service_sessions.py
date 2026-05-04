@@ -48,3 +48,33 @@ def test_read_rejects_expired(monkeypatch):
 def test_empty_secret_refuses_to_issue():
     with pytest.raises(ValueError):
         issue_session("usr_abc", secret="")
+
+
+def test_make_csrf_token_refuses_empty_secret():
+    """P1-C / markland-bfk: signing with an empty secret would accept a
+    placeholder fallback and let attackers who know the placeholder forge
+    CSRF tokens. Refuse with ValueError instead."""
+    from markland.service.sessions import make_csrf_token
+
+    with pytest.raises(ValueError):
+        make_csrf_token("usr_abc", secret="")
+
+
+def test_verify_csrf_token_refuses_empty_secret():
+    """P1-C / markland-bfk: verification with an empty secret must also
+    raise — silently treating an empty secret as 'placeholder' would let
+    a forged token pass verification on a misconfigured deployment."""
+    from markland.service.sessions import verify_csrf_token
+
+    with pytest.raises(ValueError):
+        verify_csrf_token("any-token", "usr_abc", secret="")
+
+
+def test_csrf_token_roundtrip():
+    """Happy path: a token signed with secret S verifies with secret S."""
+    from markland.service.sessions import make_csrf_token, verify_csrf_token
+
+    token = make_csrf_token("usr_abc", secret="topsecret")
+    assert verify_csrf_token(token, "usr_abc", secret="topsecret") is True
+    # Wrong user_id must fail.
+    assert verify_csrf_token(token, "usr_other", secret="topsecret") is False

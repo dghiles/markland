@@ -61,6 +61,10 @@ def test_render_with_nav_injects_anon_context(tmp_path, monkeypatch):
         "signed_in_user": None,
         "request": req,
         "canonical_host": BASE_URL,
+        # P2-B / markland-yxv: render_with_nav now also forwards the
+        # per-request CSP nonce. The fake request has no state.csp_nonce,
+        # so it falls back to "".
+        "csp_nonce": "",
     }
 
 

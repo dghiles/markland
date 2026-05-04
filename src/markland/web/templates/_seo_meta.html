@@ -53,7 +53,7 @@
 {%- set _sw_id = canonical_host ~ "/#software" -%}
 {%- set _home = canonical_host ~ "/" -%}
 {%- set _logo_url = canonical_host ~ "/og.png" -%}
-<script type="application/ld+json">
+<script type="application/ld+json" nonce="{{ csp_nonce }}">
 {
   "@context": "https://schema.org",
   "@type": "Organization",
@@ -77,7 +77,7 @@
   ]
 }
 </script>
-<script type="application/ld+json">
+<script type="application/ld+json" nonce="{{ csp_nonce }}">
 {
   "@context": "https://schema.org",
   "@type": "WebSite",
@@ -89,7 +89,7 @@
   "inLanguage": "en"
 }
 </script>
-<script type="application/ld+json">
+<script type="application/ld+json" nonce="{{ csp_nonce }}">
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",

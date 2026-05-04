@@ -60,6 +60,63 @@ def test_noindex_on_private_paths(client, path, expected_status):
     assert "noindex" in r.headers.get("x-robots-tag", "").lower()
 
 
+def test_csp_uses_nonce_not_unsafe_inline_for_scripts(client):
+    """P2-B / markland-yxv: script-src must NOT carry 'unsafe-inline'.
+    Each request gets a fresh nonce woven into the CSP header."""
+    r = client.get("/")
+    csp = r.headers.get("content-security-policy", "")
+    # Locate the script-src directive.
+    parts = [p.strip() for p in csp.split(";")]
+    script_src = next(p for p in parts if p.startswith("script-src"))
+    assert "'unsafe-inline'" not in script_src, (
+        f"script-src must drop 'unsafe-inline'; got: {script_src!r}"
+    )
+    assert "'nonce-" in script_src, (
+        f"script-src must include a per-request nonce; got: {script_src!r}"
+    )
+
+
+def test_csp_nonce_changes_between_requests(client):
+    """Each request gets a fresh nonce — replay protection for any
+    attacker who exfiltrates a nonce + injects later."""
+    r1 = client.get("/")
+    r2 = client.get("/")
+    csp1 = r1.headers.get("content-security-policy", "")
+    csp2 = r2.headers.get("content-security-policy", "")
+    # Extract the nonce values.
+    import re
+    nonce1 = re.search(r"'nonce-([^']+)'", csp1)
+    nonce2 = re.search(r"'nonce-([^']+)'", csp2)
+    assert nonce1 and nonce2
+    assert nonce1.group(1) != nonce2.group(1), (
+        "csp nonces must rotate per request"
+    )
+
+
+def test_inline_scripts_carry_nonce(client):
+    """A page rendered via render_with_nav (e.g. landing) must stamp the
+    nonce on every inline <script>."""
+    r = client.get("/")
+    body = r.text
+    # Extract the response's CSP nonce.
+    import re
+    csp = r.headers.get("content-security-policy", "")
+    m = re.search(r"'nonce-([^']+)'", csp)
+    assert m, "no nonce in CSP — middleware regression"
+    nonce = m.group(1)
+    # Every inline <script> in the rendered body must carry a nonce
+    # that matches the response's CSP nonce. We don't enforce that
+    # external (src=…) scripts carry a nonce — they get cleared by
+    # script-src 'self' instead.
+    inline_pattern = re.compile(
+        r"<script(?![^>]*\bsrc=)[^>]*>", re.IGNORECASE
+    )
+    for tag in inline_pattern.findall(body):
+        assert f'nonce="{nonce}"' in tag, (
+            f"inline <script> missing or wrong nonce: {tag!r}"
+        )
+
+
 def test_security_headers_on_rate_limit_429(tmp_path, monkeypatch):
     """Rate-limit 429 responses must carry security headers too."""
     monkeypatch.setenv("MARKLAND_RATE_LIMIT_ANON_PER_MIN", "1")

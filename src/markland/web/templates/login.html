@@ -109,7 +109,7 @@
   </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce }}">
   document.getElementById('f').addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = document.getElementById('email').value.trim();

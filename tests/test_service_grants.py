@@ -69,7 +69,67 @@ def test_grant_by_email_creates_row(tmp_path):
     assert "view" in kwargs["subject"].lower() or "view" in kwargs["html"].lower()
 
 
-def test_grant_rejects_unknown_email(tmp_path):
+def test_grant_unknown_email_silently_creates_invite(tmp_path):
+    """P2-E / markland-yi1: granting to an email with no matching user
+    no longer raises GrantTargetNotFound — it silently creates an
+    invite and returns a grant-shaped response. This prevents the doc
+    owner from enumerating which emails belong to Markland accounts."""
+    conn = _fresh_db(tmp_path)
+    alice = _user("usr_alice")
+    doc_id = _seed(conn, alice, email_by_uid={"usr_alice": "a@x"})
+    email_client = MagicMock()
+    result = grants_svc.grant(
+        conn,
+        base_url=BASE,
+        principal=alice,
+        doc_id=doc_id,
+        target="nobody@x",
+        level="view",
+        email_client=email_client,
+    )
+    # Same shape as a successful grant. Principal_id must NOT contain
+    # the email — that would let the caller detect the unknown-email
+    # branch by `"@" in principal_id`. It must use the `usr_` prefix
+    # like a real user id, and must be deterministic for the same
+    # email (so retrying doesn't leak via different ids either).
+    assert result["doc_id"] == doc_id
+    assert result["level"] == "view"
+    assert "@" not in result["principal_id"]
+    assert result["principal_id"].startswith("usr_")
+    # granted_at must be a "now" timestamp, not the 7-day invite expiry.
+    import datetime
+    granted_at = datetime.datetime.fromisoformat(
+        result["granted_at"].replace("Z", "+00:00")
+    )
+    now = datetime.datetime.now(datetime.timezone.utc)
+    assert abs((now - granted_at).total_seconds()) < 5, result["granted_at"]
+    # Invite was actually created (a row in the invites table).
+    rows = conn.execute(
+        "SELECT id FROM invites WHERE doc_id = ?", (doc_id,)
+    ).fetchall()
+    assert len(rows) == 1
+    # Email was queued.
+    email_client.send.assert_called_once()
+    # Deterministic: re-grant for the same email returns the same
+    # synthetic principal_id. (A different id on retry would itself be
+    # a side-channel: the caller could distinguish unknown-email by
+    # observing the id changes whereas a real grant is idempotent.)
+    result2 = grants_svc.grant(
+        conn,
+        base_url=BASE,
+        principal=alice,
+        doc_id=doc_id,
+        target="nobody@x",
+        level="view",
+        email_client=email_client,
+    )
+    assert result2["principal_id"] == result["principal_id"]
+
+
+def test_grant_rejects_non_email_unknown_target(tmp_path):
+    """A target that is not email-shaped (no '@') and not an agt_ id
+    should still raise GrantTargetNotFound — those are user typos, not
+    enumeration probes."""
     conn = _fresh_db(tmp_path)
     alice = _user("usr_alice")
     doc_id = _seed(conn, alice, email_by_uid={"usr_alice": "a@x"})
@@ -79,7 +139,7 @@ def test_grant_rejects_unknown_email(tmp_path):
             base_url=BASE,
             principal=alice,
             doc_id=doc_id,
-            target="nobody@x",
+            target="not-an-email",
             level="view",
             email_client=MagicMock(),
         )

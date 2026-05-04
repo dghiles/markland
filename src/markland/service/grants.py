@@ -7,11 +7,13 @@ fail because of email problems.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import sqlite3
 from typing import Any
 
 from markland import db
+from markland.models import Document
 from markland.service import audit, email_templates, metrics
 from markland.service.auth import Principal
 from markland.service.permissions import NotFound, check_permission
@@ -227,7 +229,28 @@ def grant(
     ).fetchone()
     prior_level = prior[0] if prior else None
 
-    principal_id, principal_type, target_email = _resolve_target(conn, target_str)
+    try:
+        principal_id, principal_type, target_email = _resolve_target(conn, target_str)
+    except GrantTargetNotFound:
+        # P2-E / markland-yi1: when the email shape is valid but no user
+        # row exists, silently create an invite for that email instead
+        # of leaking "this email is/isn't a Markland account" via a
+        # distinct error. The response shape mirrors a successful grant
+        # so the caller can't distinguish the two cases.
+        if "@" not in target_str:
+            # Not an email shape — surface the original "target not found"
+            # so callers can fix typos (e.g. malformed agt_… ids).
+            raise
+        return _grant_via_invite(
+            conn,
+            doc=doc,
+            doc_url=doc_url,
+            target_email=target_str,
+            level=level,
+            principal=principal,
+            granter_display=granter_display,
+            dispatcher=dispatcher,
+        )
 
     grant_by_principal_id(
         conn,
@@ -314,6 +337,99 @@ def _inline_dispatcher_from_client(email_client) -> Any:
     return _Inline(email_client)
 
 
+def _grant_via_invite(
+    conn: sqlite3.Connection,
+    *,
+    doc,
+    doc_url: str,
+    target_email: str,
+    level: str,
+    principal: Principal,
+    granter_display: str,
+    dispatcher,
+) -> dict:
+    """P2-E / markland-yi1: grant-by-email to a non-user creates an
+    invite and returns a response shape indistinguishable from a
+    successful grant. From the caller's perspective, every valid-email
+    target succeeds — they cannot enumerate which emails belong to
+    Markland accounts.
+    """
+    from markland.service.invites import create_invite
+
+    base_url = doc_url.rsplit(f"/d/{doc.share_token}", 1)[0]
+    created = create_invite(
+        conn,
+        doc_id=doc.id,
+        created_by_user_id=principal.principal_id,
+        level=level,
+        base_url=base_url,
+        single_use=True,
+        expires_in_days=7,
+    )
+
+    if dispatcher is not None:
+        # Reuse the user_grant template — the recipient sees "Alice
+        # shared a doc with you" with the invite URL. They click and
+        # the invite-accept flow walks them through sign-up.
+        rendered = email_templates.user_grant(
+            granter_display=granter_display,
+            doc_title=doc.title,
+            doc_url=created.url,
+            level=level,
+        )
+        _enqueue(
+            dispatcher,
+            to=target_email,
+            subject=rendered["subject"],
+            html=rendered["html"],
+            text=rendered.get("text"),
+            metadata={
+                "template": "user_grant_invite",
+                "doc_id": doc.id,
+                "invite_id": created.id,
+            },
+        )
+
+    audit.record(
+        conn,
+        action="grant",
+        principal=principal,
+        doc_id=doc.id,
+        metadata={"target": target_email, "level": level, "via": "invite"},
+    )
+    metrics.emit_first_time(
+        "first_grant", principal_id=principal.principal_id
+    )
+
+    # Return the same shape AND value-shape as a successful grant.
+    #
+    # The earlier version leaked the unknown-email branch via VALUES:
+    # principal_id was the literal email (contains `@`) and granted_at
+    # was the invite's ~7-day expiry. A caller could distinguish via
+    # `"@" in principal_id` or by comparing timestamps.
+    #
+    # Fix:
+    #   - principal_id: synthetic, deterministic, opaque user-id-shape
+    #     (`usr_pending_<16 hex>`). Deterministic per email so retrying
+    #     doesn't produce a different id (which would itself be a leak).
+    #     The principal_id field in the API response is informational —
+    #     not used as a foreign key by callers — so a synthetic value
+    #     is safe.
+    #   - granted_at: a "now" UTC ISO string, matching the format and
+    #     time bucket of a real grant write (db.upsert_grant uses
+    #     Document.now()).
+    digest = hashlib.sha256(target_email.strip().lower().encode("utf-8")).hexdigest()[:16]
+    synthetic_principal_id = f"usr_pending_{digest}"
+    return {
+        "doc_id": doc.id,
+        "principal_id": synthetic_principal_id,
+        "principal_type": "user",
+        "level": level,
+        "granted_by": principal.principal_id,
+        "granted_at": Document.now(),
+    }
+
+
 def _row_to_dict(row) -> dict:
     return {
         "doc_id": row.doc_id,
@@ -342,6 +458,13 @@ def revoke(
             doc_id=doc_id,
             metadata={"target_principal_id": principal_id},
         )
+        # P2-F / markland-1e8: rotate share_token on grant-revoke for
+        # private docs. /d/{share_token} bypasses the grants table — so
+        # revoking a grant alone leaves the old URL working forever.
+        # Public docs keep their share_token (the URL IS the capability).
+        doc = db.get_document(conn, doc_id)
+        if doc is not None and not doc.is_public:
+            db.rotate_share_token(conn, doc_id)
     return {"revoked": deleted, "doc_id": doc_id, "principal_id": principal_id}
 
 
