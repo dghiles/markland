@@ -99,6 +99,12 @@ def register_well_known_routes(app: FastAPI, *, base_url: str) -> None:
     # resource origin. Markland is bearer-only, so 404 with the same JSON
     # envelope as the GET probes. We register both GET and POST so a
     # human curl-debugging the path also sees JSON.
+    #
+    # NAMESPACE CLAIM: `/register` is now reserved by this OAuth-probe
+    # handler. If we later add a user-signup page (the symmetric pair to
+    # `/login`), put it at `/signup` or `/join` — NOT `/register` — or this
+    # route must be removed first to avoid breaking MCP client installs.
+    # Tracked: markland-6o6 follow-up.
     @app.api_route("/register", methods=["GET", "POST"])
     def register_endpoint() -> JSONResponse:
         return JSONResponse(_not_found_envelope, status_code=404)
