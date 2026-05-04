@@ -8,6 +8,7 @@ import uvicorn
 
 from markland.config import get_config
 from markland.db import init_db
+from markland.log_scrubbing import build_uvicorn_log_config, scrub_sentry_event
 from markland.service.email import EmailClient
 from markland.service.email_dispatcher import EmailDispatcher
 from markland.web.app import create_app
@@ -52,6 +53,9 @@ if config.sentry_dsn:
             dsn=config.sentry_dsn,
             traces_sample_rate=0.1,
             send_default_pii=False,
+            # Strip magic-link tokens, share tokens, CSRF tokens and
+            # Authorization headers before events leave the process.
+            before_send=scrub_sentry_event,
         )
         logger.info("Sentry initialized")
     except ImportError:
@@ -100,4 +104,8 @@ if __name__ == "__main__":
         log_level="info",
         proxy_headers=True,
         forwarded_allow_ips="*",
+        # Custom log config attaches a redaction filter to uvicorn.access so
+        # secrets in the request URL (token=, share_token=, csrf=,
+        # magic_link=) don't end up in stdout-captured access logs.
+        log_config=build_uvicorn_log_config(),
     )

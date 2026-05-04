@@ -40,3 +40,6 @@ def test_sentry_initialized_when_dsn_set(monkeypatch, tmp_path):
     kwargs = init_mock.call_args.kwargs
     assert kwargs["dsn"] == "https://fake@sentry.io/1"
     assert kwargs.get("send_default_pii") is False
+    # Magic-link / CSRF / share-token redaction must be wired up.
+    from markland.log_scrubbing import scrub_sentry_event
+    assert kwargs.get("before_send") is scrub_sentry_event
