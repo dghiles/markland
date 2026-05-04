@@ -48,9 +48,20 @@ def test_authorization_server_returns_json_404():
 
 
 def test_protected_resource_path_is_exact():
-    """Trailing-slash and case variants should NOT match — keeps the surface tight."""
+    """Trailing-slash and case variants should NOT match — keeps the surface tight.
+
+    Trailing slash is explicitly handled by our own route (returns JSON with
+    the standard not_found envelope). The uppercase variant falls through to
+    FastAPI's catch-all and 404s.
+    """
     client = TestClient(_app())
-    assert client.get("/.well-known/oauth-protected-resource/").status_code == 404
+    r_slash = client.get("/.well-known/oauth-protected-resource/")
+    assert r_slash.status_code == 404
+    assert r_slash.headers["content-type"].startswith("application/json")
+    body = r_slash.json()
+    assert body["error"] == "not_found"
+    assert "bearer" in body["error_description"].lower()
+
     assert client.get("/.WELL-KNOWN/oauth-protected-resource").status_code == 404
 
 

@@ -62,7 +62,7 @@ def register_well_known_routes(app: FastAPI, *, base_url: str) -> None:
     # discovery path to be exact: anything else is unknown.
     @app.get("/.well-known/oauth-protected-resource/")
     def oauth_protected_resource_trailing_slash() -> JSONResponse:
-        return JSONResponse({"error": "not_found"}, status_code=404)
+        return JSONResponse(_not_found_envelope, status_code=404)
 
     # Shared "no OAuth here" 404 envelope. Used by every additional probe
     # path the SDK is observed to hit (see tests/test_well_known_oauth.py
