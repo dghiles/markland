@@ -107,3 +107,38 @@ def test_openid_configuration_with_mcp_suffix_returns_json_404():
     assert r.status_code == 404
     assert r.headers["content-type"].startswith("application/json")
     assert r.json()["error"] == "not_found"
+
+
+def test_post_register_returns_json_404():
+    """RFC 7591 dynamic-client-registration endpoint. Markland doesn't
+    speak OAuth, so a POST here must return JSON so the SDK doesn't
+    crash JSON.parse on '<' from the styled HTML 404 page.
+
+    This is the load-bearing path: in production logs the SDK falls
+    through to POST /register after `authorization_servers: []` in the
+    protected-resource doc, and the HTML response was what surfaced as
+    the user-visible 'Auth: not authenticated' error in /mcp.
+    """
+    client = TestClient(_app())
+    # Empty body is fine — we're 404-ing regardless. Match the SDK's
+    # actual probe shape (Content-Type: application/json, JSON body).
+    r = client.post(
+        "/register",
+        json={"client_name": "claude-code-test"},
+    )
+    assert r.status_code == 404
+    assert r.headers["content-type"].startswith("application/json")
+    body = r.json()
+    assert body["error"] == "not_found"
+    assert "bearer" in body["error_description"].lower()
+
+
+def test_get_register_also_returns_json_404():
+    """Defensive: SDKs that probe via GET (or curl-debugging humans)
+    should also see JSON, not HTML. Same envelope.
+    """
+    client = TestClient(_app())
+    r = client.get("/register")
+    assert r.status_code == 404
+    assert r.headers["content-type"].startswith("application/json")
+    assert r.json()["error"] == "not_found"

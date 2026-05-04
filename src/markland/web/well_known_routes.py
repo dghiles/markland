@@ -93,3 +93,12 @@ def register_well_known_routes(app: FastAPI, *, base_url: str) -> None:
     @app.get("/.well-known/openid-configuration/mcp")
     def openid_configuration_mcp_suffix() -> JSONResponse:
         return JSONResponse(_not_found_envelope, status_code=404)
+
+    # RFC 7591 dynamic client registration. SDKs that don't honor an empty
+    # `authorization_servers` list fall through to POSTing here on the
+    # resource origin. Markland is bearer-only, so 404 with the same JSON
+    # envelope as the GET probes. We register both GET and POST so a
+    # human curl-debugging the path also sees JSON.
+    @app.api_route("/register", methods=["GET", "POST"])
+    def register_endpoint() -> JSONResponse:
+        return JSONResponse(_not_found_envelope, status_code=404)
