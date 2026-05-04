@@ -72,6 +72,29 @@
     <li>We do not use your data for behavioral advertising or cross-site tracking.</li>
   </ul>
 
+  <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">Who we share data with</h2>
+
+  <p style="margin-bottom: 1rem;">
+    Markland uses a small number of third-party service providers ("sub-processors") to operate the platform. Each one receives only the data it needs to do its specific job. We do not share data with anyone not on this list, except where required by law (see below).
+  </p>
+
+  <ul style="margin-bottom: 1rem; padding-left: 1.4rem; line-height: 1.65;">
+    <li><strong>Fly.io</strong> — application hosting. Receives all request and response data in transit (this is unavoidable for any hosted service). Database files and backups also reside on Fly.io infrastructure.</li>
+    <li><strong>Resend</strong> — transactional email delivery for magic-link sign-in and notifications. Receives your email address and the message body of system emails. Resend's privacy policy: <a href="https://resend.com/legal/privacy-policy" style="color: var(--blue); border-bottom: 1px solid var(--outline);">resend.com/legal/privacy-policy</a>.</li>
+    <li><strong>Cloudflare R2</strong> — encrypted off-site backup storage for the SQLite database via Litestream. Backup contents include all data described in "Information we collect."</li>
+    <li><strong>Umami Cloud</strong> — privacy-first web analytics on marketing pages only. Receives page-view metadata (URL, referrer, country, screen size). No cookies, no cross-site tracking, no PII. Umami's privacy policy: <a href="https://umami.is/privacy" style="color: var(--blue); border-bottom: 1px solid var(--outline);">umami.is/privacy</a>.</li>
+    <li><strong>Sentry</strong> — application error monitoring. Receives exception traces and the scrubbed request context that produced them. Authentication tokens, magic-link tokens, and CSRF tokens are stripped before transmission.</li>
+    <li><strong>Anthropic</strong> — when an AI agent on someone's behalf interacts with Markland via MCP, the document content the agent is acting on may pass through that agent's underlying model provider (typically Anthropic for Claude Code users). This is governed by your agreement with that provider, not by Markland; we don't transmit your data to Anthropic ourselves.</li>
+  </ul>
+
+  <p style="margin-bottom: 1rem;">
+    <strong>Legal disclosure.</strong> We may disclose your information if we receive a valid legal process (subpoena, court order, search warrant), if we believe disclosure is necessary to comply with a law or regulation, or if we believe disclosure is necessary to protect the safety of any person. Where lawful, we will notify you before responding so you can object or seek protective relief.
+  </p>
+
+  <p style="margin-bottom: 1rem;">
+    <strong>Business transfers.</strong> If Markland is acquired, merged, or has its assets transferred, your information may be part of the transfer. The acquirer will be required to honor this policy or notify you of any material change before continuing to use your information.
+  </p>
+
   <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">Cookies &amp; tracking</h2>
   <p style="margin-bottom: 1rem;">
     Markland sets a single signed session cookie for logged-in humans. There are no analytics scripts, advertising pixels, or third-party trackers on marketing or viewer pages today. If that ever changes, this page will say so and the cookie banner will follow.
