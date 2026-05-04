@@ -128,3 +128,25 @@ def test_security_page_discloses_umami(client):
     assert r.status_code == 200
     assert "Umami" in r.text
     assert "cookie" in r.text.lower()  # confirms the no-cookie note is present
+
+
+def test_privacy_has_standard_sections(client):
+    """The /privacy page must carry the ten standard sections of a real
+    privacy policy. Section presence is asserted via the <h2> heading
+    text — order is not enforced here, only completeness."""
+    r = client.get("/privacy")
+    text = r.text
+    required_h2 = [
+        "Information we collect",
+        "How we use your information",
+        "Who we share data with",
+        "Data retention",
+        "Your rights and choices",
+        "International transfers",
+        "Security",
+        "Children's privacy",
+        "Changes to this policy",
+        "Contact us",
+    ]
+    missing = [h for h in required_h2 if h not in text]
+    assert not missing, f"/privacy missing sections: {missing}"
