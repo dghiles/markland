@@ -55,7 +55,7 @@ def build_router(
             cookie = request.cookies.get(SESSION_COOKIE_NAME, "")
             if cookie and session_secret:
                 try:
-                    payload = read_session(cookie, secret=session_secret)
+                    payload = read_session(cookie, secret=session_secret, conn=conn)
                     uid = payload.get("user_id")
                     if isinstance(uid, str):
                         user_id = uid

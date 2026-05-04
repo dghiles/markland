@@ -34,7 +34,7 @@ def _principal_from_session(
     if not cookie:
         return None
     try:
-        payload = read_session(cookie, secret=session_secret)
+        payload = read_session(cookie, secret=session_secret, conn=conn)
     except InvalidSession:
         return None
     user = get_user(conn, payload.get("user_id", ""))
