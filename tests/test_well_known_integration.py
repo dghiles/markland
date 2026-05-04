@@ -86,7 +86,7 @@ def test_authorization_server_endpoint_is_mounted(tmp_path):
 ])
 def test_every_observed_probe_path_returns_json(tmp_path, method, path):
     """Every path the Claude Code MCP SDK was observed to probe in production
-    logs (2026-05-04, daveyhiles@gmail.com's install) must return JSON, not
+    logs (2026-05-04 production install) must return JSON, not
     HTML. The exact status code varies by path (200, 401, 404), but the
     content-type MUST be application/json — anything else crashes the SDK's
     JSON.parse with `Unrecognized token <` and breaks the install.
