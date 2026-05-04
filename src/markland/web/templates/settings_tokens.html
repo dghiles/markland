@@ -15,7 +15,10 @@
   .tokens-section button { padding: 0.5rem 1rem; background: var(--surface-2); color: var(--text); border: 1px solid var(--outline); border-radius: 6px; cursor: pointer; font: inherit; }
   .tokens-section button.revoke { background: none; border: 0; padding: 0; color: var(--red); text-decoration: underline; text-underline-offset: 2px; }
   .tokens-section .newtoken { background: var(--surface-2); border: 1px solid var(--outline); padding: 1rem; margin-top: 1rem; border-radius: 8px; word-break: break-all; }
-  .tokens-section .newtoken code { font-family: var(--font-mono); color: var(--text); background: #000; padding: 0.5rem; display: block; border-radius: 4px; overflow-x: auto; margin-top: 0.5rem; }
+  .tokens-section .newtoken code { font-family: var(--font-mono); color: var(--text); background: #000; padding: 0.5rem; display: block; border-radius: 4px; overflow-x: auto; margin-top: 0.5rem; user-select: all; cursor: text; }
+  .tokens-section .newtoken .actions { display: flex; gap: 0.5rem; margin-top: 0.6rem; align-items: center; }
+  .tokens-section .newtoken .copied { color: var(--muted); font-size: 0.85rem; }
+  .tokens-section .newtoken kbd { font-family: var(--font-mono); font-size: 0.8em; padding: 0.05rem 0.35rem; border: 1px solid var(--outline); border-radius: 3px; background: var(--surface-2); }
   .tokens-section code.bearer { font-family: var(--font-mono); background: var(--surface-2); border: 1px solid var(--outline-hairline); padding: 0.1rem 0.3rem; border-radius: 4px; font-size: 0.85em; }
 </style>
 <section class="tokens-section">
@@ -27,11 +30,11 @@
     <input type="text" id="label" name="label" placeholder="e.g. laptop" required>
     <button type="submit">Create</button>
   </form>
-  <div id="newbox"></div>
+  <div id="newbox" aria-live="polite"></div>
 
   <h2>Your tokens</h2>
   {% if tokens %}
-  <table>
+  <table id="tokens-table">
     <thead><tr><th>Label</th><th>Created</th><th>Last used</th><th></th></tr></thead>
     <tbody>
     {% for t in tokens %}
@@ -47,34 +50,119 @@
     </tbody>
   </table>
   {% else %}
-  <p>No tokens yet.</p>
+  <p id="empty-tokens">No tokens yet.</p>
+  <table id="tokens-table" hidden>
+    <thead><tr><th>Label</th><th>Created</th><th>Last used</th><th></th></tr></thead>
+    <tbody></tbody>
+  </table>
   {% endif %}
 </section>
 
 <script>
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+  }
+
+  function showNewToken(token, label, id) {
+    const box = document.getElementById('newbox');
+    box.innerHTML =
+      '<div class="newtoken" id="newtoken-box">' +
+        '<strong>New token</strong> &mdash; copy now, it will not be shown again.' +
+        '<code id="newtoken-value" tabindex="0">' + escapeHtml(token) + '</code>' +
+        '<div class="actions">' +
+          '<button type="button" id="copy-btn">Copy</button>' +
+          '<span class="copied" id="copy-status">Press <kbd>C</kbd> to copy</span>' +
+        '</div>' +
+      '</div>';
+
+    const codeEl = document.getElementById('newtoken-value');
+    const status = document.getElementById('copy-status');
+    const btn = document.getElementById('copy-btn');
+
+    function selectAll() {
+      const range = document.createRange();
+      range.selectNodeContents(codeEl);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+
+    async function copy() {
+      try {
+        await navigator.clipboard.writeText(token);
+        status.textContent = 'Copied to clipboard';
+      } catch (_err) {
+        selectAll();
+        status.textContent = 'Selected — press Cmd/Ctrl+C to copy';
+      }
+    }
+
+    btn.addEventListener('click', copy);
+    codeEl.addEventListener('focus', selectAll);
+    codeEl.addEventListener('click', selectAll);
+
+    // Auto-select so Cmd/Ctrl+C immediately copies.
+    codeEl.focus();
+    selectAll();
+
+    // Page-level shortcut: 'c' copies (when not typing in a field).
+    document.addEventListener('keydown', function onKey(e) {
+      const tag = (e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'c' || e.key === 'C') {
+        e.preventDefault();
+        copy();
+      }
+    });
+
+    // Append a row to the table so the new token shows up without a reload.
+    const table = document.getElementById('tokens-table');
+    const empty = document.getElementById('empty-tokens');
+    if (empty) empty.remove();
+    if (table) table.hidden = false;
+    const tbody = table.querySelector('tbody');
+    const tr = document.createElement('tr');
+    tr.id = 'row-' + id;
+    tr.innerHTML =
+      '<td>' + escapeHtml(label || '(unlabeled)') + '</td>' +
+      '<td>just now</td>' +
+      '<td>never</td>' +
+      '<td><button class="revoke" data-id="' + escapeHtml(id) + '">Revoke</button></td>';
+    tbody.appendChild(tr);
+    tr.querySelector('.revoke').addEventListener('click', revokeHandler);
+  }
+
+  async function revokeHandler() {
+    const id = this.dataset.id;
+    if (!confirm('Revoke this token?')) return;
+    const r = await fetch('/api/tokens/' + id, { method: 'DELETE' });
+    if (r.ok) {
+      const row = document.getElementById('row-' + id);
+      if (row) row.remove();
+    }
+  }
+
   document.getElementById('create').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const label = document.getElementById('label').value.trim();
+    const labelInput = document.getElementById('label');
+    const label = labelInput.value.trim();
     const r = await fetch('/api/tokens', {
       method: 'POST',
-      headers: {'content-type': 'application/json'},
-      body: JSON.stringify({label}),
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ label }),
     });
     if (r.ok) {
       const body = await r.json();
-      document.getElementById('newbox').innerHTML =
-        '<div class="newtoken">New token (copy now — it will not be shown again):<br>' +
-        '<code>' + body.token + '</code></div>';
-      setTimeout(() => location.reload(), 500);
+      labelInput.value = '';
+      showNewToken(body.token, label, body.id);
     }
   });
+
   document.querySelectorAll('.revoke').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const id = btn.dataset.id;
-      if (!confirm('Revoke this token?')) return;
-      const r = await fetch('/api/tokens/' + id, {method: 'DELETE'});
-      if (r.ok) document.getElementById('row-' + id).remove();
-    });
+    btn.addEventListener('click', revokeHandler);
   });
 </script>
 {% endblock %}

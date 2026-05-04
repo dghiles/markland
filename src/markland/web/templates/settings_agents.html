@@ -13,7 +13,11 @@
   .agents-section form.inline { display: inline; }
   .agents-section input[type=text] { padding: 0.5rem 0.75rem; background: var(--surface-2); border: 1px solid var(--outline); border-radius: 6px; color: var(--text); font: inherit; }
   .agents-section button { font: inherit; padding: 0.35rem 0.85rem; background: var(--surface-2); color: var(--text); border: 1px solid var(--outline); border-radius: 6px; cursor: pointer; }
-  .agents-section .token-plain { background: var(--surface-2); border: 1px solid var(--outline); padding: 1rem; margin-top: 1rem; border-radius: 8px; word-break: break-all; font-family: var(--font-mono); color: var(--text); }
+  .agents-section .token-plain { background: var(--surface-2); border: 1px solid var(--outline); padding: 1rem; margin-top: 1rem; border-radius: 8px; }
+  .agents-section .token-plain code { font-family: var(--font-mono); color: var(--text); background: #000; padding: 0.5rem; display: block; border-radius: 4px; word-break: break-all; user-select: all; cursor: text; margin-top: 0.5rem; }
+  .agents-section .token-plain .actions { display: flex; gap: 0.5rem; margin-top: 0.6rem; align-items: center; }
+  .agents-section .token-plain .copied { color: var(--muted); font-size: 0.85rem; }
+  .agents-section .token-plain kbd { font-family: var(--font-mono); font-size: 0.8em; padding: 0.05rem 0.35rem; border: 1px solid var(--outline); border-radius: 3px; background: var(--surface-2); }
   .agents-section .muted { color: var(--muted); font-size: 0.9rem; }
 </style>
 <section class="agents-section">
@@ -27,9 +31,13 @@
   </form>
 
   {% if new_token %}
-    <div class="token-plain">
-      <strong>New token (copy now; you won't see it again):</strong><br>
-      {{ new_token }}
+    <div class="token-plain" aria-live="polite">
+      <strong>New token</strong> &mdash; copy now, you won't see it again.
+      <code id="newtoken-value" tabindex="0">{{ new_token }}</code>
+      <div class="actions">
+        <button type="button" id="copy-btn">Copy</button>
+        <span class="copied" id="copy-status">Press <kbd>C</kbd> to copy</span>
+      </div>
     </div>
   {% endif %}
 
@@ -68,5 +76,48 @@
       }
     });
   });
+
+  (function () {
+    var codeEl = document.getElementById('newtoken-value');
+    if (!codeEl) return;
+    var status = document.getElementById('copy-status');
+    var btn = document.getElementById('copy-btn');
+    var token = codeEl.textContent;
+
+    function selectAll() {
+      var range = document.createRange();
+      range.selectNodeContents(codeEl);
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+
+    async function copy() {
+      try {
+        await navigator.clipboard.writeText(token);
+        status.textContent = 'Copied to clipboard';
+      } catch (_err) {
+        selectAll();
+        status.textContent = 'Selected — press Cmd/Ctrl+C to copy';
+      }
+    }
+
+    btn.addEventListener('click', copy);
+    codeEl.addEventListener('focus', selectAll);
+    codeEl.addEventListener('click', selectAll);
+
+    codeEl.focus();
+    selectAll();
+
+    document.addEventListener('keydown', function (e) {
+      var tag = (e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'c' || e.key === 'C') {
+        e.preventDefault();
+        copy();
+      }
+    });
+  })();
 </script>
 {% endblock %}
