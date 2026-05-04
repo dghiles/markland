@@ -48,7 +48,7 @@ def build_invite_router(
     def _session_user_id(request: Request) -> str:
         cookie = request.cookies.get(SESSION_COOKIE_NAME, "")
         try:
-            payload = read_session(cookie, secret=session_secret)
+            payload = read_session(cookie, secret=session_secret, conn=db_conn)
         except InvalidSession as e:
             raise HTTPException(status_code=401, detail="unauthenticated") from e
         return payload["user_id"]
@@ -58,7 +58,7 @@ def build_invite_router(
         if not cookie:
             return None
         try:
-            payload = read_session(cookie, secret=session_secret)
+            payload = read_session(cookie, secret=session_secret, conn=db_conn)
         except InvalidSession:
             return None
         uid = payload.get("user_id")

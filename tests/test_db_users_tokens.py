@@ -16,10 +16,14 @@ def _indexes(conn, table: str) -> set[str]:
 def test_users_table_has_expected_columns(tmp_path):
     conn = init_db(tmp_path / "t.db")
     cols = _columns(conn, "users")
-    assert set(cols) == {"id", "email", "display_name", "is_admin", "created_at"}
+    assert set(cols) == {
+        "id", "email", "display_name", "is_admin", "created_at",
+        "session_epoch",
+    }
     assert cols["id"] == "TEXT"
     assert cols["email"] == "TEXT"
     assert cols["is_admin"] == "INTEGER"
+    assert cols["session_epoch"] == "INTEGER"
 
 
 def test_users_email_is_unique(tmp_path):

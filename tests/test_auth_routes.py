@@ -222,6 +222,102 @@ def test_magic_link_click_creates_authenticated_session(client_and_conn):
     assert r2.status_code == 200
 
 
+# ---------------------------------------------------------------------------
+# Server-side session revocation (markland-bul)
+# ---------------------------------------------------------------------------
+
+
+def test_logout_invalidates_outstanding_cookie(client_and_conn):
+    """A signed-in user logs out; the previously issued cookie no longer
+    works on a subsequent request from a different tab."""
+    from markland.service.sessions import issue_session
+    from markland.service.users import upsert_user_by_email
+
+    client, conn, _ = client_and_conn
+    user = upsert_user_by_email(conn, "alice@test")
+    cookie_value = issue_session(user.id, secret="test-secret", conn=conn)
+
+    # Cookie works pre-logout.
+    r = client.get(
+        "/api/me", cookies={SESSION_COOKIE_NAME: cookie_value}
+    )
+    assert r.status_code == 200
+
+    # Logout bumps the user's epoch — even attacker-with-stolen-cookie hits this.
+    r = client.post(
+        "/api/auth/logout",
+        cookies={SESSION_COOKIE_NAME: cookie_value},
+        follow_redirects=False,
+    )
+    assert r.status_code in (200, 303)
+
+    # Old cookie no longer works.
+    r = client.get(
+        "/api/me", cookies={SESSION_COOKIE_NAME: cookie_value}
+    )
+    assert r.status_code == 401
+
+
+def test_new_cookie_after_logout_carries_current_epoch(client_and_conn):
+    """Sign in (epoch 0). Logout (bump to 1). Sign in again — new cookie works.
+
+    Proves the issuance side reads the bumped epoch; without that, every
+    post-logout sign-in would be born stale.
+    """
+    from markland.service.sessions import issue_session
+    from markland.service.users import upsert_user_by_email
+
+    client, conn, _ = client_and_conn
+    user = upsert_user_by_email(conn, "bob@test")
+    cookie1 = issue_session(user.id, secret="test-secret", conn=conn)
+
+    client.post(
+        "/api/auth/logout",
+        cookies={SESSION_COOKIE_NAME: cookie1},
+        follow_redirects=False,
+    )
+
+    cookie2 = issue_session(user.id, secret="test-secret", conn=conn)
+
+    r = client.get("/api/me", cookies={SESSION_COOKIE_NAME: cookie1})
+    assert r.status_code == 401
+    r = client.get("/api/me", cookies={SESSION_COOKIE_NAME: cookie2})
+    assert r.status_code == 200
+
+
+def test_logout_with_invalid_cookie_does_not_crash(client_and_conn):
+    """Tampered/expired/garbage cookie on logout: the bump is skipped
+    silently. No 500."""
+    client, _, _ = client_and_conn
+    r = client.post(
+        "/api/auth/logout",
+        cookies={SESSION_COOKIE_NAME: "garbage"},
+        follow_redirects=False,
+    )
+    assert r.status_code in (200, 303)
+
+
+def test_verify_endpoint_issues_cookie_with_current_epoch(client_and_conn):
+    """End-to-end: magic-link verify embeds the user's current epoch so
+    a sign-in after a prior logout produces a valid cookie."""
+    from markland.service.sessions import bump_session_epoch
+    from markland.service.users import upsert_user_by_email
+
+    client, conn, _ = client_and_conn
+    # Pre-existing user with epoch already bumped (simulates "logged out before").
+    user = upsert_user_by_email(conn, "carol@test")
+    bump_session_epoch(conn, user_id=user.id)
+    bump_session_epoch(conn, user_id=user.id)  # epoch = 2
+
+    token = issue_magic_link_token("carol@test", secret="test-secret")
+    r = client.post("/api/auth/verify", json={"token": token})
+    assert r.status_code == 200
+
+    # The cookie issued by /verify must work.
+    r = client.get("/api/me")
+    assert r.status_code == 200
+
+
 def test_security_page_renders_single_use_wording(client_and_conn):
     """Regression: post single-use enforcement, /security must claim
     'single-use' and must NOT carry the old 'captured link can be used'

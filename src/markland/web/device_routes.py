@@ -125,7 +125,7 @@ def build_device_router(
         if not cookie:
             return None
         try:
-            payload = read_session(cookie, secret=session_secret)
+            payload = read_session(cookie, secret=session_secret, conn=db_conn)
         except InvalidSession:
             return None
         uid = payload.get("user_id")

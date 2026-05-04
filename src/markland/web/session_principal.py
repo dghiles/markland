@@ -36,7 +36,7 @@ def session_user(
     the ``MARKLAND_SESSION_SECRET`` environment variable (e.g. in tests or
     when the app is started with an in-process secret).
     """
-    info = get_session(request, secret=secret)
+    info = get_session(request, secret=secret, conn=conn)
     if info is None:
         return None
     return get_user(conn, info.user_id)

@@ -22,7 +22,10 @@ from markland.service.magic_link import (
 from markland.service.sessions import (
     SESSION_COOKIE_NAME,
     SESSION_MAX_AGE_SECONDS,
+    InvalidSession,
+    bump_session_epoch,
     issue_session,
+    read_session,
 )
 from markland.service.users import upsert_user_by_email
 from markland.web.render_helpers import render_with_nav
@@ -136,7 +139,7 @@ def build_auth_router(
             # the token was bad/expired vs. already-used.
             raise HTTPException(400, "invalid or expired magic link")
         user = upsert_user_by_email(db_conn, email)
-        cookie = issue_session(user.id, secret=session_secret)
+        cookie = issue_session(user.id, secret=session_secret, conn=db_conn)
         resp = JSONResponse({"ok": True, "user_id": user.id})
         resp.set_cookie(
             key=SESSION_COOKIE_NAME,
@@ -166,7 +169,7 @@ def build_auth_router(
                 status_code=400,
             )
         user = upsert_user_by_email(db_conn, email)
-        cookie = issue_session(user.id, secret=session_secret)
+        cookie = issue_session(user.id, secret=session_secret, conn=db_conn)
         target = safe_return_to(return_to)
         pending = request.cookies.get("markland_pending_intent", "")
         if pending:
@@ -194,6 +197,22 @@ def build_auth_router(
 
     @router.post("/api/auth/logout")
     def logout(request: Request):
+        # markland-bul: bump the user's session_epoch so that any other
+        # outstanding cookies (other tabs, stolen copies) are invalidated
+        # server-side, not just the cookie deleted from this browser.
+        cookie = request.cookies.get(SESSION_COOKIE_NAME, "")
+        if cookie and session_secret:
+            try:
+                payload = read_session(
+                    cookie, secret=session_secret, conn=db_conn
+                )
+                bump_session_epoch(db_conn, user_id=payload["user_id"])
+            except InvalidSession:
+                # Cookie is already invalid (expired, revoked, tampered, or
+                # references a deleted user) — nothing to bump. The legitimate
+                # user can't be locked out by an attacker hitting logout with
+                # a stolen cookie because that bump kills the attacker too.
+                pass
         accept = request.headers.get("accept", "")
         wants_json = "application/json" in accept
         if wants_json:

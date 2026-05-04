@@ -100,6 +100,12 @@ def init_db(db_path: Path) -> sqlite3.Connection:
             created_at TEXT NOT NULL
         )
     """)
+    # markland-bul (2026-05-04): server-side session revocation. Bumped by
+    # logout to invalidate outstanding signed cookies whose embedded epoch
+    # is < the user's current epoch. See service/sessions.py.
+    _add_column_if_missing(
+        conn, "users", "session_epoch", "INTEGER NOT NULL DEFAULT 0"
+    )
     conn.execute("""
         CREATE TABLE IF NOT EXISTS tokens (
             id TEXT PRIMARY KEY,

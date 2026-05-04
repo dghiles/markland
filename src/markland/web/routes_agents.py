@@ -50,7 +50,7 @@ def build_agents_router(
     def _session_user(request: Request) -> User:
         cookie = request.cookies.get(SESSION_COOKIE_NAME, "")
         try:
-            payload = read_session(cookie, secret=session_secret)
+            payload = read_session(cookie, secret=session_secret, conn=db_conn)
         except InvalidSession as e:
             raise HTTPException(status_code=401, detail="unauthenticated") from e
         user = get_user(db_conn, payload["user_id"])
@@ -163,7 +163,7 @@ def build_agents_router(
     def _session_user_or_none(request: Request) -> User | None:
         cookie = request.cookies.get(SESSION_COOKIE_NAME, "")
         try:
-            payload = read_session(cookie, secret=session_secret)
+            payload = read_session(cookie, secret=session_secret, conn=db_conn)
         except InvalidSession:
             return None
         return get_user(db_conn, payload["user_id"])

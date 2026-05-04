@@ -18,7 +18,12 @@ from markland.service.save import fork_document, toggle_bookmark, user_can_view
 from markland.service.sessions import SESSION_COOKIE_NAME, InvalidSession, read_session
 
 
-def _current_user_id(request: Request, *, session_secret: str) -> str | None:
+def _current_user_id(
+    request: Request,
+    *,
+    session_secret: str,
+    conn: sqlite3.Connection | None = None,
+) -> str | None:
     """Return the authenticated user_id from the mk_session cookie, or None."""
     # First try request.state.principal (set by PrincipalMiddleware for /mcp routes
     # or by test_principal_by_token injection in tests).
@@ -32,7 +37,7 @@ def _current_user_id(request: Request, *, session_secret: str) -> str | None:
     if not cookie or not session_secret:
         return None
     try:
-        payload = read_session(cookie, secret=session_secret)
+        payload = read_session(cookie, secret=session_secret, conn=conn)
     except InvalidSession:
         return None
     uid = payload.get("user_id")
@@ -76,7 +81,7 @@ def build_router(
         if doc is None:
             raise HTTPException(404, "document_not_found")
 
-        user_id = _current_user_id(request, session_secret=session_secret)
+        user_id = _current_user_id(request, session_secret=session_secret, conn=conn)
         if user_id is None:
             return _start_login_with_intent("fork", share_token)
 
@@ -95,7 +100,7 @@ def build_router(
         if doc is None:
             raise HTTPException(404, "document_not_found")
 
-        user_id = _current_user_id(request, session_secret=session_secret)
+        user_id = _current_user_id(request, session_secret=session_secret, conn=conn)
         if user_id is None:
             return _start_login_with_intent("bookmark", share_token)
 
@@ -107,7 +112,7 @@ def build_router(
 
     @r.delete("/d/{share_token}/bookmark")
     def remove_bookmark_route(share_token: str, request: Request):
-        user_id = _current_user_id(request, session_secret=session_secret)
+        user_id = _current_user_id(request, session_secret=session_secret, conn=conn)
         if user_id is None:
             raise HTTPException(401, "login_required")
 
@@ -120,7 +125,7 @@ def build_router(
 
     @r.get("/resume")
     def resume(request: Request):
-        user_id = _current_user_id(request, session_secret=session_secret)
+        user_id = _current_user_id(request, session_secret=session_secret, conn=conn)
         if user_id is None:
             return RedirectResponse(
                 url=f"/login?next={quote('/resume', safe='')}",

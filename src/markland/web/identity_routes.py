@@ -41,7 +41,7 @@ def _require_session_user(
 ) -> User:
     cookie = request.cookies.get(SESSION_COOKIE_NAME, "")
     try:
-        payload = read_session(cookie, secret=session_secret)
+        payload = read_session(cookie, secret=session_secret, conn=conn)
     except InvalidSession as e:
         raise HTTPException(401, "unauthenticated") from e
     user = get_user(conn, payload["user_id"])
@@ -107,7 +107,7 @@ def build_identity_router(
     def settings_tokens(request: Request):
         cookie = request.cookies.get(SESSION_COOKIE_NAME, "")
         try:
-            payload = read_session(cookie, secret=session_secret)
+            payload = read_session(cookie, secret=session_secret, conn=db_conn)
         except InvalidSession:
             return RedirectResponse("/login", status_code=303)
         user = get_user(db_conn, payload["user_id"])

@@ -31,3 +31,24 @@ def test_magic_link_consumed_at_index_exists(tmp_path):
     ).fetchall()
     names = {row[0] for row in rows}
     assert "idx_magic_link_consumed_at" in names, f"index missing; got {names}"
+
+
+def test_users_table_has_session_epoch_column(tmp_path):
+    """markland-bul: server-side session revocation requires a per-user
+    epoch counter that logout bumps."""
+    conn = init_db(tmp_path / "t.db")
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
+    assert "session_epoch" in cols, f"session_epoch column missing; got {cols}"
+
+
+def test_users_session_epoch_defaults_to_zero(tmp_path):
+    conn = init_db(tmp_path / "t.db")
+    conn.execute(
+        "INSERT INTO users (id, email, created_at) VALUES (?, ?, ?)",
+        ("usr_test1234567890", "a@b.test", "2026-01-01T00:00:00+00:00"),
+    )
+    row = conn.execute(
+        "SELECT session_epoch FROM users WHERE id = ?",
+        ("usr_test1234567890",),
+    ).fetchone()
+    assert row[0] == 0
