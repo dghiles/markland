@@ -92,11 +92,29 @@ plans, 864 tests).
 
 ---
 
+## How this roadmap works
+
+Each Now/Next item is a **topic linked to a plan** (or, for items that
+need design first, tagged `[needs brainstorm]`). The workflow:
+
+1. **Topic surfaces** in Now or Next.
+2. If the topic isn't yet executable, it's tagged `[needs brainstorm]`
+   and run through the `superpowers:brainstorming` skill → produces a
+   spec at `docs/specs/<date>-<topic>-design.md`.
+3. Spec runs through `superpowers:writing-plans` → produces a plan at
+   `docs/plans/<date>-<topic>.md`.
+4. Plan is linked from the roadmap entry and is ready for any agent
+   (or human) to execute task-by-task.
+
+Items with a `Plan:` link are ready to pick up. Items without a plan
+link should either have a `Spec:` link, a `[needs brainstorm]` tag, or
+be a small ops/content/beads task that doesn't warrant a full plan.
+
 ## Now
 
 Active or imminent. Items here have a plan or a clear next action.
 
-- **Monetization strategy review + plan-write** — design spec landed at `docs/specs/2026-05-03-monetization-strategy-design.md`: 4-tier ladder (Free / Pro / Team / Enterprise), per-workspace + per-human-seat expansion, agent-operations metered overage reserved as a future lever, $25K MRR target in 12 months. Next move: review, decide tier prices + workspace/seat caps, then write the implementation plan (Stripe wiring, gates, billing UI, marketing pricing page).
+- **Monetization strategy review + plan-write** `[spec, plan TBD]` — Spec: `docs/specs/2026-05-03-monetization-strategy-design.md` (4-tier ladder Free/Pro/Team/Enterprise, per-workspace + per-human-seat expansion, agent-operations metered overage as a future lever, $25K MRR / 12 months target). Next move: review spec, decide tier prices + workspace/seat caps, then run `superpowers:writing-plans` to produce the implementation plan (Stripe wiring, gates, billing UI, marketing pricing page).
 - **MCP audit Plan 7 — Phase B deprecation/removal** — opens 30 days after the `mcp-audit-axis-5-released` tag (laid 2026-05-01, so window opens **2026-05-31**). Removes 4 deprecation shims: `markland_set_visibility`, `markland_feature`, `markland_set_status`, `markland_clear_status`. Plan: `docs/plans/2026-04-27-mcp-phase-b-deprecation-removal.md`.
 - **Install/onboarding flow simplification — Options 2-4** — Option 1 shipped (PR #12 + #13). Brainstormed 2026-05-04: design at `docs/specs/2026-05-04-install-onboarding-options-2-4-design.md`, plan at `docs/plans/2026-05-04-install-onboarding-options-2-4.md`. Two-phase build: **Phase 1 (CLI-first)** ships Options 2+3 — `/setup` runbook step 2 swaps "visit /device and type the code" for a single clickable `/device?code=…` URL, and `device-start` API gains `verification_uri_complete` (RFC 8628 §3.2 standard) so any standards-aware client picks up the single-link form automatically. **Phase 2 (browser-via-shares)** is Option 4 reframed: post-signup dashboard "Connect Claude Code" panel hands the user one line to paste into Claude Code (`Install the Markland MCP server from /setup`), routing back through Phase 1's path — no parallel install flow, no token-on-screen. Auto-dismisses on first authorized device. Original setup-install-ux-fix plan: `docs/plans/2026-04-24-setup-install-ux-fix.md` (Option 1, all tasks shipped).
 - **Phase 2 content cadence** — `/blog` infrastructure shipped (PR #63) and post #1 ("What is agent-native publishing?") is live at `https://markland.dev/blog/agent-native-publishing`. Next post target ~2026-05-17 (one post / 2 weeks per `docs/audits/2026-05-03-seo-strategy/SEO-STRATEGY.md` §4). Working list of next anchor titles: "How to share Claude Code output without copy-pasting", "MCP, explained for developers", "Five things to publish to Markland from Claude Code", "Why markdown round-trips break in Notion", "Building a public CLAUDE.md library". Pick 3-4 of those between now and ~2026-08.
@@ -110,12 +128,12 @@ left is launch-readiness polish.
 - **Soak-window analytics check** — beads `markland-fjd` (2 weeks post-launch): pull Umami stats + `/admin/metrics` 14d funnel snapshot + cross-reference signups vs Umami sessions, post a 1-message summary.
 - **Server-side session revocation epoch** — beads `markland-bul` / `markland-ayv` (P2 deferred from PR #64). Today logout is cookie-only; if a session cookie is captured, only secret rotation invalidates it globally. Blast radius is large (13+ `read_session` callers across `web/` need a `conn` argument plumbed through). Mitigations in place: magic-link is single-use, secret rotation works. Plan: `docs/plans/2026-05-04-session-revocation-epoch.md`.
 - **O(N) Argon2 verify scan on Bearer auth** — beads `markland-9dm` (P2 deferred from PR #64). Schema change required: token-prefix index or hash-bucket sharding so we don't argon2-verify every row in the user/agent tables on each request. Plan: `docs/plans/2026-05-04-token-id-prefix-o1-lookup.md`.
-- **Self-service deletion** — `/privacy` line 38 already promises "before GA": doc deletion (doc + revisions + grants) and account deletion (magic-link records + agent tokens). Currently "reply to any email and a human will process." External evaluators read this as a "hold off, beta-only" signal — closing it removes a concrete trust friction. No plan yet.
+- **Self-service deletion** `[needs brainstorm]` — `/privacy` line 38 already promises "before GA": doc deletion (doc + revisions + grants) and account deletion (magic-link records + agent tokens). Currently "reply to any email and a human will process." External evaluators read this as a "hold off, beta-only" signal — closing it removes a concrete trust friction. Design questions: soft-delete vs hard-delete, retention window for accidental-undo, audit-log handling, agent-token cascade, GDPR-style export-before-delete.
 - **Formal privacy policy** — `/privacy` line 11 says "a formal privacy policy will be published before general availability." Today's page is a working summary, which reads as deliberately stub-y to outside evaluators. Promote to a real policy (data inventory, retention, sub-processors, jurisdiction, contact).
-- **Sharpen agent-to-agent positioning** — third-party eval flagged `markland_grant` to another agent ID as the most interesting differentiator; current homepage treats it as a footnote. Add an above-fold or near-fold use-case block: "agent-to-agent coordination — architect agent publishes plan, QA agent appends test report, you read one doc instead of scraping terminal logs." Brainstorm — touches landing copy + possibly a `/explore`-adjacent example.
-- **Visibility-change safety rail** — today `markland_publish` accepts `public=true` in one tool call, so a casually-worded prompt can flip a doc public without a human gesture. Two-step it: `markland_publish` ignores `public=true` (defaults private), and a separate `markland_set_visibility` (already exists) is the only way to flip. Surface the visibility change as a flash on next page render + bold audit-log entry. Sourced from 2026-05-03 third-party concerns review.
+- **Sharpen agent-to-agent positioning** `[needs brainstorm]` — third-party eval flagged `markland_grant` to another agent ID as the most interesting differentiator; current homepage treats it as a footnote. Add an above-fold or near-fold use-case block: "agent-to-agent coordination — architect agent publishes plan, QA agent appends test report, you read one doc instead of scraping terminal logs." Touches landing copy + possibly a `/explore`-adjacent example.
+- **Visibility-change safety rail** `[needs brainstorm]` — today `markland_publish` accepts `public=true` in one tool call, so a casually-worded prompt can flip a doc public without a human gesture. Rough idea: two-step it (`markland_publish` ignores `public=true`, defaults private; `markland_set_visibility` is the only way to flip) + flash + bold audit-log entry. Needs design pass: backwards-compat for existing tool callers, MCP deprecation path, what the UI flash actually looks like, whether to require interactive confirmation for cross-principal grants. Sourced from 2026-05-03 third-party concerns review.
 - **Backup RPO/RTO commitment** — `/privacy` line 43 says backup rotation cadence is "still being tuned during beta." Pick numbers (Litestream/R2 backup interval, max RPO, documented RTO), commit to them, replace the hedge in `/privacy` with the real values. Pure ops + docs.
-- **Operational maturity baseline** — single-developer reality is structural, but mitigations close most of the gap: public `/status` page (uptime + last incident), incident-response runbook in `docs/runbooks/`, named contact for security/incidents on `/security`. Sourced from 2026-05-03 third-party concerns review.
+- **Operational maturity baseline** `[needs brainstorm]` — single-developer reality is structural, but mitigations close most of the gap. Three sub-items that may want decomposing into separate plans: public `/status` page (uptime + last incident — host vs build, data source, incident posting workflow), incident-response runbook in `docs/runbooks/` (severity levels, paging policy when there's no on-call), named contact for security/incidents on `/security` (email alias, encrypted contact, response SLA). Sourced from 2026-05-03 third-party concerns review.
 - **Formal Terms of Service** — `/terms` says "plain-English beta terms now, legalese later." Promote to a real ToS in parallel with the formal privacy policy work; same deadline (before GA).
 
 ## Later
