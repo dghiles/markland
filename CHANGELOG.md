@@ -45,8 +45,16 @@ per-plan reviews. None block v1; all are first-sprint-after-launch candidates.
   Console domain property added + sitemap submitted. R2 + Litestream
   backups already in place (2026-04-28).
   Plan: `docs/plans/2026-04-29-cutover-to-markland-dev.md`.
+- Sentry instrumentation live on 2026-05-03 — `SENTRY_DSN` set as Fly secret,
+  Sentry SDK initialized in `run_app.py`, four issue-alert rules configured
+  (5xx spike, ConflictError spike, EmailSendError outage, permanent
+  EmailSendError) routing to `daveyhiles@gmail.com` via `IssueOwners` ->
+  `AllMembers` fallback. Org/project: `markland`/`markland`. Test error
+  `MARKLAND-1` confirmed receipt end-to-end. Phase 0 environment row 5/5
+  green; only remaining Phase 0 gate is the §14 Alex walkthrough.
 
 ### Human gates remaining
-- Claude Code device-flow walkthrough.
-- Phase 0 dogfooding (see `docs/runbooks/phase-0-checklist.md`).
-- Sentry wiring (see `docs/runbooks/sentry-setup.md`).
+- Phase 0 §14 dogfooding walkthrough — recruit a non-engineer friend ("Alex")
+  with a Claude Code install to run signup -> install MCP -> publish -> share
+  -> agent-edit -> viewer-sees-edit (see `docs/runbooks/phase-0-checklist.md`).
+  Rate-limit + audit + funnel verification depend on this happening.

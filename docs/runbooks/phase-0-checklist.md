@@ -3,13 +3,42 @@
 Run through this list end-to-end before inviting a single beta user. Each item
 maps to spec section 14 success criteria; if every box checks, Markland is launched.
 
+## Status as of 2026-05-03
+
+- **Environment row**: 5/5 green.
+- **Sentry alerts**: 4/4 configured (org `markland`, project `markland`).
+- **§14 walkthrough (Alex)**: not started — requires recruiting a non-engineer
+  friend with a Claude Code install.
+- **Rate-limit + audit + funnel verification**: blocked on walkthrough (needs
+  real publish/grant/update events to verify against).
+
 ## Environment
 
-- [ ] `https://markland.dev/health` returns `{"status":"ok"}`.
-- [ ] `https://markland.dev/mcp` returns 401 without auth, 200 with a valid user token.
-- [ ] Sentry receives a test error from `run_app.py` (trigger once by raising from the `/health` handler temporarily, then revert).
-- [ ] Resend sends a magic-link email to the operator's inbox within 10 seconds.
-- [ ] Litestream shows at least one snapshot against `/data/markland.db` (`flyctl ssh console -C "litestream snapshots /data/markland.db"`).
+- [x] `https://markland.dev/health` returns `{"status":"ok"}`.
+- [x] `https://markland.dev/mcp` returns 401 without auth, 200 with a valid user token.
+- [x] Sentry receives a test error (`MARKLAND-1` on 2026-05-03 via temporary
+  `/__sentry_test` endpoint, env-var-gated; route removed after verification).
+- [x] Resend sends a magic-link email to the operator's inbox within 10 seconds
+  (verified 2026-05-03: email arrived same-minute as `POST /api/auth/magic-link`).
+- [x] Litestream shows snapshots against `/data/markland.db` — verified 2026-05-03,
+  multiple s3 generations including same-day snapshot.
+
+## Sentry alerts (live as of 2026-05-03)
+
+Org `markland`, project `markland`. All four route via `IssueOwners` →
+`AllMembers` fallback to `daveyhiles@gmail.com`.
+
+- [x] **Markland 5xx spike** — level >= error, environment=production,
+  threshold > 5 events / 5 min.
+- [x] **Markland ConflictError spike** — `exception.type == ConflictError`,
+  threshold > 20 events / 15 min. (Spec said 10m; Sentry's issue-alert UI only
+  exposes 1m/5m/15m/1h intervals — `15m` is the closest match. Tighten via
+  metric alert later if 15m proves too loose.)
+- [x] **Markland email send failures** — `exception.type == EmailSendError`,
+  threshold > 3 events / 5 min.
+- [x] **Markland email permanent failures** —
+  `exception.type == EmailSendError` AND tag `failure_kind == permanent`,
+  threshold >= 1 event / 5 min.
 
 ## Success criteria (spec section 14)
 
