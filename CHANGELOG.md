@@ -52,6 +52,24 @@ per-plan reviews. None block v1; all are first-sprint-after-launch candidates.
   `AllMembers` fallback. Org/project: `markland`/`markland`. Test error
   `MARKLAND-1` confirmed receipt end-to-end. Phase 0 environment row 5/5
   green; only remaining Phase 0 gate is the §14 Alex walkthrough.
+- MCP install OAuth-discovery surface landed on 2026-05-03 / 2026-05-04
+  (markland-2yj PR #66, markland-6o6 PR #68). MCP clients (Claude Code SDK)
+  auto-probe RFC 9728 / RFC 7591 / OIDC paths on every connection; the
+  styled HTML 404 was crashing their JSON parsers and preventing
+  `initialize` from completing. Fix: `WWW-Authenticate: Bearer` header on
+  401 + JSON 404 at every observed probe path
+  (`/.well-known/oauth-protected-resource[/mcp]`,
+  `/.well-known/oauth-authorization-server[/mcp]`,
+  `/.well-known/openid-configuration[/mcp]`, `GET/POST /register`).
+  `register_well_known_routes` registrar in
+  `src/markland/web/well_known_routes.py`. End-to-end smoke test verified
+  with a real Claude Code install (27 tools loaded). Quickstart doc
+  republished with `--scope user` + trailing-slash URL form so future
+  users skip both the project-scope gotcha and the 307-redirect tax.
+  Docs/runbook updated: `docs/runbooks/admin-operations.md` § "MCP install
+  troubleshooting" + § "Republishing the live Quickstart doc".
+  Open follow-up: markland-dfj (server-side fix to accept `/mcp` without
+  redirect to `/mcp/`).
 
 ### Human gates remaining
 - Phase 0 §14 dogfooding walkthrough — recruit a non-engineer friend ("Alex")

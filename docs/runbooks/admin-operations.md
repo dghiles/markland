@@ -302,6 +302,69 @@ scan for unexpected `delete`/`revoke` actions or activity from unfamiliar
 to accounts?), then `publishes` (new accounts publishing?). The drop-off
 point tells you which step needs attention.
 
+## MCP install troubleshooting
+
+Markland uses **static bearer tokens**, not OAuth. But MCP clients (e.g.
+Claude Code's SDK) auto-probe OAuth-discovery paths on every connection
+attempt. To avoid the SDK's JSON parser crashing on Markland's HTML 404
+page, the server returns JSON 404 for every observed probe path:
+
+| Path | Status | Notes |
+|---|---|---|
+| `GET /.well-known/oauth-protected-resource` | 200 JSON | RFC 9728 metadata, `authorization_servers: []` |
+| `GET /.well-known/oauth-authorization-server` | 404 JSON | Signals "no OAuth server" |
+| `GET /.well-known/oauth-protected-resource/` | 404 JSON | trailing-slash variant |
+| `GET /.well-known/oauth-protected-resource/mcp` | 404 JSON | `/mcp` suffix variant |
+| `GET /.well-known/oauth-authorization-server/mcp` | 404 JSON | `/mcp` suffix variant |
+| `GET /.well-known/openid-configuration` | 404 JSON | OIDC fallback |
+| `GET /.well-known/openid-configuration/mcp` | 404 JSON | `/mcp` suffix variant |
+| `GET/POST /register` | 404 JSON | RFC 7591 dynamic client registration |
+| `GET /mcp/.well-known/openid-configuration` | 401 JSON | Behind PrincipalMiddleware (correct) |
+
+If a future MCP client probes a NEW path that returns HTML, add it to
+`src/markland/web/well_known_routes.py` (route + test) — the regression
+net is `tests/test_well_known_integration.py::test_every_observed_probe_path_returns_json`.
+Filed history: markland-2yj (PR #66), markland-6o6 (PR #68).
+
+**`/mcp` URL must end in trailing slash.** FastMCP serves at `/mcp/`; a bare
+`/mcp` produces a 307 redirect on every request, adding 5–8s of latency to
+client startup. The Quickstart doc and `device_routes.py` both use the
+trailing-slash form. Filed: markland-dfj (proper server-side fix to handle
+both forms without redirect).
+
+**Symptom: user reports "Auth: not authenticated" or stuck "Authenticating
+with markland..." in `/mcp` panel.** Most common cause: their token was
+revoked or never made it into `~/.claude.json`. Check from the admin side:
+
+```bash
+flyctl ssh console -a markland -C "/app/.venv/bin/python -c 'import sqlite3; from markland.config import get_config; c=sqlite3.connect(get_config().db_path); [print(r) for r in c.execute(\"SELECT id, label, created_at, revoked_at FROM tokens t JOIN users u ON t.principal_id=u.id WHERE u.email=? ORDER BY t.created_at DESC LIMIT 5\", (\"USER_EMAIL\",))]'"
+```
+
+Look for `revoked_at IS NULL` rows. If none, ask the user to mint a fresh
+token at `/settings/tokens` and re-run `claude mcp add`.
+
+## Republishing the live Quickstart doc
+
+When the install command in the published Quickstart drifts (e.g. after a
+client-side change to `claude mcp add` or a new convention like the
+trailing-slash URL), use `scripts/admin/republish_doc.py` to push the
+local `seed-content/admin/07-quickstart-claude-code.md` to production:
+
+```bash
+cat > /tmp/sftp_quickstart.txt << 'EOF'
+put seed-content/admin/07-quickstart-claude-code.md /tmp/quickstart.md
+EOF
+flyctl ssh sftp shell -a markland < /tmp/sftp_quickstart.txt
+flyctl ssh console -a markland -C "/app/.venv/bin/python scripts/admin/republish_doc.py \
+    --doc-id 3366aa58f6ead5e7 \
+    --owner-email daveyhiles@gmail.com \
+    --content-path /tmp/quickstart.md"
+```
+
+The doc's `id` is stable — `3366aa58f6ead5e7`. Its share URL is
+`https://markland.dev/d/ukglp7mO8Dbyx2SbvYOoWg` (featured on the landing
+page). Version increments on each republish.
+
 ## Out of scope
 
 - **Editing data via tools.** No admin tool can rewrite a doc's content,
@@ -320,3 +383,5 @@ point tells you which step needs attention.
 - `docs/runbooks/phase-0-checklist.md` - launch-gate checklist
 - `docs/runbooks/sentry-setup.md` - error monitoring
 - `docs/FOLLOW-UPS.md` - `first_mcp_call` event-table follow-up
+- `docs/plans/2026-05-03-mcp-auth-discovery.md` - markland-2yj: original WWW-Authenticate + JSON well-known fix
+- `docs/plans/2026-05-04-mcp-oauth-probe-coverage.md` - markland-6o6: extended probe-path coverage
