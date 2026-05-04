@@ -23,6 +23,7 @@ from markland.web.renderer import make_excerpt, render_markdown
 from markland.web.seo import build_sitemap_xml, render_llms_txt, render_robots_txt, EXPLORE_MIN_PUBLIC_DOCS
 from markland.web.render_helpers import render_with_nav
 from markland.web.session_principal import session_principal
+from markland.web.well_known_routes import register_well_known_routes
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -302,6 +303,8 @@ def create_app(
         if data is None:
             raise HTTPException(status_code=404)
         return Response(content=data, media_type="font/woff2", headers=_FONT_CACHE)
+
+    register_well_known_routes(app, base_url=base_url)
 
     @app.get("/robots.txt", response_class=PlainTextResponse)
     def robots_txt(request: Request):
