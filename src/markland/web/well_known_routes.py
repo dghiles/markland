@@ -60,6 +60,8 @@ def register_well_known_routes(app: FastAPI, *, base_url: str) -> None:
     # Explicitly register the trailing-slash variant as 404 so FastAPI's
     # default redirect_slashes behavior doesn't 307 → 200 us. We want the
     # discovery path to be exact: anything else is unknown.
+    # `_not_found_envelope` is defined just below; the closure resolves
+    # the name at request time, by which point this function has finished.
     @app.get("/.well-known/oauth-protected-resource/")
     def oauth_protected_resource_trailing_slash() -> JSONResponse:
         return JSONResponse(_not_found_envelope, status_code=404)
