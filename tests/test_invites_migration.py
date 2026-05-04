@@ -20,6 +20,9 @@ def test_invites_table_has_expected_columns(tmp_path):
         "created_at",
         "expires_at",
         "revoked_at",
+        # P3 / markland-vw2: added so the silent-invite path can dedupe
+        # by (doc_id, target_email).
+        "target_email",
     }
 
 

@@ -359,49 +359,74 @@ def _grant_via_invite(
     successful grant. From the caller's perspective, every valid-email
     target succeeds — they cannot enumerate which emails belong to
     Markland accounts.
+
+    P3 / markland-vw2: dedupe by `(doc_id, target_email)`. If an active
+    (non-revoked, non-expired, uses_remaining > 0) invite already
+    exists for this pair, reuse it instead of creating an orphan row.
+    The response shape and values are identical, so the caller cannot
+    distinguish first-grant from re-grant — same as a real upsert
+    grant, which is idempotent. The reuse path skips the email re-send
+    (we no longer hold the plaintext token to regenerate the URL, and
+    spamming the recipient on every retry would be a worse UX anyway).
     """
-    from markland.service.invites import create_invite
+    from markland.service.invites import create_invite, find_active_invite_for_email
 
-    base_url = doc_url.rsplit(f"/d/{doc.share_token}", 1)[0]
-    created = create_invite(
-        conn,
-        doc_id=doc.id,
-        created_by_user_id=principal.principal_id,
-        level=level,
-        base_url=base_url,
-        single_use=True,
-        expires_in_days=7,
+    existing = find_active_invite_for_email(
+        conn, doc_id=doc.id, target_email=target_email
     )
-
-    if dispatcher is not None:
-        # Reuse the user_grant template — the recipient sees "Alice
-        # shared a doc with you" with the invite URL. They click and
-        # the invite-accept flow walks them through sign-up.
-        rendered = email_templates.user_grant(
-            granter_display=granter_display,
-            doc_title=doc.title,
-            doc_url=created.url,
+    if existing is not None:
+        invite_id = existing.id
+        sent_email = False
+    else:
+        base_url = doc_url.rsplit(f"/d/{doc.share_token}", 1)[0]
+        created = create_invite(
+            conn,
+            doc_id=doc.id,
+            created_by_user_id=principal.principal_id,
             level=level,
+            base_url=base_url,
+            single_use=True,
+            expires_in_days=7,
+            target_email=target_email,
         )
-        _enqueue(
-            dispatcher,
-            to=target_email,
-            subject=rendered["subject"],
-            html=rendered["html"],
-            text=rendered.get("text"),
-            metadata={
-                "template": "user_grant_invite",
-                "doc_id": doc.id,
-                "invite_id": created.id,
-            },
-        )
+        invite_id = created.id
+        sent_email = True
+
+        if dispatcher is not None:
+            # Reuse the user_grant template — the recipient sees "Alice
+            # shared a doc with you" with the invite URL. They click and
+            # the invite-accept flow walks them through sign-up.
+            rendered = email_templates.user_grant(
+                granter_display=granter_display,
+                doc_title=doc.title,
+                doc_url=created.url,
+                level=level,
+            )
+            _enqueue(
+                dispatcher,
+                to=target_email,
+                subject=rendered["subject"],
+                html=rendered["html"],
+                text=rendered.get("text"),
+                metadata={
+                    "template": "user_grant_invite",
+                    "doc_id": doc.id,
+                    "invite_id": invite_id,
+                },
+            )
 
     audit.record(
         conn,
         action="grant",
         principal=principal,
         doc_id=doc.id,
-        metadata={"target": target_email, "level": level, "via": "invite"},
+        metadata={
+            "target": target_email,
+            "level": level,
+            "via": "invite",
+            "invite_id": invite_id,
+            "deduped": not sent_email,
+        },
     )
     metrics.emit_first_time(
         "first_grant", principal_id=principal.principal_id

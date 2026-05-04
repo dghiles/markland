@@ -72,6 +72,11 @@ class Invite:
     created_at: str
     expires_at: str | None = None
     revoked_at: str | None = None
+    # P3 / markland-vw2: silent-invite path (`grants._grant_via_invite`)
+    # records the target email here so re-granting the same email is
+    # idempotent. Public-link invites (no specific recipient) leave it
+    # empty.
+    target_email: str = ""
 
     @staticmethod
     def generate_id() -> str:
