@@ -63,3 +63,33 @@ def register_well_known_routes(app: FastAPI, *, base_url: str) -> None:
     @app.get("/.well-known/oauth-protected-resource/")
     def oauth_protected_resource_trailing_slash() -> JSONResponse:
         return JSONResponse({"error": "not_found"}, status_code=404)
+
+    # Shared "no OAuth here" 404 envelope. Used by every additional probe
+    # path the SDK is observed to hit (see tests/test_well_known_oauth.py
+    # and the markland-6o6 plan for the full list). Body is intentionally
+    # uniform so the SDK can't distinguish probe paths and assume one of
+    # them is OAuth-capable.
+    _not_found_envelope = {
+        "error": "not_found",
+        "error_description": (
+            "Markland does not run an OAuth authorization server or OIDC "
+            "provider. Use a static bearer token minted at "
+            f"{token_mint_url}."
+        ),
+    }
+
+    @app.get("/.well-known/oauth-protected-resource/mcp")
+    def oauth_protected_resource_mcp_suffix() -> JSONResponse:
+        return JSONResponse(_not_found_envelope, status_code=404)
+
+    @app.get("/.well-known/oauth-authorization-server/mcp")
+    def oauth_authorization_server_mcp_suffix() -> JSONResponse:
+        return JSONResponse(_not_found_envelope, status_code=404)
+
+    @app.get("/.well-known/openid-configuration")
+    def openid_configuration() -> JSONResponse:
+        return JSONResponse(_not_found_envelope, status_code=404)
+
+    @app.get("/.well-known/openid-configuration/mcp")
+    def openid_configuration_mcp_suffix() -> JSONResponse:
+        return JSONResponse(_not_found_envelope, status_code=404)
