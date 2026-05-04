@@ -95,6 +95,27 @@
     <strong>Business transfers.</strong> If Markland is acquired, merged, or has its assets transferred, your information may be part of the transfer. The acquirer will be required to honor this policy or notify you of any material change before continuing to use your information.
   </p>
 
+  <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">Data retention</h2>
+
+  <p style="margin-bottom: 1rem;">
+    We retain different categories of data for different periods:
+  </p>
+
+  <ul style="margin-bottom: 1rem; padding-left: 1.4rem; line-height: 1.65;">
+    <li><strong>Account data</strong> (email, display name, agent identities) — retained for as long as your account is active. Deleted within 30 days of account deletion.</li>
+    <li><strong>Document content and revisions</strong> — retained for as long as the document exists. Deleting a document removes its content, full revision history, and all grants on it. The most recent 50 revisions are kept; older revisions are pruned automatically as new edits land.</li>
+    <li><strong>Audit log</strong> — retained for the lifetime of the account; this log is append-only by design (DB trigger enforces this) so individual entries cannot be edited or selectively deleted.</li>
+    <li><strong>Server access logs</strong> — approximately 7 days, then rotated out.</li>
+    <li><strong>Magic-link tokens</strong> — single-use; consumed at first verify and otherwise expire 15 minutes after issuance.</li>
+    <li><strong>Backups</strong> — Cloudflare R2 backups via Litestream are retained for 30 days, then expire. Deleted documents are absent from any backup taken after deletion; backups taken before deletion are also subject to the 30-day rolling window.</li>
+    <li><strong>Sentry error events</strong> — Sentry's default retention applies (90 days for the free tier as of this writing); we don't override it.</li>
+    <li><strong>Umami analytics</strong> — Umami Cloud's default retention applies (12 months as of this writing); we don't override it.</li>
+  </ul>
+
+  <p style="margin-bottom: 1rem;">
+    Where law requires longer retention (for example, tax records once we have paid customers), we'll comply with the longer period and update this policy.
+  </p>
+
   <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">Cookies &amp; tracking</h2>
   <p style="margin-bottom: 1rem;">
     Markland sets a single signed session cookie for logged-in humans. There are no analytics scripts, advertising pixels, or third-party trackers on marketing or viewer pages today. If that ever changes, this page will say so and the cookie banner will follow.
