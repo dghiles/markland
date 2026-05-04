@@ -1,0 +1,70 @@
+#!/bin/sh
+# Resolve a Sentry issue by short ID (e.g. MARKLAND-1).
+#
+# Usage:
+#   ./scripts/admin/sentry-resolve <SHORT_ID> [status]
+#
+# status defaults to "resolved". Other accepted values: "ignored",
+# "unresolved" (reopen), "resolvedInNextRelease".
+#
+# Examples:
+#   ./scripts/admin/sentry-resolve MARKLAND-1
+#   ./scripts/admin/sentry-resolve MARKLAND-1 ignored
+#
+# Requires .env.local at the repo root with:
+#   SENTRY_AUTH_TOKEN=<personal token, scope event:write>
+#   SENTRY_ORG_SLUG=markland   # optional; default below
+
+set -eu
+
+repo_root=$(cd "$(dirname "$0")/../.." && pwd)
+env_file="$repo_root/.env.local"
+
+if [ ! -f "$env_file" ]; then
+    echo "error: $env_file not found." >&2
+    exit 2
+fi
+
+# shellcheck disable=SC1090
+. "$env_file"
+
+if [ -z "${SENTRY_AUTH_TOKEN:-}" ]; then
+    echo "error: SENTRY_AUTH_TOKEN not set in $env_file" >&2
+    echo "Mint one at https://markland.sentry.io/settings/account/api/auth-tokens/ (scope: event:write)" >&2
+    exit 2
+fi
+
+org="${SENTRY_ORG_SLUG:-markland}"
+
+if [ $# -lt 1 ]; then
+    echo "usage: $0 <SHORT_ID> [status]" >&2
+    echo "example: $0 MARKLAND-1" >&2
+    exit 2
+fi
+
+short_id=$1
+status=${2:-resolved}
+
+# Sentry's bulk PUT (?id=...) takes numeric IDs, not short IDs. Resolve the
+# short ID to its numeric group ID first via the shortids endpoint, then
+# PUT against the single-issue endpoint.
+lookup=$(curl -sS \
+    -H "Authorization: Bearer $SENTRY_AUTH_TOKEN" \
+    "https://sentry.io/api/0/organizations/$org/shortids/$short_id/")
+
+# Extract group.id from the JSON without requiring jq.
+numeric_id=$(printf '%s' "$lookup" \
+    | sed -n 's/.*"group":{[^}]*"id":"\([0-9]*\)".*/\1/p')
+
+if [ -z "$numeric_id" ]; then
+    echo "error: could not resolve $short_id to a numeric group ID" >&2
+    echo "lookup response: $lookup" >&2
+    exit 1
+fi
+
+curl -sS -X PUT \
+    -H "Authorization: Bearer $SENTRY_AUTH_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{\"status\":\"$status\"}" \
+    "https://sentry.io/api/0/organizations/$org/issues/$numeric_id/"
+echo
