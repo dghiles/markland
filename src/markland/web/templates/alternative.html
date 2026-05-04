@@ -8,7 +8,7 @@
 {%- set _crumb_home = canonical_host ~ "/" -%}
 {%- set _crumb_alts = canonical_host ~ "/alternatives" -%}
 {%- set _crumb_self = canonical_host ~ "/alternatives/" ~ competitor.slug -%}
-<script type="application/ld+json">
+<script type="application/ld+json" nonce="{{ csp_nonce }}">
 {
   "@context": "https://schema.org",
   "@type": "BreadcrumbList",

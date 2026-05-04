@@ -149,6 +149,9 @@ def build_invite_router(
                 inviter_name=inviter_name,
                 level=inv.level,
                 signed_in=(user_id is not None),
+                # P2-B / markland-yxv: per-request CSP nonce so inline
+                # <script> in invite.html executes without unsafe-inline.
+                csp_nonce=getattr(request.state, "csp_nonce", ""),
             )
         )
 

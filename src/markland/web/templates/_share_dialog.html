@@ -22,7 +22,7 @@
       </li>
     {% endfor %}
   </ul>
-  <script>
+  <script nonce="{{ csp_nonce }}">
     (function () {
       const docId = {{ doc_id|tojson }};
       const form = document.getElementById("share-form");

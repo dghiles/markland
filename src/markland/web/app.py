@@ -879,11 +879,15 @@ def create_app(
 
     from markland.web.security_headers_middleware import (
         SecurityHeadersMiddleware,
-        build_csp,
     )
+    # P2-B / markland-yxv: pass umami_script_url instead of a static csp
+    # so SecurityHeadersMiddleware can mint a fresh nonce per request
+    # and weave it into the CSP header.
     app.add_middleware(
         SecurityHeadersMiddleware,
-        csp=build_csp(umami_script_url=_cfg.umami_script_url if _cfg.umami_website_id else ""),
+        umami_script_url=(
+            _cfg.umami_script_url if _cfg.umami_website_id else ""
+        ),
     )
 
     from markland.web.fly_dev_redirect_middleware import FlyDevRedirectMiddleware

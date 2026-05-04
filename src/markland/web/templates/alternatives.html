@@ -9,7 +9,7 @@
    per-competitor URLs and names go through |tojson per the partial's
    contract — items.length tracks COMPETITORS automatically. #}
 {%- set _hub_url = canonical_host ~ "/alternatives" -%}
-<script type="application/ld+json">
+<script type="application/ld+json" nonce="{{ csp_nonce }}">
 {
   "@context": "https://schema.org",
   "@type": "ItemList",
@@ -472,7 +472,7 @@
     <a href="/" class="cta">Join the waitlist</a>
 </section>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 (function () {
     const input = document.getElementById('alt-filter');
     const grid = document.getElementById('alt-grid');

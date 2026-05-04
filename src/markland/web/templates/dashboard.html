@@ -56,7 +56,7 @@
       </li>
     {% endfor %}
   </ul>
-  <script>
+  <script nonce="{{ csp_nonce }}">
   (function () {
     document.querySelectorAll('[data-remove-bookmark]').forEach(function (btn) {
       btn.addEventListener('click', function () {

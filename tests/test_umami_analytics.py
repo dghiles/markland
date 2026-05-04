@@ -81,6 +81,12 @@ def test_base_template_renders_umami_on_non_admin_paths(path):
     assert 'data-website-id="abcd-1234"' in html
 
 
+def _script_src(csp: str) -> str:
+    """Return the script-src directive substring from a CSP header."""
+    parts = [p.strip() for p in csp.split(";")]
+    return next(p for p in parts if p.startswith("script-src"))
+
+
 def test_csp_includes_umami_origin_when_id_set(monkeypatch, tmp_path):
     monkeypatch.setenv("UMAMI_WEBSITE_ID", "abcd-1234")
     monkeypatch.setenv("MARKLAND_DATA_DIR", str(tmp_path))
@@ -91,8 +97,14 @@ def test_csp_includes_umami_origin_when_id_set(monkeypatch, tmp_path):
     # Umami Cloud serves script.js from cloud.umami.is but routes the beacon
     # to api-gateway.umami.dev — different host. CSP must allow both, plus
     # cover any future umami.is/umami.dev API host moves.
-    assert "https://cloud.umami.is" in csp
-    assert "script-src 'self' 'unsafe-inline' https://cloud.umami.is" in csp
+    script_src = _script_src(csp)
+    # P2-B / markland-yxv: 'unsafe-inline' is dropped from script-src in
+    # favour of a per-request nonce. Just assert script-src carries
+    # 'self' + the umami origin + a nonce, with no 'unsafe-inline'.
+    assert "'unsafe-inline'" not in script_src
+    assert "'self'" in script_src
+    assert "https://cloud.umami.is" in script_src
+    assert "'nonce-" in script_src
     # connect-src must allow both the umami.is and umami.dev families so the
     # script can POST to the API regardless of which gateway umami uses.
     assert "https://*.umami.is" in csp.split("connect-src", 1)[1]
@@ -107,7 +119,10 @@ def test_csp_omits_umami_origin_when_id_unset(monkeypatch, tmp_path):
     r = client.get("/")
     csp = r.headers.get("content-security-policy", "")
     assert "cloud.umami.is" not in csp
-    assert "script-src 'self' 'unsafe-inline';" in csp
+    script_src = _script_src(csp)
+    assert "'unsafe-inline'" not in script_src
+    assert "'self'" in script_src
+    assert "'nonce-" in script_src
     assert "connect-src 'self';" in csp
 
 

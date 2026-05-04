@@ -766,7 +766,7 @@
         <p>Out of scope for v1. Concurrent writes use an <code>if_version</code> argument that returns a clean conflict instead of clobbering the loser &mdash; safe for two-party editing, but not the cursor-presence experience Google Docs gives a meeting-note workflow. <a href="/alternatives/google-docs">When to use which</a>.</p>
 </section>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 const MCP_SNIPPET = {{ mcp_config_json | safe }};
 function copyConfig() {
     const text = JSON.stringify(MCP_SNIPPET, null, 2);
