@@ -118,16 +118,46 @@ def test_delete_grant_requires_owner(client):
     assert r.json() == {"revoked": True, "doc_id": doc_id, "principal_id": "usr_bob"}
 
 
-def test_post_grant_unknown_email_returns_400(client):
-    c, _, _ = client
+def test_post_grant_unknown_email_returns_200_with_invite(client):
+    """P2-E / markland-yi1: granting to an unknown email silently creates
+    an invite and returns 200 — same shape as a successful grant — so
+    callers cannot enumerate which emails belong to Markland accounts."""
+    c, conn, _ = client
     doc_id = _publish(c, "alice")
     r = c.post(
         f"/api/docs/{doc_id}/grants",
         headers={"Authorization": "Bearer alice"},
         json={"principal": "nobody@x", "level": "view"},
     )
-    assert r.status_code == 400
-    assert r.json()["error"] == "invalid_argument"
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["doc_id"] == doc_id
+    assert body["level"] == "view"
+    # Invite was created.
+    rows = conn.execute(
+        "SELECT id FROM invites WHERE doc_id = ?", (doc_id,)
+    ).fetchall()
+    assert len(rows) == 1
+
+
+def test_post_grant_known_and_unknown_email_have_same_shape(client):
+    """P2-E: a grant to a known email and a grant to an unknown email
+    must return responses with the same field shape (no field that
+    leaks the difference)."""
+    c, _, _ = client
+    doc_id = _publish(c, "alice")
+    r_unknown = c.post(
+        f"/api/docs/{doc_id}/grants",
+        headers={"Authorization": "Bearer alice"},
+        json={"principal": "nobody@x", "level": "view"},
+    )
+    r_known = c.post(
+        f"/api/docs/{doc_id}/grants",
+        headers={"Authorization": "Bearer alice"},
+        json={"principal": "b@x", "level": "view"},
+    )
+    assert r_known.status_code == r_unknown.status_code == 200
+    assert set(r_known.json().keys()) == set(r_unknown.json().keys())
 
 
 def test_post_grant_on_foreign_doc_returns_404(client):

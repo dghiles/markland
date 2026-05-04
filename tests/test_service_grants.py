@@ -69,7 +69,41 @@ def test_grant_by_email_creates_row(tmp_path):
     assert "view" in kwargs["subject"].lower() or "view" in kwargs["html"].lower()
 
 
-def test_grant_rejects_unknown_email(tmp_path):
+def test_grant_unknown_email_silently_creates_invite(tmp_path):
+    """P2-E / markland-yi1: granting to an email with no matching user
+    no longer raises GrantTargetNotFound — it silently creates an
+    invite and returns a grant-shaped response. This prevents the doc
+    owner from enumerating which emails belong to Markland accounts."""
+    conn = _fresh_db(tmp_path)
+    alice = _user("usr_alice")
+    doc_id = _seed(conn, alice, email_by_uid={"usr_alice": "a@x"})
+    email_client = MagicMock()
+    result = grants_svc.grant(
+        conn,
+        base_url=BASE,
+        principal=alice,
+        doc_id=doc_id,
+        target="nobody@x",
+        level="view",
+        email_client=email_client,
+    )
+    # Same shape as a successful grant.
+    assert result["doc_id"] == doc_id
+    assert result["principal_id"] == "nobody@x"
+    assert result["level"] == "view"
+    # Invite was actually created (a row in the invites table).
+    rows = conn.execute(
+        "SELECT id FROM invites WHERE doc_id = ?", (doc_id,)
+    ).fetchall()
+    assert len(rows) == 1
+    # Email was queued.
+    email_client.send.assert_called_once()
+
+
+def test_grant_rejects_non_email_unknown_target(tmp_path):
+    """A target that is not email-shaped (no '@') and not an agt_ id
+    should still raise GrantTargetNotFound — those are user typos, not
+    enumeration probes."""
     conn = _fresh_db(tmp_path)
     alice = _user("usr_alice")
     doc_id = _seed(conn, alice, email_by_uid={"usr_alice": "a@x"})
@@ -79,7 +113,7 @@ def test_grant_rejects_unknown_email(tmp_path):
             base_url=BASE,
             principal=alice,
             doc_id=doc_id,
-            target="nobody@x",
+            target="not-an-email",
             level="view",
             email_client=MagicMock(),
         )

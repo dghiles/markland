@@ -227,7 +227,28 @@ def grant(
     ).fetchone()
     prior_level = prior[0] if prior else None
 
-    principal_id, principal_type, target_email = _resolve_target(conn, target_str)
+    try:
+        principal_id, principal_type, target_email = _resolve_target(conn, target_str)
+    except GrantTargetNotFound:
+        # P2-E / markland-yi1: when the email shape is valid but no user
+        # row exists, silently create an invite for that email instead
+        # of leaking "this email is/isn't a Markland account" via a
+        # distinct error. The response shape mirrors a successful grant
+        # so the caller can't distinguish the two cases.
+        if "@" not in target_str:
+            # Not an email shape — surface the original "target not found"
+            # so callers can fix typos (e.g. malformed agt_… ids).
+            raise
+        return _grant_via_invite(
+            conn,
+            doc=doc,
+            doc_url=doc_url,
+            target_email=target_str,
+            level=level,
+            principal=principal,
+            granter_display=granter_display,
+            dispatcher=dispatcher,
+        )
 
     grant_by_principal_id(
         conn,
@@ -312,6 +333,84 @@ def _inline_dispatcher_from_client(email_client) -> Any:
                 logger.warning("grant email failed: %s", exc)
 
     return _Inline(email_client)
+
+
+def _grant_via_invite(
+    conn: sqlite3.Connection,
+    *,
+    doc,
+    doc_url: str,
+    target_email: str,
+    level: str,
+    principal: Principal,
+    granter_display: str,
+    dispatcher,
+) -> dict:
+    """P2-E / markland-yi1: grant-by-email to a non-user creates an
+    invite and returns a response shape indistinguishable from a
+    successful grant. From the caller's perspective, every valid-email
+    target succeeds — they cannot enumerate which emails belong to
+    Markland accounts.
+    """
+    from markland.service.invites import create_invite
+
+    base_url = doc_url.rsplit(f"/d/{doc.share_token}", 1)[0]
+    created = create_invite(
+        conn,
+        doc_id=doc.id,
+        created_by_user_id=principal.principal_id,
+        level=level,
+        base_url=base_url,
+        single_use=True,
+        expires_in_days=7,
+    )
+
+    if dispatcher is not None:
+        # Reuse the user_grant template — the recipient sees "Alice
+        # shared a doc with you" with the invite URL. They click and
+        # the invite-accept flow walks them through sign-up.
+        rendered = email_templates.user_grant(
+            granter_display=granter_display,
+            doc_title=doc.title,
+            doc_url=created.url,
+            level=level,
+        )
+        _enqueue(
+            dispatcher,
+            to=target_email,
+            subject=rendered["subject"],
+            html=rendered["html"],
+            text=rendered.get("text"),
+            metadata={
+                "template": "user_grant_invite",
+                "doc_id": doc.id,
+                "invite_id": created.id,
+            },
+        )
+
+    audit.record(
+        conn,
+        action="grant",
+        principal=principal,
+        doc_id=doc.id,
+        metadata={"target": target_email, "level": level, "via": "invite"},
+    )
+    metrics.emit_first_time(
+        "first_grant", principal_id=principal.principal_id
+    )
+
+    # Return the same shape as a successful grant. Use the invite's
+    # creator + creation timestamp so the response is structurally
+    # consistent and leak-free. principal_id is set to the email-shape
+    # target rather than a user id we don't have.
+    return {
+        "doc_id": doc.id,
+        "principal_id": target_email,
+        "principal_type": "user",
+        "level": level,
+        "granted_by": principal.principal_id,
+        "granted_at": created.expires_at or "",
+    }
 
 
 def _row_to_dict(row) -> dict:
