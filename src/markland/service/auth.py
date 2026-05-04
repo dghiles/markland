@@ -264,13 +264,93 @@ def create_agent_token(
 
 
 def resolve_token(conn: sqlite3.Connection, plaintext: str) -> Principal | None:
-    """Find the token row whose hash matches `plaintext`, return its principal.
+    """Resolve a Bearer token plaintext to a Principal.
 
-    Scans non-revoked tokens; argon2 verify per row. At 100-user scale with <1k
-    total tokens this is fine; a per-request cache is a Plan 10 concern.
+    Fast path (new-shape tokens, post-markland-9dm): parse the embedded
+    ``token_id`` prefix, fetch exactly one row by primary key, run a
+    single Argon2 verify. O(1) regardless of token-table size.
+
+    Legacy path (old-shape tokens, no embedded token_id): scan all
+    non-revoked rows. Bounded by the count of pre-migration tokens,
+    which only decreases over time as those tokens are revoked or
+    rotated. Removal of the legacy path is filed as a follow-up.
+
+    CRITICAL — fall-through on ANY fast-path miss:
+        The new-format parser regex matches new-shape tokens AND any
+        legacy plaintext whose secret happens to start with 16 lowercase
+        hex chars + ``_``. In that case the PK lookup misses (or argon2
+        verify fails on the wrong row, or principal_type cross-check
+        fails) and we MUST fall through to the legacy scan — otherwise
+        the legacy token silently stops working.
+
+        Probability of natural occurrence is ~2.3e-12 per minted token;
+        an attacker with a leaked legacy plaintext could engineer this
+        shape, so the fall-through closes both correctness and grief
+        vectors.
+
+        See ``test_resolve_token_falls_through_to_legacy_on_pk_miss``
+        for the regression guard.
     """
     if not plaintext:
         return None
+
+    parsed = _parse_token_plaintext(plaintext)
+    if parsed is not None:
+        result = _resolve_by_token_id(conn, parsed, plaintext)
+        if result is not None:
+            return result
+        # Fast path missed (PK absent, type mismatch, or verify mismatch).
+        # Fall through to the legacy scan — see CRITICAL note above.
+
+    return _resolve_legacy(conn, plaintext)
+
+
+def _resolve_by_token_id(
+    conn: sqlite3.Connection,
+    parsed: ParsedToken,
+    plaintext: str,
+) -> Principal | None:
+    """O(1) lookup by token_id PK, with type cross-check + argon2 verify.
+
+    Returns ``Principal`` on success, ``None`` on PK miss / type mismatch /
+    verify mismatch / dangling user or revoked agent.
+
+    Caller MUST treat ``None`` as "fall through to legacy", not "auth
+    failed." See :func:`resolve_token` for the rationale.
+    """
+    row = conn.execute(
+        """
+        SELECT id, token_hash, principal_type, principal_id
+        FROM tokens
+        WHERE id = ? AND revoked_at IS NULL
+        """,
+        (parsed.token_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    token_id, token_hash, principal_type, principal_id = row
+    # Cross-check type BEFORE running argon2 — saves the expensive verify
+    # on a forged-prefix attack against an existing row of the wrong type.
+    if principal_type != parsed.principal_type:
+        return None
+    if not verify_token(plaintext, token_hash):
+        return None
+    return _build_principal_and_touch(
+        conn, token_id, principal_type, principal_id
+    )
+
+
+def _resolve_legacy(
+    conn: sqlite3.Connection, plaintext: str
+) -> Principal | None:
+    """Pre-markland-9dm O(N) scan. Kept for legacy plaintexts only.
+
+    Legacy tokens (issued before the token-id prefix migration) have no
+    embedded token_id, so we have no choice but to argon2-verify against
+    every non-revoked row until a match is found. New-shape tokens that
+    PK-miss in the fast path also fall through here (see
+    :func:`resolve_token` docstring).
+    """
     rows = conn.execute(
         """
         SELECT id, token_hash, principal_type, principal_id
@@ -280,65 +360,80 @@ def resolve_token(conn: sqlite3.Connection, plaintext: str) -> Principal | None:
     ).fetchall()
     for token_id, token_hash, principal_type, principal_id in rows:
         if verify_token(plaintext, token_hash):
-            if principal_type == "user":
-                user_row = conn.execute(
-                    "SELECT id, display_name, is_admin FROM users WHERE id = ?",
-                    (principal_id,),
-                ).fetchone()
-                if user_row is None:
-                    return None
-                # Fire-and-forget update of last_used_at. Failure must not block auth.
-                try:
-                    conn.execute(
-                        "UPDATE tokens SET last_used_at = ? WHERE id = ?",
-                        (_now(), token_id),
-                    )
-                    conn.commit()
-                except sqlite3.Error:
-                    pass
-                return Principal(
-                    principal_id=user_row[0],
-                    principal_type="user",
-                    display_name=user_row[1],
-                    is_admin=bool(user_row[2]),
-                    user_id=None,
-                )
-            if principal_type == "agent":
-                agent_row = conn.execute(
-                    "SELECT id, owner_type, owner_id, display_name, revoked_at "
-                    "FROM agents WHERE id = ?",
-                    (principal_id,),
-                ).fetchone()
-                if agent_row is None:
-                    return None
-                (
-                    agent_id,
-                    agent_owner_type,
-                    agent_owner_id,
-                    agent_display_name,
-                    agent_revoked_at,
-                ) = agent_row
-                if agent_revoked_at is not None:
-                    return None
-                try:
-                    conn.execute(
-                        "UPDATE tokens SET last_used_at = ? WHERE id = ?",
-                        (_now(), token_id),
-                    )
-                    conn.commit()
-                except sqlite3.Error:
-                    pass
-                owner_user_id = (
-                    agent_owner_id if agent_owner_type == "user" else None
-                )
-                return Principal(
-                    principal_id=agent_id,
-                    principal_type="agent",
-                    display_name=agent_display_name,
-                    is_admin=False,
-                    user_id=owner_user_id,
-                )
+            return _build_principal_and_touch(
+                conn, token_id, principal_type, principal_id
+            )
+    return None
+
+
+def _build_principal_and_touch(
+    conn: sqlite3.Connection,
+    token_id: str,
+    principal_type: str,
+    principal_id: str,
+) -> Principal | None:
+    """Build the Principal, then best-effort update ``tokens.last_used_at``.
+
+    Refactored unchanged from the original ``resolve_token`` body. Failure
+    to update ``last_used_at`` must NOT block auth.
+    """
+    if principal_type == "user":
+        user_row = conn.execute(
+            "SELECT id, display_name, is_admin FROM users WHERE id = ?",
+            (principal_id,),
+        ).fetchone()
+        if user_row is None:
             return None
+        try:
+            conn.execute(
+                "UPDATE tokens SET last_used_at = ? WHERE id = ?",
+                (_now(), token_id),
+            )
+            conn.commit()
+        except sqlite3.Error:
+            pass
+        return Principal(
+            principal_id=user_row[0],
+            principal_type="user",
+            display_name=user_row[1],
+            is_admin=bool(user_row[2]),
+            user_id=None,
+        )
+    if principal_type == "agent":
+        agent_row = conn.execute(
+            "SELECT id, owner_type, owner_id, display_name, revoked_at "
+            "FROM agents WHERE id = ?",
+            (principal_id,),
+        ).fetchone()
+        if agent_row is None:
+            return None
+        (
+            agent_id,
+            agent_owner_type,
+            agent_owner_id,
+            agent_display_name,
+            agent_revoked_at,
+        ) = agent_row
+        if agent_revoked_at is not None:
+            return None
+        try:
+            conn.execute(
+                "UPDATE tokens SET last_used_at = ? WHERE id = ?",
+                (_now(), token_id),
+            )
+            conn.commit()
+        except sqlite3.Error:
+            pass
+        owner_user_id = (
+            agent_owner_id if agent_owner_type == "user" else None
+        )
+        return Principal(
+            principal_id=agent_id,
+            principal_type="agent",
+            display_name=agent_display_name,
+            is_admin=False,
+            user_id=owner_user_id,
+        )
     return None
 
 
