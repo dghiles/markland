@@ -5,6 +5,9 @@ import pytest
 from markland.db import init_db
 from markland.service.auth import (
     Principal,
+    _format_user_token_plaintext,
+    _mint_user_token_plaintext_with_id,
+    _parse_token_plaintext,
     create_user_token,
     hash_token,
     list_tokens,
@@ -131,3 +134,75 @@ def test_list_tokens_excludes_revoked(tmp_path):
     create_user_token(conn, user_id=u.id, label="k2")
     revoke_token(conn, token_id=tid1, user_id=u.id)
     assert {r.label for r in list_tokens(conn, user_id=u.id)} == {"k2"}
+
+
+# --- Task 1 — token-id prefix format ----------------------------------------
+
+
+def test_new_user_token_plaintext_embeds_token_id():
+    token_id = "tok_a7c3f9d2b8e6014f"
+    plaintext = _format_user_token_plaintext(token_id, "secret_part")
+    assert plaintext.startswith("mk_usr_a7c3f9d2b8e6014f_")
+    assert plaintext.endswith("secret_part")
+
+
+def test_parse_token_plaintext_extracts_token_id():
+    plaintext = "mk_usr_a7c3f9d2b8e6014f_xyz123"
+    parsed = _parse_token_plaintext(plaintext)
+    assert parsed is not None
+    assert parsed.principal_type == "user"
+    assert parsed.token_id == "tok_a7c3f9d2b8e6014f"
+    assert parsed.secret_part == "xyz123"
+
+
+def test_parse_agent_token_plaintext_extracts_token_id():
+    plaintext = "mk_agt_a7c3f9d2b8e6014f_xyz123"
+    parsed = _parse_token_plaintext(plaintext)
+    assert parsed is not None
+    assert parsed.principal_type == "agent"
+    assert parsed.token_id == "tok_a7c3f9d2b8e6014f"
+
+
+def test_parse_legacy_token_returns_none():
+    # Legacy plaintext: no embedded token_id (urlsafe secret can include `-` `_`)
+    plaintext = "mk_usr_aGVsbG93b3JsZA"
+    parsed = _parse_token_plaintext(plaintext)
+    assert parsed is None
+
+
+def test_parse_empty_or_garbage_returns_none():
+    assert _parse_token_plaintext("") is None
+    assert _parse_token_plaintext("not-a-token") is None
+    assert _parse_token_plaintext("mk_xyz_a7c3f9d2b8e6014f_secret") is None
+
+
+def test_parse_legacy_token_that_happens_to_match_regex_falls_through():
+    """A legacy plaintext whose secret happens to start with 16 lowercase
+    hex chars and an underscore would match the new-format regex. The
+    parser correctly returns ParsedToken; resolve_token's fast path
+    will then PK-miss and MUST fall through to legacy. See Task 2.
+    """
+    plaintext = "mk_usr_a7c3f9d2b8e6014f_legacysecretpart"
+    parsed = _parse_token_plaintext(plaintext)
+    # Parser does match — that's correct behavior.
+    assert parsed is not None
+    assert parsed.token_id == "tok_a7c3f9d2b8e6014f"
+
+
+def test_mint_user_token_plaintext_with_id_returns_consistent_pair():
+    token_id, plaintext = _mint_user_token_plaintext_with_id()
+    assert token_id.startswith("tok_")
+    parsed = _parse_token_plaintext(plaintext)
+    assert parsed is not None
+    assert parsed.token_id == token_id
+    assert parsed.principal_type == "user"
+
+
+def test_create_user_token_plaintext_parses_to_returned_token_id(tmp_path):
+    conn = init_db(tmp_path / "t.db")
+    u = create_user(conn, email="alice@example.com", display_name="Alice")
+    token_id, plaintext = create_user_token(conn, user_id=u.id, label="laptop")
+    parsed = _parse_token_plaintext(plaintext)
+    assert parsed is not None
+    assert parsed.token_id == token_id
+    assert parsed.principal_type == "user"

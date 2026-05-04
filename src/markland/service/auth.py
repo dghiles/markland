@@ -1,7 +1,33 @@
-"""Token hashing, principal resolution, and per-user token lifecycle."""
+"""Token hashing, principal resolution, and per-user token lifecycle.
+
+Token plaintext format (post-markland-9dm)
+------------------------------------------
+
+New tokens embed their row-id as a public, non-secret prefix so that
+``resolve_token`` can fetch by primary key (O(1)) instead of scanning
+every non-revoked row and running an Argon2id verify per row.
+
+Plaintext shape::
+
+    mk_usr_<token_id_hex>_<random_secret>      # user tokens
+    mk_agt_<token_id_hex>_<random_secret>      # agent tokens
+
+Where ``<token_id_hex>`` is the ``tok_<hex>`` row-id with the ``tok_``
+prefix dropped (16 hex chars). The DB primary key is the full
+``tok_<hex>`` form; the parser re-attaches the prefix.
+
+Legacy tokens (issued before this PR) have shape ``mk_usr_<urlsafe32>``
+with no embedded token_id. ``resolve_token`` falls back to the O(N) scan
+for them. The fall-through is also correctness-critical for the rare
+case where a legacy plaintext's secret happens to start with 16 hex
+chars + ``_``: the parser will match, the PK lookup will miss, and we
+MUST continue to the legacy scan rather than return None. See the
+``resolve_token`` docstring for details.
+"""
 
 from __future__ import annotations
 
+import re
 import secrets
 import sqlite3
 from dataclasses import dataclass
@@ -49,12 +75,96 @@ def _generate_token_id() -> str:
     return f"tok_{secrets.token_hex(8)}"
 
 
+# `secrets.token_hex(8)` always emits 16 lowercase hex chars.
+_TOKEN_ID_HEX_LEN = 16
+# Anchored full-match regex; the trailing `(.+)` captures the secret part
+# verbatim, which may contain `_` and `-` (urlsafe alphabet).
+_TOKEN_PARSE_RE = re.compile(r"^mk_(usr|agt)_([0-9a-f]{16})_(.+)$")
+
+
+@dataclass(frozen=True)
+class ParsedToken:
+    """A successfully-parsed new-shape token plaintext.
+
+    A successful parse does NOT imply the token is valid — the resolver
+    must still PK-lookup the row, cross-check ``principal_type``, and
+    Argon2-verify the plaintext against the stored hash. See
+    ``resolve_token`` for the fall-through-on-miss contract.
+    """
+
+    principal_type: Literal["user", "agent"]
+    token_id: str  # full 'tok_<hex>' form
+    secret_part: str
+
+
+def _format_user_token_plaintext(token_id: str, secret_part: str) -> str:
+    """Combine token_id + secret_part into the user-facing plaintext."""
+    short = token_id.removeprefix("tok_")
+    return f"mk_usr_{short}_{secret_part}"
+
+
+def _format_agent_token_plaintext(token_id: str, secret_part: str) -> str:
+    """Combine token_id + secret_part into the agent-facing plaintext."""
+    short = token_id.removeprefix("tok_")
+    return f"mk_agt_{short}_{secret_part}"
+
+
+def _parse_token_plaintext(plaintext: str) -> ParsedToken | None:
+    """Return ParsedToken if plaintext is the new shape; None for legacy.
+
+    None signals "fall back to O(N) scan." A non-None return does NOT
+    by itself authenticate the token — the resolver still verifies it.
+    """
+    if not plaintext:
+        return None
+    m = _TOKEN_PARSE_RE.fullmatch(plaintext)
+    if not m:
+        return None
+    type_short, hex_part, secret_part = m.groups()
+    return ParsedToken(
+        principal_type="user" if type_short == "usr" else "agent",
+        token_id=f"tok_{hex_part}",
+        secret_part=secret_part,
+    )
+
+
+def _mint_user_token_plaintext_with_id() -> tuple[str, str]:
+    """Mint a fresh user token. Returns ``(token_id, plaintext)``.
+
+    The two values are coupled — the plaintext embeds ``token_id`` as
+    its public prefix, enabling O(1) lookup in ``resolve_token``.
+    """
+    token_id = _generate_token_id()
+    secret_part = secrets.token_urlsafe(32)
+    plaintext = _format_user_token_plaintext(token_id, secret_part)
+    return token_id, plaintext
+
+
+def _mint_agent_token_plaintext_with_id() -> tuple[str, str]:
+    """Mint a fresh agent token. Returns ``(token_id, plaintext)``."""
+    token_id = _generate_token_id()
+    secret_part = secrets.token_urlsafe(32)
+    plaintext = _format_agent_token_plaintext(token_id, secret_part)
+    return token_id, plaintext
+
+
 def _generate_user_token_plaintext() -> str:
-    return f"mk_usr_{secrets.token_urlsafe(32)}"
+    """Deprecated: use :func:`_mint_user_token_plaintext_with_id` instead.
+
+    Kept as a stub raising NotImplementedError so any rogue importer
+    fails loudly at call time rather than silently minting a legacy-
+    shaped token without an embedded token_id.
+    """
+    raise NotImplementedError(
+        "Use _mint_user_token_plaintext_with_id (markland-9dm)"
+    )
 
 
 def _generate_agent_token_plaintext() -> str:
-    return f"mk_agt_{secrets.token_urlsafe(32)}"
+    """Deprecated: use :func:`_mint_agent_token_plaintext_with_id` instead."""
+    raise NotImplementedError(
+        "Use _mint_agent_token_plaintext_with_id (markland-9dm)"
+    )
 
 
 def hash_token(plaintext: str) -> str:
@@ -82,8 +192,7 @@ def create_user_token(
 
     The plaintext is shown to the user ONCE and never persisted — only its hash.
     """
-    plaintext = _generate_user_token_plaintext()
-    token_id = _generate_token_id()
+    token_id, plaintext = _mint_user_token_plaintext_with_id()
     hashed = hash_token(plaintext)
     conn.execute(
         """
@@ -115,8 +224,7 @@ def _create_token_for_agent(
     which enforces ownership. This helper is reused by the service-agent
     operator script.
     """
-    plaintext = _generate_agent_token_plaintext()
-    token_id = _generate_token_id()
+    token_id, plaintext = _mint_agent_token_plaintext_with_id()
     conn.execute(
         "INSERT INTO tokens(id, token_hash, label, principal_type, principal_id, "
         "created_at, last_used_at, revoked_at) "
