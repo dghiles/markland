@@ -173,6 +173,19 @@ def test_post_grant_known_and_unknown_email_have_same_shape(client):
     assert "@" not in body_known["principal_id"], body_known
     assert body_known["principal_id"].startswith("usr_"), body_known
     assert body_unknown["principal_id"].startswith("usr_"), body_unknown
+    # P3 / markland-89b: synthetic id must match the production
+    # `usr_<16hex>` shape exactly (length 20, lowercase hex). An
+    # earlier fixup used `usr_pending_<16hex>` (length 28) which was
+    # distinguishable on length alone, and the `pending_` infix itself
+    # was a giveaway. Test fixtures use short ids (`usr_bob`) so we
+    # can't assert length 20 on the known side; we instead pin the
+    # synthetic shape directly with a regex.
+    import re
+    assert re.fullmatch(r"usr_[0-9a-f]{16}", body_unknown["principal_id"]), (
+        body_unknown
+    )
+    assert "pending_" not in body_unknown["principal_id"], body_unknown
+    assert "pending_" not in body_known["principal_id"], body_known
 
     # granted_at must be a "now" timestamp in BOTH cases, not the
     # invite's 7-day expiry — a caller diffing the two values must not

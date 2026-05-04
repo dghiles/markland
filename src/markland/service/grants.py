@@ -36,6 +36,12 @@ class InvalidGrantLevel(Exception):
 _VALID_LEVELS = frozenset({"view", "edit"})
 _VALID_PRINCIPAL_TYPES = frozenset({"user", "agent"})
 
+# P3 / markland-89b: domain separator for synthetic `usr_…` ids minted
+# in the silent-invite path (`_grant_via_invite`). Prefixing the hash
+# input ensures the synthetic id space is disjoint from any other
+# sha256-derived id space we might add later.
+_SYNTHETIC_PRINCIPAL_DOMAIN = b"markland-synthetic-principal-v1"
+
 
 def _lookup_user_by_email(conn: sqlite3.Connection, email: str) -> tuple[str, str] | None:
     row = conn.execute(
@@ -408,18 +414,31 @@ def _grant_via_invite(
     # was the invite's ~7-day expiry. A caller could distinguish via
     # `"@" in principal_id` or by comparing timestamps.
     #
-    # Fix:
-    #   - principal_id: synthetic, deterministic, opaque user-id-shape
-    #     (`usr_pending_<16 hex>`). Deterministic per email so retrying
-    #     doesn't produce a different id (which would itself be a leak).
-    #     The principal_id field in the API response is informational —
+    # P3 / markland-89b: an earlier fixup used `usr_pending_<16 hex>`
+    # (length 28). Real user ids are `usr_<16 hex>` (length 20), so a
+    # caller who has seen real grant responses elsewhere could still
+    # distinguish on length alone. Match the real shape exactly.
+    #
+    # The hash input is domain-separated so synthetic ids cannot
+    # collide with real ones even in principle. (Real ids are minted
+    # with `secrets.token_hex(8)` in `service/users.py` — random, not
+    # hash-derived — so collision was never reachable, but domain
+    # separation is good hygiene and pins the contract.)
+    #
+    #   - principal_id: synthetic, deterministic, opaque, exactly the
+    #     same shape and length as a real `usr_…` id. Deterministic per
+    #     email so retrying doesn't produce a different id (which would
+    #     itself be a leak — real grants are idempotent). The
+    #     principal_id field in the API response is informational —
     #     not used as a foreign key by callers — so a synthetic value
     #     is safe.
     #   - granted_at: a "now" UTC ISO string, matching the format and
     #     time bucket of a real grant write (db.upsert_grant uses
     #     Document.now()).
-    digest = hashlib.sha256(target_email.strip().lower().encode("utf-8")).hexdigest()[:16]
-    synthetic_principal_id = f"usr_pending_{digest}"
+    digest = hashlib.sha256(
+        _SYNTHETIC_PRINCIPAL_DOMAIN + target_email.strip().lower().encode("utf-8")
+    ).hexdigest()[:16]
+    synthetic_principal_id = f"usr_{digest}"
     return {
         "doc_id": doc.id,
         "principal_id": synthetic_principal_id,
