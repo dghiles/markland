@@ -45,13 +45,17 @@ _LEVEL_TO_MAX_ACTION = {
 def _owner_id_for_principal(principal: Principal) -> str | None:
     """For user principals, the doc-owner identity is principal_id.
 
-    For agent principals (Plan 4), it will be the agent's owning user_id
-    (stored as principal.user_id). Today agents have no `agents` row so we
-    return principal.user_id which is None for bare agent principals.
+    Agent principals are intentionally excluded from owner-identity
+    matching (markland-b42 / P1-B): an agent token's owning user_id is
+    used for inherited view/edit access (step 3 below), but agents do
+    NOT inherit owner-rights on the user's docs. A leaked agent token
+    must not be able to delete docs or flip visibility — those require
+    an explicit grant on the agent principal_id at level 'owner', or
+    re-authentication as the owning user.
     """
     if principal.principal_type == "user":
         return principal.principal_id
-    return principal.user_id
+    return None
 
 
 def check_permission(
@@ -87,8 +91,26 @@ def check_permission(
             f"grant level '{grant.level}' does not permit {action}"
         )
 
-    # (3) Agent inheritance — user-owned agent inherits its owner's grant.
+    # (3) Agent inheritance — user-owned agent inherits its owner's access
+    # at view/edit level only. Agents NEVER inherit owner-rights (P1-B /
+    # markland-b42): owner-action (delete, set_visibility, set_featured,
+    # grant, revoke) requires an explicit grant on the agent principal_id
+    # at level 'owner', or re-auth as the owning user.
     if principal.principal_type == "agent" and principal.user_id is not None:
+        # 3a. The owning user IS the doc owner → agent inherits view/edit
+        # but not owner.
+        if doc.owner_id == principal.user_id:
+            if action == "view":
+                return "owner"  # tag reflects how the inheritance was sourced
+            if action == "edit":
+                return "owner"
+            # action == "owner": fall through to deny.
+            raise PermissionDenied(
+                "agent cannot perform owner-level action; "
+                "re-auth as the owning user"
+            )
+
+        # 3b. Owning user has an explicit grant → agent inherits its level.
         owner_grant = conn.execute(
             "SELECT level FROM grants "
             "WHERE doc_id = ? AND principal_id = ? AND principal_type = 'user'",
@@ -104,6 +126,10 @@ def check_permission(
                 raise PermissionDenied(
                     "edit requires edit-level grant"
                 )
+            # action == "owner": grant table never contains 'owner' — deny.
+            raise PermissionDenied(
+                "agent cannot perform owner-level action via inherited grant"
+            )
 
     # (4) Public + view
     if doc.is_public:
