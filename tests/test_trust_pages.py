@@ -63,10 +63,12 @@ def test_privacy_terms_meta_description_length(client, path):
         # E-E-A-T thin-content floor. Page-specific floors picked above
         # the audit baseline (about 98w, security 118w, privacy 101w,
         # terms 95w) — never let regression silently re-thin them.
+        # 2026-05-04: privacy floor bumped to 800 (formal privacy policy);
+        # terms floor bumped to 900 (formal Terms of Service).
         ("/about", 250),
         ("/security", 300),
-        ("/privacy", 250),
-        ("/terms", 250),
+        ("/privacy", 800),
+        ("/terms", 900),
     ],
 )
 def test_trust_page_word_count(client, path, min_words):
