@@ -42,7 +42,13 @@ follow-ups (server-side session revocation epoch, O(N) Argon2 verify
 scan, logout-only-cookie). 13 P3 follow-ups filed as beads. **MCP
 discovery hardened** (PR #66) — bearer auth advertised so SDK probes
 don't crash on HTML 404. **Copy-token UX polished** (PR #65) — Copy
-button + 'C' shortcut, agent token row stops disappearing.
+button + 'C' shortcut, agent token row stops disappearing. **Formal
+privacy policy + Terms of Service live** — `/privacy` and `/terms`
+promoted from beta-summary stubs to standard-shaped documents (10 + 14
+sections respectively); plain-English voice preserved, structure
+pinned by tests so future edits can't silently re-thin them. Plans:
+`docs/plans/2026-05-04-formal-privacy-policy.md`,
+`docs/plans/2026-05-04-formal-terms-of-service.md`.
 
 `/blog` launched + first anchor post live (PR #63) — `/blog`,
 `/blog/{slug}`, and `/blog/feed.xml` (Atom 1.0) all serving 200; the
