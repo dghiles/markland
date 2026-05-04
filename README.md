@@ -9,6 +9,7 @@ leaving the terminal.
 
 - **Live:** https://markland.dev
 - **Quickstart:** https://markland.dev/quickstart
+- **Blog:** https://markland.dev/blog ([RSS](https://markland.dev/blog/feed.xml))
 - **Spec:** [`docs/specs/2026-04-19-multi-agent-auth-design.md`](docs/specs/2026-04-19-multi-agent-auth-design.md)
 
 ## Quickstart (2 minutes)

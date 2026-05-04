@@ -27,13 +27,23 @@ Current selection: **"Shared notes for you and your agents."** — collaboration
 ## Where we are (2026-05-03 PM)
 
 Live at **`https://markland.dev`**. Heavy day of shipping since this morning's
-refresh. **GEO batch G1-G5 shipped** (PR #54, #55, #56) — robots.txt
-pruned to training-only blocks (Perplexity + ChatGPT Search + Claude Web
-all reachable now), `/llms.txt` live, question-shaped FAQ blocks across
-`/` + `/quickstart` + every `/alternatives/{slug}`, 143-word "What is
-Markland?" answer block above the hero, `/explore` dropped from sitemap
-until it has content. **GEO posture decision: made + executed** —
-Markland is now optimized for AI search engines, not blocked from them.
+refresh. **`/blog` launched + first anchor post live** (PR #63) — `/blog`,
+`/blog/{slug}`, and `/blog/feed.xml` (Atom 1.0) all serving 200; the
+single-post feed is "[What is agent-native publishing?](https://markland.dev/blog/agent-native-publishing)"
+(1,403 words, 155-char meta description, 150-word definition lead in
+the AI-citation sweet spot, full Article + Person + BreadcrumbList
+JSON-LD). Phase 2 of the SEO strategy — content launch — is genuinely
+underway one day after the strategy was written. **GEO batch G1-G5
+shipped** (PR #54, #55, #56) — robots.txt pruned to training-only
+blocks (Perplexity + ChatGPT Search + Claude Web all reachable now),
+`/llms.txt` live, question-shaped FAQ blocks across `/` + `/quickstart` +
+every `/alternatives/{slug}`, 143-word "What is Markland?" answer block
+above the hero, `/explore` dropped from sitemap until it has content.
+**GEO posture decision: made + executed** — Markland is now optimized
+for AI search engines, not blocked from them. **SEO drift baselines
+captured** — 12 marketing URLs snapshotted to
+`~/.cache/claude-seo/drift/baselines.db`; weekly
+`/claude-seo:seo-drift compare` cadence added to the strategy doc.
 **Magic-link single-use enforcement shipped** (PR #59) — closes the
 15-min capture window flagged in the concerns review and on
 `/security`'s post-beta hardening list. **Admin metrics expansion
@@ -70,7 +80,7 @@ Active or imminent. Items here have a plan or a clear next action.
 - **MCP audit Plan 7 — Phase B deprecation/removal** — opens 30 days after the `mcp-audit-axis-5-released` tag (laid 2026-05-01, so window opens **2026-05-31**). Removes 4 deprecation shims: `markland_set_visibility`, `markland_feature`, `markland_set_status`, `markland_clear_status`. Plan: `docs/plans/2026-04-27-mcp-phase-b-deprecation-removal.md`.
 - **Install/onboarding flow simplification** — Option 1 shipped (PR #12 + #13). Remaining: (2) prefill `user_code` via `/device?code=…` (route already supports it — runbook needs to construct the link); (3) single-link install — CLI runbook generates one `/device?code=…` URL so sign-in + code-entry happen on the same page; (4) skip device flow for browser-first users — sign in, hit "Connect Claude Code", copy one-shot token from `/me/tokens` into `claude mcp add`. Plan `docs/plans/2026-04-24-setup-install-ux-fix.md`. Worth a brainstorm pass on (2)-(4) before launch — right answer depends on whether the primary install audience is browser-first humans or CLI-first agents.
 - **Agent-edit grant safety rails** — granting `edit` to another agent today carries unsurfaced risk (prompt-injected edits, accidental overwrites, polluted project memory) and the grant UI/MCP surface doesn't show the consequences. Two angles: (a) `/quickstart` + grant UI default-recommend `view` for cross-principal agent grants and require an explicit gesture for `edit`; (b) grant-confirmation copy spells out "this lets that agent rewrite the doc body and revision history." Brainstorm — sourced from the 2026-05-03 third-party concerns review.
-- **`/blog` infrastructure + Phase 2 content launch** — SEO strategy at `docs/audits/2026-05-03-seo-strategy/SEO-STRATEGY.md` says the single highest-leverage move is a `/blog` (or `/notes`) feed with 4-6 anchor long-form posts. Recommended starters: "What is agent-native publishing?", "How to share Claude Code output without copy-pasting", "MCP, explained for developers", "Five things to publish to Markland from Claude Code". Cadence: one post / 2 weeks. Prerequisites: `/blog` route + `Article` JSON-LD + `Person` author schema + RSS feed. Plan-pending.
+- **Phase 2 content cadence** — `/blog` infrastructure shipped (PR #63) and post #1 ("What is agent-native publishing?") is live at `https://markland.dev/blog/agent-native-publishing`. Next post target ~2026-05-17 (one post / 2 weeks per `docs/audits/2026-05-03-seo-strategy/SEO-STRATEGY.md` §4). Working list of next anchor titles: "How to share Claude Code output without copy-pasting", "MCP, explained for developers", "Five things to publish to Markland from Claude Code", "Why markdown round-trips break in Notion", "Building a public CLAUDE.md library". Pick 3-4 of those between now and ~2026-08.
 
 ## Next
 
@@ -179,6 +189,7 @@ date it landed.
 
 ### Marketing + UX surface
 
+- **2026-05-03** — **`/blog` infrastructure + anchor post #1 shipped (PR #63)** — three new routes (`/blog`, `/blog/{slug}`, `/blog/feed.xml` Atom 1.0), filesystem-sourced markdown content under `src/markland/web/content/blog/*.md` with hand-rolled YAML-style frontmatter (no PyYAML dep), full Article + Person + BreadcrumbList JSON-LD per post, sitemap + `/llms.txt` auto-extension gated on ≥1 published post (mirrors `EXPLORE_MIN_PUBLIC_DOCS` pattern), Blog link in header nav + footer. First post: "[What is agent-native publishing?](https://markland.dev/blog/agent-native-publishing)" — 1,403 body words, 155-char meta description, 150-word definition lead in the AI-citation 134-167 word sweet spot. 31 new tests; full suite 1046 passing. Closes beads `markland-xgj` + `markland-380`.
 - **2026-05-01** — **Umami Cloud analytics live (PR #37 + CSP fix #43)** — env-gated drop-in (`UMAMI_WEBSITE_ID`, `UMAMI_SCRIPT_URL`), admin paths excluded, `<script defer>` only when configured, two-host topology (`cloud.umami.is` + `api-gateway.umami.dev`) allowed in `connect-src`. Privacy-first, cookieless, no PII; disclosed on `/security`.
 - **2026-05-01** — Signed-in banner coverage on every authed page + overflow fix (PR #39); themed login/magic-link/verify pages (PR #40, #34); "Sign in" link in header for signed-out visitors (PR #42).
 - **2026-04-28** — Install-flow fixes from 2026-04-24 dogfood run (PR #12 + #13). `?next=` thread-through (`/login` → magic-link → `/verify` preserves intended landing); url-encoded `next=` so a `user_code` containing `&` or `?` survives the `/device/confirm` bounce; "For humans" preamble on `/setup`; runbook fixed to use the `/install` Claude Code command rather than the unsupported `claude mcp add markland <url>`; `claude mcp add` references swept across docs; trust `X-Forwarded-Proto` so the `/mcp` redirect preserves https behind Fly's proxy.

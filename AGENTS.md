@@ -41,6 +41,27 @@ and `git push origin main` — no PR needed. The PR flow is overhead for
 content that doesn't need code review. Code changes still go through the
 branch + PR flow.
 
+## Blog content workflow
+
+Blog posts live at `src/markland/web/content/blog/{slug}.md` with YAML-style
+frontmatter (parsed by `src/markland/web/blog.py`, no PyYAML dependency).
+Required keys: `title`, `slug`, `published_at` (ISO date), `description`
+(140-160 chars for the SEO sweet spot). Optional: `updated_at` (defaults to
+`published_at`), `og_image`, `draft` (set `true` to hide from index/feed).
+
+A new post in this directory automatically:
+- Surfaces on `/blog` (sorted desc by `published_at`)
+- Renders at `/blog/{slug}` with full Article + Person + BreadcrumbList JSON-LD
+- Appears in `/blog/feed.xml` (Atom 1.0)
+- Joins `sitemap.xml` and the `## Blog` section of `/llms.txt`
+
+Treat the post body the same way as code: `pytest tests/test_blog.py` runs a
+word-count guard on the lead-in definition block (120-200 words), a meta-
+description length check (130-165 chars), and confirms the markdown actually
+renders. New posts ship via the normal branch + PR + code-review flow because
+the test enforces the SEO contract — a markdown-only push to `main` would skip
+those gates.
+
 ## Landing the Plane (Session Completion)
 
 **When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
