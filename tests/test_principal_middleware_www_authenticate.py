@@ -1,6 +1,6 @@
 """Tests that PrincipalMiddleware advertises auth scheme via WWW-Authenticate.
 
-Per RFC 9728 + MCP authorization spec (2026-05-03 / 2025-03-26), a 401 from a
+Per RFC 9728 and the MCP authorization spec (2025-03-26), a 401 from a
 protected MCP endpoint should carry a WWW-Authenticate header pointing the
 client at the resource-metadata URL. Without this, MCP SDK clients fall through
 to speculative OAuth discovery and crash on Markland's HTML 404 page.
@@ -43,6 +43,9 @@ def test_401_missing_header_advertises_bearer(tmp_path):
     assert 'realm="markland"' in www_auth
     assert 'resource_metadata=' in www_auth
     assert "/.well-known/oauth-protected-resource" in www_auth
+    expected_url = f"{r.request.url.scheme}://{r.request.url.host}/.well-known/oauth-protected-resource"
+    expected_header = f'Bearer realm="markland", resource_metadata="{expected_url}"'
+    assert www_auth == expected_header, f"got {www_auth!r}, expected {expected_header!r}"
 
 
 def test_401_unknown_token_advertises_bearer(tmp_path):

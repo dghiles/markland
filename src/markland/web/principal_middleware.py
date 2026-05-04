@@ -60,9 +60,7 @@ class PrincipalMiddleware(BaseHTTPMiddleware):
         # resource-metadata URL so well-behaved MCP clients can discover that
         # this server uses static bearer tokens (no OAuth) instead of
         # speculatively probing /.well-known paths and tripping over HTML 404s.
-        scheme = request.url.scheme
-        host = request.headers.get("host", request.url.netloc)
-        metadata_url = f"{scheme}://{host}/.well-known/oauth-protected-resource"
+        metadata_url = f"{request.url.scheme}://{request.url.netloc}/.well-known/oauth-protected-resource"
         return JSONResponse(
             {"error": "unauthenticated"},
             status_code=401,
