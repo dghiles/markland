@@ -88,13 +88,15 @@ def test_device_start_rate_limits_per_ip(client):
 
 
 def test_device_start_rate_limit_is_per_ip(client):
+    """P2-C / markland-91j: per-IP keying uses Fly-Client-IP, not the
+    spoofable X-Forwarded-For first hop."""
     # Exhaust limit from default IP.
     for _ in range(10):
         client.post("/api/auth/device-start")
     # Different IP — should still work.
     r = client.post(
         "/api/auth/device-start",
-        headers={"X-Forwarded-For": "203.0.113.7"},
+        headers={"Fly-Client-IP": "203.0.113.7"},
     )
     assert r.status_code == 200
 

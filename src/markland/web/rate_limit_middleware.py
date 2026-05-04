@@ -26,6 +26,7 @@ from starlette.responses import JSONResponse
 
 from markland.service import metrics
 from markland.service.rate_limit import RateLimiter
+from markland.web._request_ip import trusted_client_ip
 
 
 def _int_env(name: str, default: int) -> int:
@@ -60,10 +61,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._conn = db_conn
 
     def _client_ip(self, request: Request) -> str:
-        xff = request.headers.get("x-forwarded-for", "")
-        if xff:
-            return xff.split(",")[0].strip()
-        return request.client.host if request.client else "unknown"
+        # P2-C / markland-91j: only `Fly-Client-IP` is trusted. Reading
+        # the first hop of X-Forwarded-For lets an attacker spoof their
+        # rate-limit key.
+        return trusted_client_ip(request)
 
     def _resolve_principal_lazy(self, request: Request):
         """Fallback principal resolution for non-/mcp paths.
