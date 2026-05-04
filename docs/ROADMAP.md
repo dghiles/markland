@@ -44,11 +44,16 @@ bulk-publish script, agent-provisioned at deploy. The agent-to-agent
 positioning now has a *visible* surface on `/explore` instead of being
 abstract. **Admin runbook + helper scripts** (PR #57, #58) productized
 the bag of one-off SQL queries used during cutover. **Fresh strategic
-input:** monetization strategy design landed at
+input:** two strategy docs landed today.
 `docs/specs/2026-05-03-monetization-strategy-design.md` — 4-tier ladder
-(Free / Pro / Team / Enterprise) targeting **$25K MRR within 12 months**,
-per-workspace base + per-human-seat expansion, agent-operations metered
-overage as a future lever. Awaiting review before plan-writing.
+(Free / Pro / Team / Enterprise) targeting **$25K MRR within 12
+months**, per-workspace base + per-human-seat expansion, agent-
+operations metered overage as a future lever. Awaiting review before
+plan-writing. `docs/audits/2026-05-03-seo-strategy/SEO-STRATEGY.md` —
+90-day SEO plan: don't build more SEO surface yet (13 URLs is enough),
+ship `/blog` + 4-6 anchor long-form posts, lean on brand mentions over
+backlinks for AI-citation surface, drift-monitor weekly. Explicit
+non-goals enumerated in the new "Non-goals (current)" section below.
 
 One MCP audit plan left — Plan 7 (Phase B deprecation/removal of 4
 shims, window opens 2026-05-31). Code-complete on the v1 build (10
@@ -65,6 +70,7 @@ Active or imminent. Items here have a plan or a clear next action.
 - **MCP audit Plan 7 — Phase B deprecation/removal** — opens 30 days after the `mcp-audit-axis-5-released` tag (laid 2026-05-01, so window opens **2026-05-31**). Removes 4 deprecation shims: `markland_set_visibility`, `markland_feature`, `markland_set_status`, `markland_clear_status`. Plan: `docs/plans/2026-04-27-mcp-phase-b-deprecation-removal.md`.
 - **Install/onboarding flow simplification** — Option 1 shipped (PR #12 + #13). Remaining: (2) prefill `user_code` via `/device?code=…` (route already supports it — runbook needs to construct the link); (3) single-link install — CLI runbook generates one `/device?code=…` URL so sign-in + code-entry happen on the same page; (4) skip device flow for browser-first users — sign in, hit "Connect Claude Code", copy one-shot token from `/me/tokens` into `claude mcp add`. Plan `docs/plans/2026-04-24-setup-install-ux-fix.md`. Worth a brainstorm pass on (2)-(4) before launch — right answer depends on whether the primary install audience is browser-first humans or CLI-first agents.
 - **Agent-edit grant safety rails** — granting `edit` to another agent today carries unsurfaced risk (prompt-injected edits, accidental overwrites, polluted project memory) and the grant UI/MCP surface doesn't show the consequences. Two angles: (a) `/quickstart` + grant UI default-recommend `view` for cross-principal agent grants and require an explicit gesture for `edit`; (b) grant-confirmation copy spells out "this lets that agent rewrite the doc body and revision history." Brainstorm — sourced from the 2026-05-03 third-party concerns review.
+- **`/blog` infrastructure + Phase 2 content launch** — SEO strategy at `docs/audits/2026-05-03-seo-strategy/SEO-STRATEGY.md` says the single highest-leverage move is a `/blog` (or `/notes`) feed with 4-6 anchor long-form posts. Recommended starters: "What is agent-native publishing?", "How to share Claude Code output without copy-pasting", "MCP, explained for developers", "Five things to publish to Markland from Claude Code". Cadence: one post / 2 weeks. Prerequisites: `/blog` route + `Article` JSON-LD + `Person` author schema + RSS feed. Plan-pending.
 
 ## Next
 
@@ -92,6 +98,38 @@ v2+ direction. No plans yet; this is the strategic horizon.
 - **Org / team accounts + enterprise readiness** — shared ownership beyond per-user grants (today every doc has a single human owner) plus the gate to selling into work-data customers: SSO/SAML, SCIM, audit-log export, retention controls, data residency options, legal-hold support, and a SOC 2 path. Until these land, the honest framing on `/security` ("not for confidential customer data") is doing its job and we should not pretend otherwise. Surfaced explicitly because the 2026-05-03 third-party concerns review correctly identified this as the gap that closes off the entire enterprise segment.
 - **Public publish destinations** — agent writes to Markland, Markland mirrors to GitHub Gist / X / wherever. Markland as the structured authoring surface, distribution channels as outputs.
 - **MCP server marketplace presence** — be the canonical "agent-native shared notes" entry once the marketplaces stabilize.
+
+---
+
+## Non-goals (current)
+
+Explicit decisions about what we are **not** doing now, to prevent
+otherwise-tempting moves from creeping in. Sourced from
+`docs/audits/2026-05-03-seo-strategy/SEO-STRATEGY.md` §3 and
+`docs/specs/2026-05-03-monetization-strategy-design.md`.
+
+- **No programmatic SEO.** No template-generated pages at scale
+  (location pages, "[X] vs [Y]" matrices, "best tool for [job]"
+  factories). With ~13 indexable URLs and a quality-floor surface,
+  adding thin pages dilutes the signal. `/explore` was already a
+  near-miss on this. Lifts when there's content to fill the templates.
+- **No pricing page yet.** Lifts when monetization spec resolves
+  (`docs/specs/2026-05-03-monetization-strategy-design.md`) and a paid
+  tier ships. Showing prices before plans are shippable creates a
+  credibility gap.
+- **No `/case-studies` until 3+ named users with quotable wins.**
+  Empty categorical pages dilute the quality signal.
+- **No `/customers` page** for the same reason. We don't have logos
+  yet; pretending we do is worse than not having the page.
+- **No paid SEO tools.** Strategy is one-person, ≤2h/week of
+  marketing-flavored work. Free + earned only.
+- **No link-buying, no PBNs, no link exchanges.** Brand mentions
+  outrank backlinks 3× for AI-search citations per the GEO analysis;
+  one Show HN + one r/ClaudeAI post + one YouTube screencap beats 50
+  link-building emails. Earned links only.
+- **No paid acquisition** at this stage. No Google Ads, no Twitter
+  promotions, no LinkedIn promoted posts. Lifts when there's a paid
+  tier + a measurable CAC/LTV story.
 
 ---
 
@@ -152,6 +190,7 @@ date it landed.
 
 ### Strategy + specs
 
+- **2026-05-03** — SEO strategy doc landed at `docs/audits/2026-05-03-seo-strategy/SEO-STRATEGY.md` (314 lines). 12-month KPI grid, four-phase implementation roadmap (Foundation done → Content launch weeks 1-12 → Authority months 4-6 → Scale months 7-12), 4-6 anchor blog posts spec'd with target queries + effort estimates, weekly drift-monitor cadence, risk register. Drove the new "Non-goals (current)" section.
 - **2026-05-03** — Monetization strategy design landed at `docs/specs/2026-05-03-monetization-strategy-design.md`. 4-tier ladder (Free / Pro / Team / Enterprise), per-workspace base + per-human-seat expansion, agent-operations metered overage as a future lever. **$25K MRR within 12 months** target. Awaiting review before plan-writing.
 
 ### SEO foundation
