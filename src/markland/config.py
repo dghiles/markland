@@ -43,7 +43,7 @@ def get_config() -> Config:
             admin_token=os.getenv("MARKLAND_ADMIN_TOKEN", "").strip(),
             sentry_dsn=os.getenv("SENTRY_DSN", "").strip(),
             resend_api_key=os.getenv("RESEND_API_KEY", "").strip(),
-            resend_from_email=os.getenv("RESEND_FROM_EMAIL", "notifications@markland.dev").strip(),
+            resend_from_email=os.getenv("RESEND_FROM_EMAIL", "Markland Login <notifications@markland.dev>").strip(),
             session_secret=os.getenv("MARKLAND_SESSION_SECRET", "").strip(),
             umami_website_id=os.getenv("UMAMI_WEBSITE_ID", "").strip(),
             umami_script_url=os.getenv("UMAMI_SCRIPT_URL", "https://cloud.umami.is/script.js").strip(),

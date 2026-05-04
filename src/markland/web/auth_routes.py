@@ -72,6 +72,24 @@ def build_auth_router(
             )
         )
 
+    @router.get("/auth/magic-link-sent")
+    def magic_link_sent_page(
+        request: Request,
+        email: str | None = None,
+        next: str | None = None,
+    ) -> Response:
+        if not email or not isinstance(email, str) or not _EMAIL_RE.match(email.strip()):
+            return RedirectResponse(url="/login", status_code=303)
+        safe_next = safe_return_to(next) if isinstance(next, str) else None
+        return HTMLResponse(
+            render_with_nav(
+                magic_link_sent_tpl, request, db_conn,
+                base_url=base_url, secret=session_secret,
+                email=email.strip().lower(),
+                return_to=safe_next,
+            )
+        )
+
     @router.post("/api/auth/magic-link")
     async def magic_link(request: Request):
         if not session_secret:

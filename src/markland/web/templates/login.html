@@ -82,7 +82,6 @@
   .login-card button:hover { opacity: 0.9; }
   .login-card button:active { transform: translateY(1px); }
   .login-card button[disabled] { opacity: 0.55; cursor: not-allowed; }
-  .login-card .msg,
   .login-card .err {
     margin-top: 1rem;
     font-size: 0.92rem;
@@ -90,9 +89,9 @@
     border-radius: var(--radius);
     border: 1px solid var(--outline-hairline);
     background: var(--surface-2);
+    color: var(--red);
+    border-left: 3px solid var(--red);
   }
-  .login-card .msg { color: var(--green); border-left: 3px solid var(--green); }
-  .login-card .err { color: var(--red); border-left: 3px solid var(--red); }
 </style>
 
 <div class="login-wrap">
@@ -125,15 +124,16 @@
       headers: {'content-type': 'application/json'},
       body: JSON.stringify({email, return_to: next}),
     });
+    if (r.ok) {
+      const params = new URLSearchParams({email});
+      if (next && next !== '/') params.set('next', next);
+      window.location.assign('/auth/magic-link-sent?' + params.toString());
+      return;
+    }
     btn.disabled = false;
     btn.textContent = 'Send magic link';
-    if (r.ok) {
-      msg.className = 'msg';
-      msg.textContent = 'Check your email for the sign-in link.';
-    } else {
-      msg.className = 'err';
-      msg.textContent = 'Something went wrong. Check the email and try again.';
-    }
+    msg.className = 'err';
+    msg.textContent = 'Something went wrong. Check the email and try again.';
   });
 </script>
 {% endblock %}
