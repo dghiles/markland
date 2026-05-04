@@ -19,6 +19,7 @@ from markland.db import (
     list_public_documents,
 )
 from markland.web.competitors import COMPETITORS, MARKLAND, get_competitor
+from markland.web.blog import render_atom_feed
 from markland.web.renderer import make_excerpt, render_markdown
 from markland.web.seo import build_sitemap_xml, render_llms_txt, render_robots_txt, EXPLORE_MIN_PUBLIC_DOCS
 from markland.web.render_helpers import render_with_nav
@@ -263,6 +264,8 @@ def create_app(
     privacy_tpl = env.get_template("privacy.html")
     terms_tpl = env.get_template("terms.html")
     not_found_tpl = env.get_template("404.html")
+    blog_index_tpl = env.get_template("blog_index.html")
+    blog_post_tpl = env.get_template("blog_post.html")
 
     mcp_snippet = _load_mcp_snippet()
     mcp_snippet_json = json.dumps(mcp_snippet)
@@ -310,8 +313,9 @@ def create_app(
 
     @app.get("/llms.txt", response_class=PlainTextResponse)
     def llms_txt(request: Request):
+        from markland.web.blog import list_published_posts
         host = _public_host(request, base_url)
-        return PlainTextResponse(render_llms_txt(host))
+        return PlainTextResponse(render_llms_txt(host, list_published_posts()))
 
     # Path → template object for the sitemap's per-page lastmod (audit M10).
     # /alternatives/{slug} all share the same template file, which is
@@ -335,6 +339,7 @@ def create_app(
 
     @app.get("/sitemap.xml", name="sitemap_xml")
     def sitemap_xml(request: Request):
+        from markland.web.blog import list_published_posts
         host = _public_host(request, base_url)
         public_doc_count = db_conn.execute(
             "SELECT COUNT(*) FROM documents WHERE is_public = 1"
@@ -344,12 +349,27 @@ def create_app(
             if p != "/explore" or public_doc_count >= EXPLORE_MIN_PUBLIC_DOCS
         ]
         paths += [f"/alternatives/{c.slug}" for c in COMPETITORS]
+        # Blog: include /blog index + each post URL only when ≥1 published post
+        # exists. Same gating principle as /explore — don't list thin or empty
+        # surfaces (audit G5 / blog launch).
+        blog_posts = list_published_posts()
+        if blog_posts:
+            paths.append("/blog")
+            paths.extend(f"/blog/{p.slug}" for p in blog_posts)
         today = datetime.now(timezone.utc).date().isoformat()
 
         def _lastmod_for(path: str) -> str:
             tpl = _PATH_TEMPLATE.get(path)
             if tpl is None and path.startswith("/alternatives/"):
                 tpl = alternative_tpl
+            elif path == "/blog":
+                tpl = blog_index_tpl
+            elif path.startswith("/blog/"):
+                slug = path.split("/", 2)[2]
+                for p in blog_posts:
+                    if p.slug == slug:
+                        return p.updated_at
+                tpl = blog_post_tpl
             return _template_lastmod(tpl) if tpl is not None else today
 
         body = build_sitemap_xml(base_url=host, urls=paths, lastmod=_lastmod_for)
@@ -431,6 +451,47 @@ def create_app(
                 terms_tpl, request, db_conn,
                 base_url=base_url, secret=session_secret,
                 **_seo_extra(request, base_url, page_template=terms_tpl),
+            )
+        )
+
+    @app.get("/blog", response_class=HTMLResponse)
+    def blog_index(request: Request):
+        from markland.web.blog import list_published_posts
+        posts = list_published_posts()
+        return HTMLResponse(
+            render_with_nav(
+                blog_index_tpl, request, db_conn,
+                base_url=base_url, secret=session_secret,
+                **_seo_extra(request, base_url, page_template=blog_index_tpl),
+                posts=posts,
+            )
+        )
+
+    @app.get("/blog/feed.xml", name="blog_feed")
+    def blog_feed(request: Request):
+        from markland.web.blog import list_published_posts
+        host = _public_host(request, base_url)
+        body = render_atom_feed(host, list_published_posts())
+        return Response(body, media_type="application/atom+xml; charset=utf-8")
+
+    @app.get("/blog/{slug}", response_class=HTMLResponse)
+    def blog_post(slug: str, request: Request):
+        from fastapi import HTTPException
+        from markland.web.blog import get_post
+        post = get_post(slug)
+        if post is None:
+            raise HTTPException(status_code=404)
+        ctx = _seo_extra(request, base_url, page_template=blog_post_tpl)
+        # Per-post lastmod overrides the template mtime — content date is
+        # the more useful signal for the visible "Last updated:" line.
+        ctx["page_last_updated"] = post.updated_at
+        return HTMLResponse(
+            render_with_nav(
+                blog_post_tpl, request, db_conn,
+                base_url=base_url, secret=session_secret,
+                **ctx,
+                post=post,
+                content_html=render_markdown(post.body_markdown),
             )
         )
 

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% set seo_description = "The Markland blog — notes on agent-native publishing, MCP, and the workflow gap between AI agents and the humans they work with." %}
+
+{% block title %}Blog — Markland{% endblock %}
+
+{% block nav_blog %}active{% endblock %}
+
+{% block extra_jsonld %}
+{%- set _blog_url = canonical_host ~ "/blog" -%}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Blog",
+  "@id": {{ _blog_url | tojson }},
+  "url": {{ _blog_url | tojson }},
+  "name": "Markland Blog",
+  "description": "Notes on agent-native publishing, MCP, and the workflow gap between AI agents and the humans they work with.",
+  "publisher": { "@id": (canonical_host ~ "/#organization") | tojson },
+  "inLanguage": "en"
+}
+</script>
+{% endblock %}
+
+{% block head_extra %}
+.blog-list { max-width: 760px; margin: 0 auto; padding: 1rem 0 4rem; }
+.blog-eyebrow { font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.5rem; }
+.blog-list h1 { font-family: var(--font-display); font-size: 2.4rem; font-weight: 800; letter-spacing: -0.028em; line-height: 1.1; margin: 0 0 0.6rem 0; color: var(--text); }
+.blog-intro { font-size: 1.05rem; color: var(--muted); margin-bottom: 3rem; max-width: 640px; line-height: 1.6; }
+.blog-empty { color: var(--muted); padding: 3rem 0; text-align: center; }
+.blog-feed-link { display: inline-block; margin-top: 0.4rem; font-family: var(--font-mono); font-size: 0.78rem; color: var(--blue); border-bottom: 1px solid rgba(66, 133, 244, 0.4); }
+.blog-feed-link:hover { border-bottom-color: var(--blue); }
+.post-card { display: block; padding: 1.6rem 0; border-top: 1px solid var(--outline-hairline); color: inherit; transition: opacity 0.18s ease; }
+.post-card:hover { opacity: 0.85; }
+.post-card-meta { font-family: var(--font-mono); font-size: 0.78rem; color: var(--muted); letter-spacing: 0.04em; margin-bottom: 0.4rem; }
+.post-card h2 { font-family: var(--font-display); font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 0.4rem 0; color: var(--text); line-height: 1.25; }
+.post-card p { color: var(--text-2); margin: 0; line-height: 1.6; font-size: 0.97rem; }
+{% endblock %}
+
+{% block content %}
+<section class="blog-list">
+    <div class="blog-eyebrow eb-blue">Blog</div>
+    <h1>Notes from the agent-native side.</h1>
+    <p class="blog-intro">Writing on MCP, agent-authored documents, and the workflow gap between AI agents and the humans they work with. New posts roughly every other week.</p>
+    <a class="blog-feed-link" href="/blog/feed.xml">Subscribe via RSS &rarr;</a>
+
+    {% if posts %}
+        {% for post in posts %}
+        <a class="post-card" href="/blog/{{ post.slug }}">
+            <div class="post-card-meta">{{ post.published_at }}</div>
+            <h2>{{ post.title }}</h2>
+            <p>{{ post.description }}</p>
+        </a>
+        {% endfor %}
+    {% else %}
+        <div class="blog-empty">No posts yet &mdash; check back soon.</div>
+    {% endif %}
+</section>
+{% endblock %}
