@@ -81,9 +81,17 @@ def test_mcp_no_slash_does_not_redirect(authed):
         f"This is the bug — middleware passed (auth ok), Starlette's mount "
         f"redirected /mcp to /mcp/."
     )
+    # The fix must actually dispatch into the FastMCP sub-app, not just stop
+    # redirecting. 404 means our route registration is broken or the path
+    # rewrite is wrong.
+    assert r.status_code != 404, (
+        f"got 404 — route exists but didn't reach FastMCP. "
+        f"Body: {r.text[:200]!r}"
+    )
     # Acceptable terminal codes: 200 (initialize accepted), 202 (accepted async),
-    # or any other non-3xx. We don't pin the exact value because FastMCP can
-    # legitimately respond several ways depending on session state.
+    # 406 (Not Acceptable on missing Accept header), or any other non-3xx.
+    # We don't pin the exact value because FastMCP can legitimately respond
+    # several ways depending on session state.
     assert r.status_code < 300 or r.status_code >= 400, r.text[:200]
 
 
@@ -122,6 +130,15 @@ def test_mcp_get_no_slash_does_not_redirect(authed):
         follow_redirects=False,
     )
     assert r.status_code != 307, f"got 307 → {r.headers.get('location')!r}"
+    # The fix must actually dispatch into the FastMCP sub-app, not just stop
+    # redirecting. 404 means our route registration is broken or the path
+    # rewrite is wrong. (FastMCP itself may legitimately return 400 for a
+    # GET without a session ID — that's still semantically reaching the
+    # sub-app, which is what we care about here.)
+    assert r.status_code != 404, (
+        f"got 404 — route exists but didn't reach FastMCP. "
+        f"Body: {r.text[:200]!r}"
+    )
 
 
 def test_unauthenticated_post_mcp_short_circuits_to_401(tmp_path, monkeypatch):

@@ -872,6 +872,48 @@ def create_app(
         protected_prefixes=("/mcp", "/admin/"),
     )
     if mcp_app is not None:
+        # Bare-path passthrough: bypass Starlette's mount-redirect (which 307s
+        # /mcp -> /mcp/). Register a Starlette Route at exactly /mcp that
+        # delegates to the same sub-app handler. Each redirect saved is one
+        # full HTTPS round-trip; observed 5-8s saved on Claude Code session
+        # establishment. markland-dfj.
+        #
+        # Order matters: the Route MUST be registered before the Mount,
+        # because Starlette matches routes in declaration order and the Mount
+        # at /mcp will match the bare /mcp path and emit a 307 to /mcp/
+        # before any later Route gets a chance.
+        #
+        # NB: starlette.routing.Route only treats endpoint as a raw ASGI app
+        # when it is NOT a plain function/method (the func/method branch wraps
+        # it via request_response and changes the call signature). Wrapping
+        # the ASGI delegate in a class with __call__ keeps the raw
+        # (scope, receive, send) signature.
+        from starlette.routing import Route as _StarletteRoute
+
+        class _McpNoSlashASGI:
+            """Delegates /mcp (bare path) to the FastMCP sub-app, rewriting
+            scope path to '/' so the sub-app's streamable_http_path='/' (set
+            on mcp_instance.settings, ~line 203) matches."""
+
+            def __init__(self, sub_app):
+                self._sub_app = sub_app
+
+            async def __call__(self, scope, receive, send):
+                scope = dict(scope)
+                scope["path"] = "/"
+                scope["raw_path"] = b"/"
+                await self._sub_app(scope, receive, send)
+
+        # FastMCP uses POST (JSON-RPC), GET (SSE event stream), DELETE
+        # (session end). Mirror what the sub-app accepts.
+        app.router.routes.append(
+            _StarletteRoute(
+                "/mcp",
+                _McpNoSlashASGI(mcp_app),
+                methods=["GET", "POST", "DELETE"],
+                include_in_schema=False,
+            )
+        )
         app.mount("/mcp", mcp_app)
 
     # Starlette wraps middleware such that the last-added is OUTERMOST (runs
