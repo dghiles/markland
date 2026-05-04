@@ -8,6 +8,20 @@ AUTHENTICATED requests. Tests must mint a real token and send it as
 the 307 and the tests will be green-on-red (passing on broken code).
 """
 
+# Tried first (markland-dfj Task 2): FastAPI(redirect_slashes=False).
+# Doesn't help — it stops the 307 but POST /mcp then 404s instead of
+# reaching the sub-app, because the Mount at /mcp serves /mcp/* (with
+# trailing slash) and relies on Starlette's Mount.handle slash-redirect
+# to canonicalize /mcp -> /mcp/. Disabling the FastAPI Router-level
+# redirect_slashes flag also broke two pre-existing tests in
+# tests/test_proxy_headers.py
+# (test_mcp_redirect_downgrades_without_proxy_headers and
+# test_mcp_redirect_preserves_https_with_proxy_headers) which assert
+# that POST /mcp 307s — they got 404 instead. The fix has to operate at
+# the route level (an explicit handler that dispatches into the mounted
+# ASGI app), not the router level. See Task 3 of
+# docs/plans/2026-05-04-mcp-trailing-slash-redirect.md.
+
 from __future__ import annotations
 
 import pytest
