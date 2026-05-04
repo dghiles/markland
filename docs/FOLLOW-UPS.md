@@ -184,6 +184,16 @@ post-launch sprint should pick up.
   (`google-site-verification=...` added at apex via Porkbun API),
   `sitemap.xml` submitted (13 URLs all `https://markland.dev/*`,
   2026-05-01 lastmod). Evidence: `cutover-evidence/11-*.log` (gitignored).
+- **Phase 0 §14 walkthrough — second pass needed.** Eric ran steps 1–3
+  end-to-end on 2026-05-02 (signup via invite, MCP device flow, publish
+  via `markland_publish`, view-grant to operator). Steps 4–6 (edit-level
+  grant + agent `markland_update` with `if_version` + viewer-sees-edit)
+  have no production evidence yet. Recruit a second non-engineer (or ask
+  Eric for a second pass) to run an edit-grant + agent-update flow before
+  opening Phase 1. Detail in `docs/runbooks/phase-0-checklist.md`.
+- **Phase 0 rate-limit + funnel verification — still blocked.** Depends on
+  the §14 second pass producing real publish/grant/update events on a fresh
+  user/agent token pair. See checklist for thresholds.
 
 ## Docs
 

@@ -7,10 +7,13 @@ maps to spec section 14 success criteria; if every box checks, Markland is launc
 
 - **Environment row**: 5/5 green.
 - **Sentry alerts**: 4/4 configured (org `markland`, project `markland`).
-- **§14 walkthrough (Alex)**: not started — requires recruiting a non-engineer
-  friend with a Claude Code install.
-- **Rate-limit + audit + funnel verification**: blocked on walkthrough (needs
-  real publish/grant/update events to verify against).
+- **§14 walkthrough**: partial — Eric (`hello@ericpaulsen.io`) ran steps 1–3
+  end-to-end on 2026-05-02 via Claude Code, but stopped at view-only grant.
+  Edit-grant + agent-update + viewer-sees-edit loop (steps 4–6) still
+  unverified in production.
+- **Rate-limit + audit + funnel verification**: still blocked. Audit log
+  captured Eric's invite_accept / publish / grant correctly, but the agent
+  `markland_update` path has no production evidence.
 
 ## Environment
 
@@ -42,15 +45,28 @@ Org `markland`, project `markland`. All four route via `IssueOwners` →
 
 ## Success criteria (spec section 14)
 
-A non-engineer friend ("Alex") can complete this script without instructions
-beyond the one-page quickstart:
+A non-engineer friend can complete this script without instructions beyond
+the one-page quickstart:
 
-- [ ] **1. Sign up.** Alex visits `/`, clicks "Sign in", enters their email, clicks the magic link -> redirected to the dashboard.
-- [ ] **2. Install.** Alex tells Claude Code to *"install the Markland MCP server from https://markland.dev/setup"*, completes the device flow, sees `markland_*` tools.
-- [ ] **3. Publish.** Alex asks "publish a markdown doc titled 'Hello' with some notes". Claude calls `markland_publish`. Share link returned.
-- [ ] **4. Share.** Alex asks "share this with <operator's email>, edit access". Claude calls `markland_grant`. Operator receives an email notification.
-- [ ] **5. Agent edits.** Operator's agent calls `markland_update` with the correct `if_version`. No silent data loss; operator sees the edit at the share URL within 5 seconds of the update returning.
-- [ ] **6. Viewer works.** Alex sees the edit rendered at the share URL.
+- [x] **1. Sign up.** Eric accepted invite `inv_22c11ff00ac35828` at
+  2026-05-02 19:50:34 UTC. (Used invite link rather than pure `/sign-in`
+  flow, which is also a supported entry path. Magic-link UI was not
+  exercised by Eric — open question whether to add a second person who
+  starts from `/` to validate that route too.)
+- [x] **2. Install.** Eric completed Claude Code device flow at 19:54:02 UTC;
+  token `tok_b5b386...` issued, last used 21:06 UTC (70+ min of active use).
+  `markland_*` tools clearly worked since publish in step 3 used them.
+- [x] **3. Publish.** Eric published `417df037...` "Adcast — AI Video Ads for
+  Performance Marketers" at 19:58:43 UTC via `markland_publish`. Share token
+  `ovwr-0s90gBT-QLMq4WB8A`. Audit row #7 logged.
+- [ ] **4. Share with edit access.** Eric granted `view` only on 2026-05-02
+  19:59:46 UTC (audit row #8). Edit-level grant has no production evidence —
+  needs a second pass (ask Eric to re-share with edit, or recruit another
+  non-engineer to run steps 4–6 fresh).
+- [ ] **5. Agent edits via `markland_update`.** No revisions exist for the
+  Adcast doc (`version=1`, `created_at == updated_at`). Optimistic concurrency
+  (`if_version`) and conflict handling have no production evidence.
+- [ ] **6. Viewer sees edit within 5s.** Blocked on step 5.
 
 ## Rate limiting + audit verification
 
