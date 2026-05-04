@@ -295,6 +295,12 @@ def build_mcp(
                 docs_svc.feature(db_conn, p, doc_id, featured)
             except NotFound:
                 raise tool_error("not_found")
+            except PermissionDenied:
+                # P2-G: docs_svc.feature now self-gates on admin. The
+                # tool-layer check above already raised forbidden for
+                # non-admins, but a future caller path that bypasses
+                # the tool gate would still be caught here.
+                raise tool_error("forbidden")
 
         # Return the freshly-loaded doc as a doc_envelope.
         doc = db_module.get_document(db_conn, doc_id)

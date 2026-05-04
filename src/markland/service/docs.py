@@ -703,8 +703,14 @@ def set_visibility(
 def feature(
     conn: sqlite3.Connection, principal: Principal, doc_id: str, is_featured: bool
 ) -> dict:
-    # Admin-only per spec §3 — enforced at the tool layer via principal.is_admin
-    # (Plan 2 carries is_admin on users). This helper trusts its caller.
+    """Mark/unmark a doc as featured. Admin-only per spec §3.
+
+    P2-G / markland-ezu: this helper now enforces the admin gate itself
+    (defense-in-depth) instead of trusting the tool layer. A non-admin
+    caller raises PermissionDenied — callers map to forbidden / 403.
+    """
+    if not principal.is_admin:
+        raise PermissionDenied("admin only")
     doc = db.set_featured(conn, doc_id, is_featured)
     if doc is None:
         raise NotFound(f"document {doc_id}")

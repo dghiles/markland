@@ -562,7 +562,9 @@ def create_app(
 
         from markland.service import audit as audit_svc
 
-        rows = audit_svc.list_recent(db_conn, limit=200)
+        # P2-G: pass principal so audit.list_recent enforces its own
+        # admin gate (defense-in-depth on top of the route check above).
+        rows = audit_svc.list_recent(db_conn, limit=200, principal=principal)
         for r in rows:
             r["metadata_json"] = json.dumps(r["metadata"], sort_keys=True)
         return HTMLResponse(admin_audit_tpl.render(rows=rows))

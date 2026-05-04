@@ -65,8 +65,20 @@ def list_recent(
     *,
     doc_id: str | None = None,
     limit: int = 100,
+    principal: Principal | None = None,
 ) -> list[dict[str, Any]]:
-    """Return most recent audit rows, newest first. Optionally filter by doc_id."""
+    """Return most recent audit rows, newest first. Optionally filter by doc_id.
+
+    Defense-in-depth admin gate (P2-G / markland-ezu): when `principal`
+    is provided, require admin. Callers in this codebase MUST pass the
+    principal so the gate catches accidental exposure on a new route.
+    The argument is `None`-defaultable for back-compat with existing
+    paginated tests, but new callers should pass it.
+    """
+    if principal is not None and not principal.is_admin:
+        from markland.service.permissions import PermissionDenied
+
+        raise PermissionDenied("audit.list_recent requires admin")
     limit = max(1, min(int(limit), 1000))
     if doc_id is not None:
         cursor = conn.execute(
