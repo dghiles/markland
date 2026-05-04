@@ -127,22 +127,33 @@ _CSRF_MAX_AGE_SECONDS = 60 * 60  # 1 hour
 
 
 def make_csrf_token(user_id: str, *, secret: str | None = None) -> str:
-    """Sign a short-lived CSRF token bound to `user_id`."""
+    """Sign a short-lived CSRF token bound to `user_id`.
+
+    Raises ValueError if the session secret is empty — refusing to sign
+    with a placeholder mirrors `_signer()`'s behaviour and prevents
+    accidentally accepting forged CSRF tokens in deployments that
+    forgot to configure MARKLAND_SESSION_SECRET (markland-bfk / P1-C).
+    """
     use_secret = secret if secret is not None else _default_secret()
     if not use_secret:
-        # Sign with a placeholder; verification will still require matching secret.
-        use_secret = "dev-placeholder"
+        raise ValueError("session secret must be non-empty")
     signer = TimestampSigner(use_secret, salt=_CSRF_SALT)
     return signer.sign(user_id.encode("utf-8")).decode("utf-8")
 
 
 def verify_csrf_token(token: str, user_id: str, *, secret: str | None = None) -> bool:
-    """Return True iff `token` is a valid CSRF token for `user_id`."""
+    """Return True iff `token` is a valid CSRF token for `user_id`.
+
+    Raises ValueError if the session secret is empty (markland-bfk /
+    P1-C). Accepting a placeholder secret here would allow an attacker
+    who knew about the placeholder fallback to forge CSRF tokens that
+    `verify_csrf_token` would happily accept on a misconfigured prod.
+    """
     if not token or not user_id:
         return False
     use_secret = secret if secret is not None else _default_secret()
     if not use_secret:
-        use_secret = "dev-placeholder"
+        raise ValueError("session secret must be non-empty")
     signer = TimestampSigner(use_secret, salt=_CSRF_SALT)
     try:
         unsigned = signer.unsign(token, max_age=_CSRF_MAX_AGE_SECONDS)
