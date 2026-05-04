@@ -44,12 +44,31 @@ class PrincipalMiddleware(BaseHTTPMiddleware):
 
         header = request.headers.get("authorization", "")
         if not header.lower().startswith("bearer "):
-            return JSONResponse({"error": "unauthenticated"}, status_code=401)
+            return self._unauthenticated(request)
 
         plaintext = header[7:].strip()
         principal = resolve_token(self._conn, plaintext)
         if principal is None:
-            return JSONResponse({"error": "unauthenticated"}, status_code=401)
+            return self._unauthenticated(request)
 
         request.state.principal = principal
         return await call_next(request)
+
+    @staticmethod
+    def _unauthenticated(request: Request) -> JSONResponse:
+        # Per RFC 9728 + MCP authorization spec (2025-03-26), advertise the
+        # resource-metadata URL so well-behaved MCP clients can discover that
+        # this server uses static bearer tokens (no OAuth) instead of
+        # speculatively probing /.well-known paths and tripping over HTML 404s.
+        scheme = request.url.scheme
+        host = request.headers.get("host", request.url.netloc)
+        metadata_url = f"{scheme}://{host}/.well-known/oauth-protected-resource"
+        return JSONResponse(
+            {"error": "unauthenticated"},
+            status_code=401,
+            headers={
+                "WWW-Authenticate": (
+                    f'Bearer realm="markland", resource_metadata="{metadata_url}"'
+                ),
+            },
+        )
