@@ -150,3 +150,29 @@ def test_privacy_has_standard_sections(client):
     ]
     missing = [h for h in required_h2 if h not in text]
     assert not missing, f"/privacy missing sections: {missing}"
+
+
+def test_terms_has_standard_sections(client):
+    """The /terms page must carry the 14 standard sections of a real
+    terms-of-service document. Section presence is asserted via the
+    <h2> heading text — order is not enforced here, only completeness."""
+    r = client.get("/terms")
+    text = r.text
+    required_h2 = [
+        "Introduction and acceptance",
+        "Definitions",
+        "Your account",
+        "Acceptable use",
+        "Your content",
+        "Our service",
+        "Termination",
+        "Disclaimers",
+        "Limitation of liability",
+        "Indemnification",
+        "Governing law and disputes",
+        "General",
+        "Changes to these terms",
+        "Contact",
+    ]
+    missing = [h for h in required_h2 if h not in text]
+    assert not missing, f"/terms missing sections: {missing}"
