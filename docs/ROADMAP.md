@@ -24,30 +24,35 @@ Current selection: **"Shared notes for you and your agents."** — collaboration
 
 ---
 
-## Where we are (2026-05-03)
+## Where we are (2026-05-03 PM)
 
-Live at **`https://markland.dev`**. Cutover complete 2026-05-01 (full
-write-up in the Shipped log). Two days of polish + hardening since:
-**MCP audit done through Plan 6** (axis 5 — five new tools shipped in PR
-#38) plus a three-PR retrospective sweep (Plan A security, Plan B error
-model, Plan C hygiene — PRs #45/#46/#47). **Security follow-ups batch
-landed** (PR #49 — all 6 items: `user_code` redirect escape, per-IP rate
-limit on `/device/confirm`, lock-after-N-fails, `grant_by_principal_id`
-defensive check, append-only `audit_log` enforcement, `/admin/audit`
-middleware widening). **Agent token query-string leak fixed** via signed
-flash cookie (PR #41). **Umami Cloud analytics live** (PR #37 + CSP fix
-#43). **SEO audit complete** — every C/H/M/L item from
-`docs/audits/2026-04-24-seo-audit/ACTION-PLAN.md` is done or obsolete
-(C3 branded 404, C4 trust pages ≥250w, L3 AI-crawler blocklist, L4
-`/admin/*` middleware dedupe, L5 post-cutover sitemap/GSC). **Fresh
-strategic input:** GEO / AI-search readiness analysis at
-`docs/audits/2026-05-03-geo-analysis/GEO-ANALYSIS.md` scored us 62/100 —
-solid SSR + JSON-LD foundation, but the AI-crawler blocklist is currently
-locking us out of Perplexity and (partially) Claude Web. Decision pending.
+Live at **`https://markland.dev`**. Heavy day of shipping since this morning's
+refresh. **GEO batch G1-G5 shipped** (PR #54, #55, #56) — robots.txt
+pruned to training-only blocks (Perplexity + ChatGPT Search + Claude Web
+all reachable now), `/llms.txt` live, question-shaped FAQ blocks across
+`/` + `/quickstart` + every `/alternatives/{slug}`, 143-word "What is
+Markland?" answer block above the hero, `/explore` dropped from sitemap
+until it has content. **GEO posture decision: made + executed** —
+Markland is now optimized for AI search engines, not blocked from them.
+**Magic-link single-use enforcement shipped** (PR #59) — closes the
+15-min capture window flagged in the concerns review and on
+`/security`'s post-beta hardening list. **Admin metrics expansion
+shipped** (PR #53) — `markland_admin_metrics` now returns a 19-key
+funnel + totals snapshot. **Seed content live** (PR #60) — 9 demo docs
+(6 admin-published explainers + 3 agent-published from "Markland Bot"),
+bulk-publish script, agent-provisioned at deploy. The agent-to-agent
+positioning now has a *visible* surface on `/explore` instead of being
+abstract. **Admin runbook + helper scripts** (PR #57, #58) productized
+the bag of one-off SQL queries used during cutover. **Fresh strategic
+input:** monetization strategy design landed at
+`docs/specs/2026-05-03-monetization-strategy-design.md` — 4-tier ladder
+(Free / Pro / Team / Enterprise) targeting **$25K MRR within 12 months**,
+per-workspace base + per-human-seat expansion, agent-operations metered
+overage as a future lever. Awaiting review before plan-writing.
 
 One MCP audit plan left — Plan 7 (Phase B deprecation/removal of 4
-shims). Code-complete on the v1 build (10 plans, 864 tests).
-`markland_admin_metrics` MCP tool live since 2026-05-01.
+shims, window opens 2026-05-31). Code-complete on the v1 build (10
+plans, 864 tests).
 
 ---
 
@@ -55,7 +60,8 @@ shims). Code-complete on the v1 build (10 plans, 864 tests).
 
 Active or imminent. Items here have a plan or a clear next action.
 
-- **GEO / AI-search posture decision** — fresh analysis at `docs/audits/2026-05-03-geo-analysis/GEO-ANALYSIS.md` (score 62/100). Concrete trade: today's robots.txt blocks `PerplexityBot`, `GPTBot`, and the deprecated `Claude-Web`/`anthropic-ai` UAs (modern `ClaudeBot` is allowed via wildcard). Doing nothing keeps us out of Perplexity and ChatGPT's offline index. Next action is a call: unblock named AI-search crawlers (Perplexity + GPTBot for ChatGPT Search) and ship `/llms.txt` + question-shaped H2/H3 + a small FAQ block, OR keep the block and accept the visibility cost. Plan-pending until the call is made.
+- **Monetization strategy review + plan-write** — design spec landed at `docs/specs/2026-05-03-monetization-strategy-design.md`: 4-tier ladder (Free / Pro / Team / Enterprise), per-workspace + per-human-seat expansion, agent-operations metered overage reserved as a future lever, $25K MRR target in 12 months. Next move: review, decide tier prices + workspace/seat caps, then write the implementation plan (Stripe wiring, gates, billing UI, marketing pricing page).
+- **Pre-release security review** — beads `markland-06e` (P1). Multi-agent security review across the live build before broader launch. Should bundle remaining hardening items (visibility-change rail, agent-edit grant safety rails) into a single review pass.
 - **MCP audit Plan 7 — Phase B deprecation/removal** — opens 30 days after the `mcp-audit-axis-5-released` tag (laid 2026-05-01, so window opens **2026-05-31**). Removes 4 deprecation shims: `markland_set_visibility`, `markland_feature`, `markland_set_status`, `markland_clear_status`. Plan: `docs/plans/2026-04-27-mcp-phase-b-deprecation-removal.md`.
 - **Install/onboarding flow simplification** — Option 1 shipped (PR #12 + #13). Remaining: (2) prefill `user_code` via `/device?code=…` (route already supports it — runbook needs to construct the link); (3) single-link install — CLI runbook generates one `/device?code=…` URL so sign-in + code-entry happen on the same page; (4) skip device flow for browser-first users — sign in, hit "Connect Claude Code", copy one-shot token from `/me/tokens` into `claude mcp add`. Plan `docs/plans/2026-04-24-setup-install-ux-fix.md`. Worth a brainstorm pass on (2)-(4) before launch — right answer depends on whether the primary install audience is browser-first humans or CLI-first agents.
 - **Agent-edit grant safety rails** — granting `edit` to another agent today carries unsurfaced risk (prompt-injected edits, accidental overwrites, polluted project memory) and the grant UI/MCP surface doesn't show the consequences. Two angles: (a) `/quickstart` + grant UI default-recommend `view` for cross-principal agent grants and require an explicit gesture for `edit`; (b) grant-confirmation copy spells out "this lets that agent rewrite the doc body and revision history." Brainstorm — sourced from the 2026-05-03 third-party concerns review.
@@ -69,11 +75,9 @@ left is launch-readiness polish.
 - **CSRF on save routes** — `/d/{t}/fork`, `/d/{t}/bookmark`, `DELETE /d/{t}/bookmark` accept plain form/fetch with `SameSite=Lax`. First user-authored mutating POSTs in the app; ship before any real users. No plan yet — small.
 - **Sentry DSN + alert wiring** — plan: `docs/plans/2026-04-28-sentry-dsn-alerts.md`. Code path lives (`config.sentry_dsn` + conditional init in `run_app.py`); operator action is provisioning the DSN secret and wiring the three alerts (5xx spike, ConflictError spike, EmailSendError spike).
 - **Soak-window analytics check** — beads `markland-fjd` (2 weeks post-launch): pull Umami stats + `/admin/metrics` 14d funnel snapshot + cross-reference signups vs Umami sessions, post a 1-message summary.
-- **Admin metrics — tool/usage expansion** — plan: `docs/plans/2026-05-03-admin-metrics-tool-usage-expansion.md`. Pure additive aggregation in `markland_admin_metrics` + `GET /admin/metrics`: unwindowed totals (`users_total`, `documents_total`, `documents_public_total`, `grants_total`, `invites_total`) and windowed counts (`documents_created`/`updated`/`deleted`, `grants_revoked`, `invites_created`). No new tables. Sharpens the soak-window check above.
 - **Self-service deletion** — `/privacy` line 38 already promises "before GA": doc deletion (doc + revisions + grants) and account deletion (magic-link records + agent tokens). Currently "reply to any email and a human will process." External evaluators read this as a "hold off, beta-only" signal — closing it removes a concrete trust friction. No plan yet.
 - **Formal privacy policy** — `/privacy` line 11 says "a formal privacy policy will be published before general availability." Today's page is a working summary, which reads as deliberately stub-y to outside evaluators. Promote to a real policy (data inventory, retention, sub-processors, jurisdiction, contact).
 - **Sharpen agent-to-agent positioning** — third-party eval flagged `markland_grant` to another agent ID as the most interesting differentiator; current homepage treats it as a footnote. Add an above-fold or near-fold use-case block: "agent-to-agent coordination — architect agent publishes plan, QA agent appends test report, you read one doc instead of scraping terminal logs." Brainstorm — touches landing copy + possibly a `/explore`-adjacent example.
-- **Per-magic-link-token consumption tracking** — close the 15-min capture window. `/security` line 16 already lists this on the "post-beta hardening list": today a captured magic-link can be replayed within its window because consumption isn't tracked server-side. Concrete fix: `magic_links.consumed_at` column, single-use enforcement on verify. Small.
 - **Visibility-change safety rail** — today `markland_publish` accepts `public=true` in one tool call, so a casually-worded prompt can flip a doc public without a human gesture. Two-step it: `markland_publish` ignores `public=true` (defaults private), and a separate `markland_set_visibility` (already exists) is the only way to flip. Surface the visibility change as a flash on next page render + bold audit-log entry. Sourced from 2026-05-03 third-party concerns review.
 - **Backup RPO/RTO commitment** — `/privacy` line 43 says backup rotation cadence is "still being tuned during beta." Pick numbers (Litestream/R2 backup interval, max RPO, documented RTO), commit to them, replace the hedge in `/privacy` with the real values. Pure ops + docs.
 - **Operational maturity baseline** — single-developer reality is structural, but mitigations close most of the gap: public `/status` page (uptime + last incident), incident-response runbook in `docs/runbooks/`, named contact for security/incidents on `/security`. Sourced from 2026-05-03 third-party concerns review.
@@ -98,6 +102,8 @@ date it landed.
 
 ### Hosted infrastructure + ops
 
+- **2026-05-03** — Seed content live (PR #60 + Docker fix #61): 9 demo docs (6 admin-published explainers — publish surface, three-way collab, Git-vs-Docs, Claude Code quickstart, MCP tool reference, conflict-free editing — plus 3 agent-published from "Markland Bot" describing shipped-today specifics), bulk-publish script, agent provisioned at deploy. `/explore` now shows agent-authored content visibly instead of being abstract.
+- **2026-05-03** — Admin runbook + helper scripts (PR #57, #58 + follow-up runbook commits). `scripts/admin/*` for end-to-end admin token mint/revoke/inspect, `curl-admin` helper sourced from `.env.local`, one-off SQL pattern documented (Fly image has no `sqlite3` CLI — use `python -c` against the volume). Productizes the bag of tricks used during cutover.
 - **2026-05-03** — `markland_admin_metrics` expanded from 9 to 19 keys (PR #53). Adds unwindowed totals (`users_total`, `documents_total`, `documents_public_total`, `grants_total`, `invites_total`) + windowed activity (`documents_created/updated/deleted`, `grants_revoked`, `invites_created`). Existing keys preserved verbatim — no breaking change. Plan `docs/plans/2026-05-03-admin-metrics-tool-usage-expansion.md`.
 - **2026-05-03** — Rate-limiter memory bound: periodic stale-key GC on the hit-counter dicts so `/device/confirm`'s per-IP limiter can't grow without bound (PR #51, beads `markland-77d`).
 - **2026-05-03** — `/admin/*` bearer-resolution dedupe (SEO audit L4): single helper across `/admin/waitlist` + `/admin/metrics` + drops a redundant `last_used_at` write per request (PR #50).
@@ -113,6 +119,7 @@ date it landed.
 
 ### Build (v1 plans + post-launch security/MCP)
 
+- **2026-05-03** — **Magic-link single-use enforcement (PR #59)** — closes the 15-min capture-and-replay window flagged in the third-party concerns review and on `/security`'s post-beta hardening list. `magic_links.consumed_at` column + single-use guard on verify; replays rejected with the same generic error to avoid timing oracles. Plan `docs/plans/2026-05-03-magic-link-single-use.md`.
 - **2026-05-03** — **Security follow-ups batch (PR #49)** — all 6 items from `docs/plans/2026-04-28-security-followups-batch.md`: `user_code` redirect escape via `urllib.parse.quote`, per-IP rate limit on `POST /device/confirm`, lock-after-N-failed-confirms on the device row, `grant_by_principal_id` defensive `principal_type` check, append-only `audit_log` enforcement (DB trigger), `/admin/audit` middleware coverage widened.
 - **2026-05-01** — **Agent token query-string leak fixed (PR #41)** — `routes_agents.py:223-225` no longer redirects with `?new_token=…`. Now writes the token to a signed flash cookie (`URLSafeTimedSerializer`, mirrors `pending_intent.py`) read once on the next page render, then cleared.
 - **2026-05-01** — **MCP audit Plan 6 — axis 5 (PR #38)** — five new tools: `markland_get_by_share_token`, `markland_list_invites`, `markland_explore`, `markland_fork`, `markland_revisions`. Layer B baselines + extended idempotency catalog.
@@ -143,9 +150,14 @@ date it landed.
 - **2026-04-18** — Frontend theming experiments (`dark-outlined-primary`, `io24-theming`, `neubrutalism-theming`).
 - **2026-04-17** — Frontend implementation baseline.
 
+### Strategy + specs
+
+- **2026-05-03** — Monetization strategy design landed at `docs/specs/2026-05-03-monetization-strategy-design.md`. 4-tier ladder (Free / Pro / Team / Enterprise), per-workspace base + per-human-seat expansion, agent-operations metered overage as a future lever. **$25K MRR within 12 months** target. Awaiting review before plan-writing.
+
 ### SEO foundation
 
-- **2026-05-03** — GEO / AI-search readiness analysis published at `docs/audits/2026-05-03-geo-analysis/GEO-ANALYSIS.md` (score 62/100). Live curl + static-HTML inspection of 7 sitemap URLs, platform-by-platform breakdown (Google AIO, ChatGPT Search, Perplexity, Claude Web, Bing Copilot), AI-crawler access matrix.
+- **2026-05-03** — **GEO / AI-search readiness batch G1-G5 shipped (PR #54, #55, #56).** Robots.txt pruned to training-only blocks (`Google-Extended`, `Bytespider`); `PerplexityBot`, `GPTBot`, and modern `ClaudeBot` all reachable now — Markland is no longer locked out of Perplexity / ChatGPT Search / Claude Web. `/llms.txt` route live at `https://markland.dev/llms.txt`. Question-shaped FAQ blocks across `/`, `/quickstart`, all 5 `/alternatives/{slug}` (legacy `<dl>` removed). 143-word "What is Markland?" answer block above the hero on `/`. `/explore` dropped from `sitemap.xml` until it has content. Plan `docs/plans/2026-05-03-geo-search-readiness.md`.
+- **2026-05-03** — GEO / AI-search readiness analysis published at `docs/audits/2026-05-03-geo-analysis/GEO-ANALYSIS.md` (score 62/100). Live curl + static-HTML inspection of 7 sitemap URLs, platform-by-platform breakdown (Google AIO, ChatGPT Search, Perplexity, Claude Web, Bing Copilot), AI-crawler access matrix. Drove the G1-G5 batch above.
 - **2026-05-03** — **SEO audit complete** — every C/H/M/L item from `docs/audits/2026-04-24-seo-audit/ACTION-PLAN.md` shipped or marked obsolete. Final landings: C3 branded HTML 404 (`tests/test_404_page.py`), C4 trust pages expanded ≥250 words with E-E-A-T signal (`48dc2df`), L3 robots.txt AI-crawler blocklist expanded (PR #48), L4 `/admin/*` middleware dedupe (PR #50), L5 post-cutover sitemap submitted + GSC verified.
 - **2026-04-28** — Self-hosted Figtree, DM Mono, Newsreader (perf/SEO Task 10). Variable woff2 files served from `src/markland/web/assets/fonts/`, `@font-face` declarations in `base.html`, Newsreader italic axis widened to weight 600, `tests/test_self_hosted_fonts.py` verifies presence and font-face declarations.
 - **2026-04-27** — SEO batch 1 from 2026-04-24 audit: `/alternatives` competitor cards as `<h2>` (C1), `Offer` on `SoftwareApplication` JSON-LD (C2), `BreadcrumbList` on per-competitor pages (H2), `logo` + `sameAs` on `Organization` (H3), additional H5/H6/M8 quick wins. Audit artifacts committed under `docs/audits/2026-04-24-seo-audit/`. HackMD coverage test added.
