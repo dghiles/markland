@@ -1,14 +1,27 @@
 """Signed session cookies via itsdangerous.
 
-Cookie name: `mk_session`. Payload: `{"user_id": str, "exp": iso8601}`.
+Cookie name: `mk_session`. Payload:
+``{"user_id": str, "exp": iso8601, "epoch": int}``.
 Signed with `MARKLAND_SESSION_SECRET`. 30-day default lifetime.
-Rotating the secret invalidates all outstanding sessions.
+
+Two layers of revocation:
+
+1. Rotating ``MARKLAND_SESSION_SECRET`` invalidates all outstanding
+   sessions globally (catastrophic / blast-radius unbounded).
+2. ``bump_session_epoch(conn, user_id=...)`` invalidates outstanding
+   cookies for one user — called from ``/api/auth/logout`` (markland-bul).
+
+Production callers MUST pass ``conn`` to ``read_session`` and
+``issue_session``; the ``conn=None`` path exists for unit tests that
+don't seed the users table and is equivalent to "no revocation check"
+plus ``epoch=0`` at issue time.
 """
 
 from __future__ import annotations
 
 import hmac
 import os
+import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
@@ -21,7 +34,7 @@ _SALT = "mk.session.v1"
 
 
 class InvalidSession(Exception):
-    """Raised when a session cookie is missing, tampered, or expired."""
+    """Raised when a session cookie is missing, tampered, expired, or revoked."""
 
 
 def _signer(secret: str) -> TimestampSigner:
@@ -30,18 +43,81 @@ def _signer(secret: str) -> TimestampSigner:
     return TimestampSigner(secret, salt=_SALT)
 
 
+def _read_user_epoch(conn: sqlite3.Connection, user_id: str) -> int | None:
+    """Return the user's current session_epoch, or None if user does not exist.
+
+    Callers decide what missing-user means:
+
+    - ``read_session``: missing user → ``InvalidSession`` (cookie
+      references a deleted account; revoke).
+    - ``issue_session``: missing user → ``epoch=0`` (test fixtures issue
+      sessions for synthetic ``user_id`` values that aren't in the DB;
+      this keeps those tests working without forcing them to seed the
+      users table).
+    """
+    row = conn.execute(
+        "SELECT session_epoch FROM users WHERE id = ?", (user_id,)
+    ).fetchone()
+    if row is None:
+        return None
+    return int(row[0])
+
+
+def bump_session_epoch(conn: sqlite3.Connection, *, user_id: str) -> int:
+    """Increment the user's ``session_epoch`` and return the new value.
+
+    Called from ``/api/auth/logout`` (and from a future
+    ``/api/auth/revoke-all-sessions`` endpoint). All cookies whose
+    embedded epoch < the new epoch will be rejected by ``read_session``
+    on the next request.
+
+    Atomic via SQLite ``RETURNING`` (≥ 3.35) — no read-after-write race
+    with another concurrent bump.
+
+    Raises ``InvalidSession`` if the user does not exist.
+    """
+    row = conn.execute(
+        "UPDATE users SET session_epoch = session_epoch + 1 "
+        "WHERE id = ? RETURNING session_epoch",
+        (user_id,),
+    ).fetchone()
+    if row is None:
+        raise InvalidSession("user not found")
+    conn.commit()
+    return int(row[0])
+
+
 def issue_session(
     user_id: str,
     *,
     secret: str,
     max_age_seconds: int = SESSION_MAX_AGE_SECONDS,
+    conn: sqlite3.Connection | None = None,
 ) -> str:
-    """Return a signed cookie value for `user_id`."""
+    """Return a signed cookie value for ``user_id``.
+
+    If ``conn`` is provided, the user's current ``session_epoch`` is
+    embedded in the payload. If omitted, embeds ``epoch=0`` — equivalent
+    to "fresh user," matched by any ``conn``-aware reader on a
+    never-logged-out account. Production callers MUST pass ``conn``;
+    the ``conn=None`` path exists for unit tests that don't seed the
+    users table.
+
+    Unknown ``user_id`` (no row in users): embeds ``epoch=0`` (does NOT
+    raise). Tests issue sessions for synthetic ids; rejecting them here
+    would force every test that issues a session to seed a users row
+    first.
+    """
     if not secret:
         raise ValueError("session secret must be non-empty")
+    if conn is not None:
+        e = _read_user_epoch(conn, user_id)
+        epoch = e if e is not None else 0
+    else:
+        epoch = 0
     serializer = Serializer(secret, salt=_SALT)
     exp = (datetime.now(timezone.utc) + timedelta(seconds=max_age_seconds)).isoformat()
-    raw = serializer.dumps({"user_id": user_id, "exp": exp})
+    raw = serializer.dumps({"user_id": user_id, "exp": exp, "epoch": epoch})
     # Add timestamp signing on top so we can enforce max_age at verify time.
     return _signer(secret).sign(raw.encode("utf-8")).decode("utf-8")
 
@@ -51,8 +127,15 @@ def read_session(
     *,
     secret: str,
     max_age_seconds: int = SESSION_MAX_AGE_SECONDS,
+    conn: sqlite3.Connection | None = None,
 ) -> dict:
-    """Parse a cookie value. Raises `InvalidSession` on any failure."""
+    """Parse a cookie value. Raises ``InvalidSession`` on any failure.
+
+    If ``conn`` is provided, also verifies the embedded epoch matches the
+    user's current ``session_epoch`` — i.e. enforces server-side
+    revocation. Without ``conn``, the epoch check is skipped
+    (backwards-compat for tests; production callers MUST pass ``conn``).
+    """
     if not token:
         raise InvalidSession("empty session token")
     try:
@@ -68,6 +151,17 @@ def read_session(
         raise InvalidSession("bad payload") from e
     if not isinstance(payload, dict) or "user_id" not in payload:
         raise InvalidSession("malformed payload")
+    if conn is not None:
+        # Cookies issued before markland-bul have no `epoch` field; treat
+        # missing-epoch as 0 so they remain valid until the user's first
+        # logout (which bumps the column to 1, killing the old cookie).
+        cookie_epoch = int(payload.get("epoch", 0))
+        current = _read_user_epoch(conn, payload["user_id"])
+        if current is None:
+            # Cookie references a deleted account — revoke.
+            raise InvalidSession("user not found")
+        if cookie_epoch < current:
+            raise InvalidSession("session revoked")
     return payload
 
 
@@ -89,11 +183,18 @@ def _default_secret() -> str:
     return os.environ.get("MARKLAND_SESSION_SECRET", "")
 
 
-def get_session(request, *, secret: str | None = None) -> SessionInfo | None:
+def get_session(
+    request,
+    *,
+    secret: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> SessionInfo | None:
     """Read the `mk_session` cookie from `request` and return a SessionInfo or None.
 
-    Returns None on any failure — missing cookie, bad signature, expired session.
-    Callers that need to distinguish failure modes should use `read_session` directly.
+    Returns None on any failure — missing cookie, bad signature, expired
+    session, or (when ``conn`` is provided) revoked session.
+    Callers that need to distinguish failure modes should use
+    ``read_session`` directly.
     """
     cookie = request.cookies.get(SESSION_COOKIE_NAME, "") if hasattr(request, "cookies") else ""
     if not cookie:
@@ -102,7 +203,7 @@ def get_session(request, *, secret: str | None = None) -> SessionInfo | None:
     if not use_secret:
         return None
     try:
-        payload = read_session(cookie, secret=use_secret)
+        payload = read_session(cookie, secret=use_secret, conn=conn)
     except InvalidSession:
         return None
     uid = payload.get("user_id")
