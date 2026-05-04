@@ -711,7 +711,7 @@
             </div>
             <span class="btn" aria-hidden="true">Explore &rarr;</span>
         </a>
-        <a class="nav-card" href="/explore#publish" onclick="copyConfig(); return false;" aria-label="Copy MCP configuration to clipboard">
+        <a class="nav-card" id="js-copy-config" href="/explore#publish" aria-label="Copy MCP configuration to clipboard">
             <div class="nav-card-head">
                 <h3>Publish from your agent</h3>
                 <p>Add one MCP server entry to your client. Your agent gets seven tools to publish, search, and share.</p>
@@ -781,5 +781,17 @@ function copyConfig() {
         if (hint) hint.textContent = 'Copy failed — see scripts/mcp-config-snippet.json';
     });
 }
+// Bind the "Publish from your agent" nav-card click. Inline `onclick=`
+// handlers don't run under nonce-based CSP without `'unsafe-hashes'`,
+// so we attach via addEventListener from this nonce'd script block.
+document.addEventListener('DOMContentLoaded', function () {
+    const copyEl = document.getElementById('js-copy-config');
+    if (copyEl) {
+        copyEl.addEventListener('click', function (event) {
+            event.preventDefault();
+            copyConfig();
+        });
+    }
+});
 </script>
 {% endblock %}

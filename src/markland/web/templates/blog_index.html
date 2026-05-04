@@ -7,7 +7,7 @@
 
 {% block extra_jsonld %}
 {%- set _blog_url = canonical_host ~ "/blog" -%}
-<script type="application/ld+json">
+<script type="application/ld+json" nonce="{{ csp_nonce }}">
 {
   "@context": "https://schema.org",
   "@type": "Blog",
