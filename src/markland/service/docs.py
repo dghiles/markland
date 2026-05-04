@@ -691,8 +691,20 @@ def set_visibility(
     is_public: bool,
 ) -> dict:
     check_permission(conn, principal, doc_id, "owner")
+    # P3 / markland-6ld: capture the prior visibility BEFORE the update so
+    # we can detect a public→private transition. Sibling of P2-F
+    # (markland-1e8) which rotates on grant-revoke for private docs:
+    # without this, anyone who saved the public URL retains view access
+    # after the doc is made private. Only the public→private edge
+    # rotates; private→public must keep the token (the URL IS the new
+    # public capability) and same-state transitions are no-ops.
+    prior = db.get_document(conn, doc_id)
     doc = db.set_visibility(conn, doc_id, is_public)
     assert doc is not None
+    if prior is not None and prior.is_public and not is_public:
+        rotated = db.rotate_share_token(conn, doc_id)
+        assert rotated is not None
+        doc = rotated
     return {
         "id": doc.id,
         "is_public": doc.is_public,
