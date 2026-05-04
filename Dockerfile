@@ -32,6 +32,7 @@ COPY src ./src
 RUN uv sync --frozen --no-dev
 
 COPY scripts /app/scripts
+COPY seed-content /app/seed-content
 COPY litestream.yml /etc/litestream.yml
 RUN cp /app/scripts/start.sh /app/start.sh && chmod +x /app/start.sh
 
