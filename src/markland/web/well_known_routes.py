@@ -60,6 +60,53 @@ def register_well_known_routes(app: FastAPI, *, base_url: str) -> None:
     # Explicitly register the trailing-slash variant as 404 so FastAPI's
     # default redirect_slashes behavior doesn't 307 → 200 us. We want the
     # discovery path to be exact: anything else is unknown.
+    # `_not_found_envelope` is defined just below; the closure resolves
+    # the name at request time, by which point this function has finished.
     @app.get("/.well-known/oauth-protected-resource/")
     def oauth_protected_resource_trailing_slash() -> JSONResponse:
-        return JSONResponse({"error": "not_found"}, status_code=404)
+        return JSONResponse(_not_found_envelope, status_code=404)
+
+    # Shared "no OAuth here" 404 envelope. Used by every additional probe
+    # path the SDK is observed to hit (see tests/test_well_known_oauth.py
+    # and the markland-6o6 plan for the full list). Body is intentionally
+    # uniform so the SDK can't distinguish probe paths and assume one of
+    # them is OAuth-capable.
+    _not_found_envelope = {
+        "error": "not_found",
+        "error_description": (
+            "Markland does not run an OAuth authorization server or OIDC "
+            "provider. Use a static bearer token minted at "
+            f"{token_mint_url}."
+        ),
+    }
+
+    @app.get("/.well-known/oauth-protected-resource/mcp")
+    def oauth_protected_resource_mcp_suffix() -> JSONResponse:
+        return JSONResponse(_not_found_envelope, status_code=404)
+
+    @app.get("/.well-known/oauth-authorization-server/mcp")
+    def oauth_authorization_server_mcp_suffix() -> JSONResponse:
+        return JSONResponse(_not_found_envelope, status_code=404)
+
+    @app.get("/.well-known/openid-configuration")
+    def openid_configuration() -> JSONResponse:
+        return JSONResponse(_not_found_envelope, status_code=404)
+
+    @app.get("/.well-known/openid-configuration/mcp")
+    def openid_configuration_mcp_suffix() -> JSONResponse:
+        return JSONResponse(_not_found_envelope, status_code=404)
+
+    # RFC 7591 dynamic client registration. SDKs that don't honor an empty
+    # `authorization_servers` list fall through to POSTing here on the
+    # resource origin. Markland is bearer-only, so 404 with the same JSON
+    # envelope as the GET probes. We register both GET and POST so a
+    # human curl-debugging the path also sees JSON.
+    #
+    # NAMESPACE CLAIM: `/register` is now reserved by this OAuth-probe
+    # handler. If we later add a user-signup page (the symmetric pair to
+    # `/login`), put it at `/signup` or `/join` — NOT `/register` — or this
+    # route must be removed first to avoid breaking MCP client installs.
+    # Tracked: markland-6o6 follow-up.
+    @app.api_route("/register", methods=["GET", "POST"])
+    def register_endpoint() -> JSONResponse:
+        return JSONResponse(_not_found_envelope, status_code=404)

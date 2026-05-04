@@ -48,9 +48,20 @@ def test_authorization_server_returns_json_404():
 
 
 def test_protected_resource_path_is_exact():
-    """Trailing-slash and case variants should NOT match — keeps the surface tight."""
+    """Trailing-slash and case variants should NOT match — keeps the surface tight.
+
+    Trailing slash is explicitly handled by our own route (returns JSON with
+    the standard not_found envelope). The uppercase variant falls through to
+    FastAPI's catch-all and 404s.
+    """
     client = TestClient(_app())
-    assert client.get("/.well-known/oauth-protected-resource/").status_code == 404
+    r_slash = client.get("/.well-known/oauth-protected-resource/")
+    assert r_slash.status_code == 404
+    assert r_slash.headers["content-type"].startswith("application/json")
+    body = r_slash.json()
+    assert body["error"] == "not_found"
+    assert "bearer" in body["error_description"].lower()
+
     assert client.get("/.WELL-KNOWN/oauth-protected-resource").status_code == 404
 
 
@@ -64,3 +75,81 @@ def test_discovery_responses_do_not_set_cookies():
     r2 = client.get("/.well-known/oauth-authorization-server")
     assert "set-cookie" not in {k.lower() for k in r1.headers.keys()}
     assert "set-cookie" not in {k.lower() for k in r2.headers.keys()}
+
+
+def test_oauth_protected_resource_with_mcp_suffix_returns_json_404():
+    """SDK probes /.well-known/oauth-protected-resource/mcp before the
+    suffix-less variant. We must return JSON, not HTML, so JSON.parse()
+    in the SDK doesn't crash on '<'.
+    """
+    client = TestClient(_app())
+    r = client.get("/.well-known/oauth-protected-resource/mcp")
+    assert r.status_code == 404
+    assert r.headers["content-type"].startswith("application/json")
+    body = r.json()
+    assert body["error"] == "not_found"
+    # Body should hint at the static-bearer model so a human reading the
+    # SDK's surfaced error has somewhere to go.
+    assert "bearer" in body["error_description"].lower()
+
+
+def test_oauth_authorization_server_with_mcp_suffix_returns_json_404():
+    client = TestClient(_app())
+    r = client.get("/.well-known/oauth-authorization-server/mcp")
+    assert r.status_code == 404
+    assert r.headers["content-type"].startswith("application/json")
+    assert r.json()["error"] == "not_found"
+
+
+def test_openid_configuration_returns_json_404():
+    """Some MCP SDKs probe OpenID Connect discovery as a fallback.
+    We don't speak OIDC; respond with JSON so the parser doesn't crash.
+    """
+    client = TestClient(_app())
+    r = client.get("/.well-known/openid-configuration")
+    assert r.status_code == 404
+    assert r.headers["content-type"].startswith("application/json")
+    assert r.json()["error"] == "not_found"
+
+
+def test_openid_configuration_with_mcp_suffix_returns_json_404():
+    client = TestClient(_app())
+    r = client.get("/.well-known/openid-configuration/mcp")
+    assert r.status_code == 404
+    assert r.headers["content-type"].startswith("application/json")
+    assert r.json()["error"] == "not_found"
+
+
+def test_post_register_returns_json_404():
+    """RFC 7591 dynamic-client-registration endpoint. Markland doesn't
+    speak OAuth, so a POST here must return JSON so the SDK doesn't
+    crash JSON.parse on '<' from the styled HTML 404 page.
+
+    This is the load-bearing path: in production logs the SDK falls
+    through to POST /register after `authorization_servers: []` in the
+    protected-resource doc, and the HTML response was what surfaced as
+    the user-visible 'Auth: not authenticated' error in /mcp.
+    """
+    client = TestClient(_app())
+    # Empty body is fine — we're 404-ing regardless. Match the SDK's
+    # actual probe shape (Content-Type: application/json, JSON body).
+    r = client.post(
+        "/register",
+        json={"client_name": "claude-code-test"},
+    )
+    assert r.status_code == 404
+    assert r.headers["content-type"].startswith("application/json")
+    body = r.json()
+    assert body["error"] == "not_found"
+    assert "bearer" in body["error_description"].lower()
+
+
+def test_get_register_also_returns_json_404():
+    """Defensive: SDKs that probe via GET (or curl-debugging humans)
+    should also see JSON, not HTML. Same envelope.
+    """
+    client = TestClient(_app())
+    r = client.get("/register")
+    assert r.status_code == 404
+    assert r.headers["content-type"].startswith("application/json")
+    assert r.json()["error"] == "not_found"
