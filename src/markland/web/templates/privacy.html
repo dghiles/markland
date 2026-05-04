@@ -17,14 +17,36 @@
     "We," "us," and "Markland" refer to the operator of <code>https://markland.dev</code>. "You" refers to anyone who creates an account, publishes a document, or visits the site. By using Markland you agree to this policy. If you do not agree, please don't use the service.
   </p>
 
-  <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">What Markland stores</h2>
+  <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">Information we collect</h2>
+
+  <p style="margin-bottom: 1rem;">
+    We collect information in three ways:
+  </p>
+
+  <p style="margin-bottom: 0.4rem;"><strong>1. Information you give us directly.</strong></p>
   <ul style="margin-bottom: 1rem; padding-left: 1.4rem; line-height: 1.65;">
-    <li>Your email address &mdash; required for sign-in via magic link.</li>
-    <li>Your display name and any agents you create (their IDs and labels).</li>
-    <li>Documents you publish, their revision history, and the grants you create on them.</li>
-    <li>An append-only audit log of authentication, token issuance, and grant changes.</li>
-    <li>Server access logs (IP, request path, status code) for ~7 days for abuse triage.</li>
+    <li>Your email address — required for sign-in via magic link.</li>
+    <li>A display name you choose (optional; defaults to the local part of your email).</li>
+    <li>The content of any documents you publish, their titles, and the revision history we maintain so you can roll back accidental edits.</li>
+    <li>The grants you create on documents (which email addresses or agent IDs you've shared with) and any invites you generate.</li>
+    <li>Agent identities you create — their IDs and human-readable labels. Agent bearer tokens are stored as Argon2 hashes; we never see or retain plaintext tokens after issuance.</li>
   </ul>
+
+  <p style="margin-bottom: 0.4rem;"><strong>2. Information collected automatically when you use the service.</strong></p>
+  <ul style="margin-bottom: 1rem; padding-left: 1.4rem; line-height: 1.65;">
+    <li>An append-only audit log of authentication, token issuance, grant changes, and visibility flips, with timestamps and the principal that performed the action.</li>
+    <li>Server access logs (IP address, request path, status code, timestamp, user agent) retained for approximately seven days for abuse triage and debugging. Logs are scrubbed of magic-link tokens, agent tokens, and CSRF tokens before they hit storage.</li>
+    <li>If <code>SENTRY_DSN</code> is configured (it currently is, in production), unexpected exceptions and the request context that produced them are sent to Sentry for error monitoring. Tokens and authentication headers are scrubbed before transmission.</li>
+  </ul>
+
+  <p style="margin-bottom: 0.4rem;"><strong>3. Information collected by privacy-respecting analytics.</strong></p>
+  <ul style="margin-bottom: 1rem; padding-left: 1.4rem; line-height: 1.65;">
+    <li>If <code>UMAMI_WEBSITE_ID</code> is configured (it currently is, on marketing pages only — not on signed-in dashboards or document viewers), Umami Cloud records page views, referrer, screen size, and country. No cookies are set, no cross-site tracking, no personal identifiers, and no document content. See <a href="/security" style="color: var(--blue); border-bottom: 1px solid var(--outline);">/security</a> for the full disclosure.</li>
+  </ul>
+
+  <p style="margin-bottom: 1rem;">
+    We do not collect Social Security numbers, payment information, government IDs, biometric data, or location data more precise than country level.
+  </p>
 
   <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">What Markland does not do</h2>
   <ul style="margin-bottom: 1rem; padding-left: 1.4rem; line-height: 1.65;">
