@@ -1,8 +1,10 @@
 """Magic-link login: itsdangerous-signed single-use tokens, delivered via dispatcher.
 
-Token carries the target email; validity = 15 minutes. "Single-use" is enforced at
-the verify route by issuing a session immediately on first success; the token itself
-has no server-side state (the 15-minute expiry is the belt-and-braces).
+Token payload is `{"email": str, "jti": uuid4-hex}`; validity = 15 minutes.
+Single-use is enforced server-side: `consume_magic_link_token` atomically inserts
+the JTI into `magic_link_consumed` and rejects any subsequent verify with the
+same token. Opportunistic GC of rows older than the signature window keeps the
+table small.
 """
 
 from __future__ import annotations
