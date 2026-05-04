@@ -34,7 +34,7 @@ def register_well_known_routes(app: FastAPI, *, base_url: str) -> None:
             {
                 "resource": resource_url,
                 "authorization_servers": [],
-                "bearer_methods_supported": ["Bearer"],
+                "bearer_methods_supported": ["header"],
                 "resource_documentation": f"{base_url.rstrip('/')}/quickstart",
                 # Non-RFC field — practical hint for human/agent eyeballs
                 # that read the JSON when an SDK error surfaces it.

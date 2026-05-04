@@ -25,7 +25,9 @@ def test_protected_resource_returns_json_200():
     body = r.json()
     # RFC 9728 fields
     assert body["resource"] == "https://markland.dev/mcp"
-    assert "Bearer" in body["bearer_methods_supported"]
+    # RFC 9728 §2 values are placement identifiers (header|body|query),
+    # NOT the scheme name. Markland accepts the bearer only in Authorization.
+    assert body["bearer_methods_supported"] == ["header"]
     # Markland-specific hint pointing humans at the token-mint UI
     assert body["token_mint_url"].endswith("/settings/tokens")
     # Explicitly NO authorization_servers — we don't speak OAuth
@@ -50,3 +52,15 @@ def test_protected_resource_path_is_exact():
     client = TestClient(_app())
     assert client.get("/.well-known/oauth-protected-resource/").status_code == 404
     assert client.get("/.WELL-KNOWN/oauth-protected-resource").status_code == 404
+
+
+def test_discovery_responses_do_not_set_cookies():
+    """MCP clients may cache discovery metadata. Make sure these endpoints
+    never attach session cookies — global middleware adding one would taint
+    cached client state.
+    """
+    client = TestClient(_app())
+    r1 = client.get("/.well-known/oauth-protected-resource")
+    r2 = client.get("/.well-known/oauth-authorization-server")
+    assert "set-cookie" not in {k.lower() for k in r1.headers.keys()}
+    assert "set-cookie" not in {k.lower() for k in r2.headers.keys()}
