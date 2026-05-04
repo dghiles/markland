@@ -281,7 +281,8 @@ def ensure_invites_schema(conn: sqlite3.Connection) -> None:
             created_by TEXT NOT NULL,
             created_at TEXT NOT NULL,
             expires_at TEXT,
-            revoked_at TEXT
+            revoked_at TEXT,
+            target_email TEXT NOT NULL DEFAULT ''
         );
 
         CREATE INDEX IF NOT EXISTS idx_invites_token_hash
@@ -290,6 +291,17 @@ def ensure_invites_schema(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_invites_doc
             ON invites (doc_id);
         """
+    )
+    # P3 / markland-vw2: target_email captures the recipient on invites
+    # created by the silent-invite path so re-granting the same unknown
+    # email is idempotent (no orphan rows). Generic public-link invites
+    # (no specific recipient) leave it empty — those don't dedupe.
+    _add_column_if_missing(
+        conn, "invites", "target_email", "TEXT NOT NULL DEFAULT ''"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_invites_doc_target_email "
+        "ON invites (doc_id, target_email)"
     )
     conn.commit()
 

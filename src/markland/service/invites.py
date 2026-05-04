@@ -30,7 +30,7 @@ class CreatedInvite:
 
 _INVITE_COLUMNS = (
     "id, token_hash, doc_id, level, single_use, uses_remaining, "
-    "created_by, created_at, expires_at, revoked_at"
+    "created_by, created_at, expires_at, revoked_at, target_email"
 )
 
 
@@ -50,6 +50,7 @@ def _row_to_invite(row: tuple) -> Invite:
         created_at=row[7],
         expires_at=row[8],
         revoked_at=row[9],
+        target_email=row[10] or "",
     )
 
 
@@ -63,11 +64,17 @@ def create_invite(
     single_use: bool = True,
     expires_in_days: int | None = None,
     expires_at_override: str | None = None,
+    target_email: str = "",
 ) -> CreatedInvite:
     """Create an invite row, return the plaintext URL and its id.
 
     The plaintext token is shown only once — in the returned URL — and then
     discarded. The DB stores only its argon2id hash.
+
+    `target_email` is set by the silent-invite path
+    (`grants._grant_via_invite`) so that path can dedupe by
+    `(doc_id, target_email)` on retry. Public-link invite creators leave
+    it empty (the default).
     """
     if level not in ("view", "edit"):
         raise ValueError(f"invalid level: {level!r} (must be 'view' or 'edit')")
@@ -90,7 +97,8 @@ def create_invite(
 
     conn.execute(
         "INSERT INTO invites (id, token_hash, doc_id, level, single_use, uses_remaining, "
-        "created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "created_by, created_at, expires_at, target_email) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             invite_id,
             token_hash,
@@ -101,6 +109,7 @@ def create_invite(
             created_by_user_id,
             created_at,
             expires_at,
+            target_email,
         ),
     )
     conn.commit()
@@ -120,6 +129,32 @@ def create_invite(
         metadata={"invite_id": invite_id, "level": level, "single_use": single_use},
     )
     return CreatedInvite(id=invite_id, url=url, level=level, expires_at=expires_at)
+
+
+def find_active_invite_for_email(
+    conn, *, doc_id: str, target_email: str
+) -> Invite | None:
+    """Return the most-recent active invite for `(doc_id, target_email)`,
+    or None.
+
+    "Active" = not revoked, uses_remaining > 0, not expired. Used by the
+    silent-invite path (`grants._grant_via_invite`) to dedupe re-grants
+    so re-running grant on the same unknown email is idempotent. Public
+    invites (`target_email == ""`) are never matched — passing an empty
+    string returns None.
+    """
+    if not target_email:
+        return None
+    now = _now_iso()
+    row = conn.execute(
+        f"SELECT {_INVITE_COLUMNS} FROM invites "
+        "WHERE doc_id = ? AND lower(target_email) = lower(?) "
+        "AND revoked_at IS NULL AND uses_remaining > 0 "
+        "AND (expires_at IS NULL OR expires_at > ?) "
+        "ORDER BY created_at DESC LIMIT 1",
+        (doc_id, target_email, now),
+    ).fetchone()
+    return _row_to_invite(row) if row else None
 
 
 def resolve_invite(conn, token_plaintext: str) -> Invite | None:
@@ -314,6 +349,7 @@ __all__ = [
     "CreatedInvite",
     "accept_invite",
     "create_invite",
+    "find_active_invite_for_email",
     "list_invites",
     "list_for_doc_paginated",
     "resolve_invite",

@@ -96,6 +96,14 @@ def test_grant_unknown_email_silently_creates_invite(tmp_path):
     assert result["level"] == "view"
     assert "@" not in result["principal_id"]
     assert result["principal_id"].startswith("usr_")
+    # P3 / markland-89b: synthetic id matches the production
+    # `usr_<16hex>` shape exactly — same length and charset as a real
+    # user id, with no `pending_` infix to distinguish on.
+    import re
+    assert re.fullmatch(r"usr_[0-9a-f]{16}", result["principal_id"]), (
+        result["principal_id"]
+    )
+    assert "pending_" not in result["principal_id"], result["principal_id"]
     # granted_at must be a "now" timestamp, not the 7-day invite expiry.
     import datetime
     granted_at = datetime.datetime.fromisoformat(

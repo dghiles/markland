@@ -82,3 +82,28 @@ def test_audit_list_recent_no_principal_still_works(conn):
     one, but legacy paginated tests in test_audit_service.py do not.)"""
     rows = audit_svc.list_recent(conn)
     assert isinstance(rows, list)
+
+
+def test_audit_list_recent_paginated_denies_non_admin(conn):
+    """P3 / markland-vrm: list_recent_paginated must mirror list_recent's
+    DiD admin gate — non-admin principals raise PermissionDenied."""
+    with pytest.raises(PermissionDenied):
+        audit_svc.list_recent_paginated(conn, principal=_user("usr_bob"))
+
+
+def test_audit_list_recent_paginated_denies_no_principal(conn):
+    """P3 / markland-vrm: list_recent_paginated rejects when no principal
+    is passed. The MCP tool layer always supplies one; making this
+    required on the service helper means a future caller that forgets to
+    plumb a principal fails closed instead of silently returning rows."""
+    with pytest.raises(PermissionDenied):
+        audit_svc.list_recent_paginated(conn, principal=None)
+
+
+def test_audit_list_recent_paginated_admin_succeeds(conn):
+    """Regression: admin path returns (rows, next_cursor) tuple."""
+    rows, next_cursor = audit_svc.list_recent_paginated(
+        conn, principal=_user("usr_admin", is_admin=True)
+    )
+    assert isinstance(rows, list)
+    assert next_cursor is None or isinstance(next_cursor, str)

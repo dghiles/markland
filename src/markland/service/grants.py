@@ -36,6 +36,12 @@ class InvalidGrantLevel(Exception):
 _VALID_LEVELS = frozenset({"view", "edit"})
 _VALID_PRINCIPAL_TYPES = frozenset({"user", "agent"})
 
+# P3 / markland-89b: domain separator for synthetic `usr_…` ids minted
+# in the silent-invite path (`_grant_via_invite`). Prefixing the hash
+# input ensures the synthetic id space is disjoint from any other
+# sha256-derived id space we might add later.
+_SYNTHETIC_PRINCIPAL_DOMAIN = b"markland-synthetic-principal-v1"
+
 
 def _lookup_user_by_email(conn: sqlite3.Connection, email: str) -> tuple[str, str] | None:
     row = conn.execute(
@@ -353,49 +359,74 @@ def _grant_via_invite(
     successful grant. From the caller's perspective, every valid-email
     target succeeds — they cannot enumerate which emails belong to
     Markland accounts.
+
+    P3 / markland-vw2: dedupe by `(doc_id, target_email)`. If an active
+    (non-revoked, non-expired, uses_remaining > 0) invite already
+    exists for this pair, reuse it instead of creating an orphan row.
+    The response shape and values are identical, so the caller cannot
+    distinguish first-grant from re-grant — same as a real upsert
+    grant, which is idempotent. The reuse path skips the email re-send
+    (we no longer hold the plaintext token to regenerate the URL, and
+    spamming the recipient on every retry would be a worse UX anyway).
     """
-    from markland.service.invites import create_invite
+    from markland.service.invites import create_invite, find_active_invite_for_email
 
-    base_url = doc_url.rsplit(f"/d/{doc.share_token}", 1)[0]
-    created = create_invite(
-        conn,
-        doc_id=doc.id,
-        created_by_user_id=principal.principal_id,
-        level=level,
-        base_url=base_url,
-        single_use=True,
-        expires_in_days=7,
+    existing = find_active_invite_for_email(
+        conn, doc_id=doc.id, target_email=target_email
     )
-
-    if dispatcher is not None:
-        # Reuse the user_grant template — the recipient sees "Alice
-        # shared a doc with you" with the invite URL. They click and
-        # the invite-accept flow walks them through sign-up.
-        rendered = email_templates.user_grant(
-            granter_display=granter_display,
-            doc_title=doc.title,
-            doc_url=created.url,
+    if existing is not None:
+        invite_id = existing.id
+        sent_email = False
+    else:
+        base_url = doc_url.rsplit(f"/d/{doc.share_token}", 1)[0]
+        created = create_invite(
+            conn,
+            doc_id=doc.id,
+            created_by_user_id=principal.principal_id,
             level=level,
+            base_url=base_url,
+            single_use=True,
+            expires_in_days=7,
+            target_email=target_email,
         )
-        _enqueue(
-            dispatcher,
-            to=target_email,
-            subject=rendered["subject"],
-            html=rendered["html"],
-            text=rendered.get("text"),
-            metadata={
-                "template": "user_grant_invite",
-                "doc_id": doc.id,
-                "invite_id": created.id,
-            },
-        )
+        invite_id = created.id
+        sent_email = True
+
+        if dispatcher is not None:
+            # Reuse the user_grant template — the recipient sees "Alice
+            # shared a doc with you" with the invite URL. They click and
+            # the invite-accept flow walks them through sign-up.
+            rendered = email_templates.user_grant(
+                granter_display=granter_display,
+                doc_title=doc.title,
+                doc_url=created.url,
+                level=level,
+            )
+            _enqueue(
+                dispatcher,
+                to=target_email,
+                subject=rendered["subject"],
+                html=rendered["html"],
+                text=rendered.get("text"),
+                metadata={
+                    "template": "user_grant_invite",
+                    "doc_id": doc.id,
+                    "invite_id": invite_id,
+                },
+            )
 
     audit.record(
         conn,
         action="grant",
         principal=principal,
         doc_id=doc.id,
-        metadata={"target": target_email, "level": level, "via": "invite"},
+        metadata={
+            "target": target_email,
+            "level": level,
+            "via": "invite",
+            "invite_id": invite_id,
+            "deduped": not sent_email,
+        },
     )
     metrics.emit_first_time(
         "first_grant", principal_id=principal.principal_id
@@ -408,18 +439,31 @@ def _grant_via_invite(
     # was the invite's ~7-day expiry. A caller could distinguish via
     # `"@" in principal_id` or by comparing timestamps.
     #
-    # Fix:
-    #   - principal_id: synthetic, deterministic, opaque user-id-shape
-    #     (`usr_pending_<16 hex>`). Deterministic per email so retrying
-    #     doesn't produce a different id (which would itself be a leak).
-    #     The principal_id field in the API response is informational —
+    # P3 / markland-89b: an earlier fixup used `usr_pending_<16 hex>`
+    # (length 28). Real user ids are `usr_<16 hex>` (length 20), so a
+    # caller who has seen real grant responses elsewhere could still
+    # distinguish on length alone. Match the real shape exactly.
+    #
+    # The hash input is domain-separated so synthetic ids cannot
+    # collide with real ones even in principle. (Real ids are minted
+    # with `secrets.token_hex(8)` in `service/users.py` — random, not
+    # hash-derived — so collision was never reachable, but domain
+    # separation is good hygiene and pins the contract.)
+    #
+    #   - principal_id: synthetic, deterministic, opaque, exactly the
+    #     same shape and length as a real `usr_…` id. Deterministic per
+    #     email so retrying doesn't produce a different id (which would
+    #     itself be a leak — real grants are idempotent). The
+    #     principal_id field in the API response is informational —
     #     not used as a foreign key by callers — so a synthetic value
     #     is safe.
     #   - granted_at: a "now" UTC ISO string, matching the format and
     #     time bucket of a real grant write (db.upsert_grant uses
     #     Document.now()).
-    digest = hashlib.sha256(target_email.strip().lower().encode("utf-8")).hexdigest()[:16]
-    synthetic_principal_id = f"usr_pending_{digest}"
+    digest = hashlib.sha256(
+        _SYNTHETIC_PRINCIPAL_DOMAIN + target_email.strip().lower().encode("utf-8")
+    ).hexdigest()[:16]
+    synthetic_principal_id = f"usr_{digest}"
     return {
         "doc_id": doc.id,
         "principal_id": synthetic_principal_id,
