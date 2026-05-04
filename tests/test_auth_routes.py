@@ -180,6 +180,48 @@ def test_verify_get_rejects_replay(client_and_conn):
     assert "already used" not in body
 
 
+def test_verify_json_sets_session_cookie_samesite_strict(client_and_conn):
+    """P1-A: session cookie issued by /api/auth/verify must be SameSite=Strict."""
+    client, _, _ = client_and_conn
+    token = issue_magic_link_token("alice@example.com", secret="test-secret")
+    r = client.post("/api/auth/verify", json={"token": token})
+    assert r.status_code == 200
+    set_cookie = r.headers.get("set-cookie", "")
+    assert SESSION_COOKIE_NAME in set_cookie
+    assert "samesite=strict" in set_cookie.lower()
+    assert "samesite=lax" not in set_cookie.lower()
+
+
+def test_verify_get_sets_session_cookie_samesite_strict(client_and_conn):
+    """P1-A: session cookie issued by /verify GET (link click) must be SameSite=Strict.
+
+    With Strict, magic-link clicks from email still work because /verify
+    issues a *fresh* session cookie on success — no pre-existing session is
+    needed for the GET to function.
+    """
+    client, _, _ = client_and_conn
+    token = issue_magic_link_token("alice@example.com", secret="test-secret")
+    r = client.get(f"/verify?token={token}", follow_redirects=False)
+    assert r.status_code in (200, 303)
+    set_cookie = r.headers.get("set-cookie", "")
+    assert SESSION_COOKIE_NAME in set_cookie
+    assert "samesite=strict" in set_cookie.lower()
+    assert "samesite=lax" not in set_cookie.lower()
+
+
+def test_magic_link_click_creates_authenticated_session(client_and_conn):
+    """P1-A regression: even with Strict, GET /verify?token=... fully
+    authenticates the user — subsequent same-origin requests carry the
+    session cookie."""
+    client, _, _ = client_and_conn
+    token = issue_magic_link_token("alice@example.com", secret="test-secret")
+    r = client.get(f"/verify?token={token}", follow_redirects=False)
+    assert r.status_code in (200, 303)
+    # Same-origin request after sign-in: /api/me should return 200
+    r2 = client.get("/api/me")
+    assert r2.status_code == 200
+
+
 def test_security_page_renders_single_use_wording(client_and_conn):
     """Regression: post single-use enforcement, /security must claim
     'single-use' and must NOT carry the old 'captured link can be used'

@@ -144,7 +144,7 @@ def build_auth_router(
             max_age=SESSION_MAX_AGE_SECONDS,
             httponly=True,
             secure=base_url.startswith("https://"),
-            samesite="lax",
+            samesite="strict",
             path="/",
         )
         return resp
@@ -187,7 +187,7 @@ def build_auth_router(
             max_age=SESSION_MAX_AGE_SECONDS,
             httponly=True,
             secure=base_url.startswith("https://"),
-            samesite="lax",
+            samesite="strict",
             path="/",
         )
         return resp
