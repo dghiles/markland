@@ -16,6 +16,41 @@ from markland.service.permissions import (
 )
 
 
+# P2-D / markland-o1u: storage-DoS guards on user-supplied content. Caps
+# apply uniformly to publish + update at the service layer so MCP, HTTP,
+# and any future caller share the same limits. Crossing either limit
+# raises `ContentTooLarge` which the tool layer maps to `invalid_argument`.
+MAX_CONTENT_BYTES = 1_000_000  # 1MB of raw markdown.
+MAX_TITLE_CHARS = 500
+
+
+class ContentTooLarge(ValueError):
+    """User-supplied content/title exceeds the launch storage cap."""
+
+
+def _validate_content_and_title(
+    content: str | None,
+    title: str | None,
+) -> None:
+    """Raise `ContentTooLarge` when content/title violates the launch caps.
+
+    `content` is bounded in bytes (UTF-8) so a megabyte of multibyte chars
+    can't sneak past a char-length check. `title` is bounded in chars to
+    keep DB indexes / UI rendering tractable.
+    """
+    if content is not None:
+        # bytes() on str validates UTF-8-encodable; len() on the encoded
+        # bytes is the on-disk cost.
+        if len(content.encode("utf-8")) > MAX_CONTENT_BYTES:
+            raise ContentTooLarge(
+                f"content_too_large: max {MAX_CONTENT_BYTES} bytes"
+            )
+    if title is not None and len(title) > MAX_TITLE_CHARS:
+        raise ContentTooLarge(
+            f"title_too_long: max {MAX_TITLE_CHARS} chars"
+        )
+
+
 class ConflictError(Exception):
     """Raised when an update's `if_version` does not match the stored version.
 
@@ -95,6 +130,7 @@ def publish(
         # Service-owned agents have no natural owning user; no hosted product
         # surface for service agents exists at launch.
         raise PermissionError("invalid_argument: service_agent_cannot_publish")
+    _validate_content_and_title(content, title)
     doc_id = Document.generate_id()
     share_token = Document.generate_share_token()
     resolved_title = title if title else _extract_title(content)
@@ -563,6 +599,7 @@ def update(
     # Permission check must happen BEFORE we start the BEGIN IMMEDIATE write
     # transaction so a read-only principal cannot acquire the write lock.
     check_permission(conn, principal, doc_id, "edit")
+    _validate_content_and_title(content, title)
 
     conn.execute("BEGIN IMMEDIATE")
     try:
