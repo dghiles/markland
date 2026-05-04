@@ -210,6 +210,44 @@ def test_settings_tokens_page_shows_banner_and_drops_bespoke_signout(harness):
     assert "fetch('/api/auth/logout'" not in body
 
 
+def test_anon_signin_link_on_doc_page_carries_return_path(harness):
+    """markland-3zx: anonymous viewer of /d/{share_token} clicking 'Sign in'
+    must end up back on the doc after verify, not on /verify_sent. The nav
+    partial encodes request.url.path into ?next= so the magic-link round-trip
+    preserves the intended landing.
+    """
+    client, conn = harness
+    user = create_user(conn, email="owner@example.com")
+    conn.execute(
+        "INSERT INTO documents (id, title, content, share_token, created_at, "
+        "updated_at, is_public, is_featured, owner_id) VALUES "
+        "('doc_z', 'Shared', '# hi', 'tok_z', '2026-01-01T00:00:00+00:00', "
+        "'2026-01-01T00:00:00+00:00', 1, 0, ?)",
+        (user.id,),
+    )
+    conn.commit()
+
+    r = client.get("/d/tok_z")
+    assert r.status_code == 200
+    # The bare /login link is the bug. After the fix, anon sign-in links on
+    # any non-/login page must carry next=<current path>. Jinja's urlencode
+    # leaves "/" unencoded (it's in the default safe set for query values),
+    # which is RFC-3986-compliant and the FastAPI handler reads it the same.
+    assert 'href="/login"' not in r.text
+    assert ('href="/login?next=/d/tok_z"' in r.text
+            or 'href="/login?next=%2Fd%2Ftok_z"' in r.text)
+
+
+def test_anon_signin_link_on_login_page_stays_bare(harness):
+    """No redirect-to-self loop: on /login itself, the nav 'Sign in' link
+    must stay a bare /login (not /login?next=/login)."""
+    client, _ = harness
+    r = client.get("/login")
+    assert r.status_code == 200
+    # _signed_in_nav is included on /login via base.html; assert no nested next.
+    assert "next=%2Flogin" not in r.text
+
+
 def test_signed_in_static_page_shows_banner(harness):
     """Static base.html-extending pages (quickstart/about/etc.) inherit the
     partial via base.html, but their handlers used to forget to pass

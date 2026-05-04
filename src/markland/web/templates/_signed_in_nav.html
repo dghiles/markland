@@ -24,5 +24,10 @@
     background: var(--surface-2);
   }
 </style>
-<a href="/login" class="signin-link">Sign in</a>
+{% set _path = request.url.path if request else '/' %}
+{% if _path and _path != '/' and _path != '/login' %}
+  <a href="/login?next={{ _path | urlencode }}" class="signin-link">Sign in</a>
+{% else %}
+  <a href="/login" class="signin-link">Sign in</a>
+{% endif %}
 {% endif %}
