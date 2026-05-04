@@ -50,10 +50,26 @@ should know them before starting:
 **Important constraint:** `read_session` is currently pure (no DB
 access). Adding the epoch check requires plumbing a `conn:
 sqlite3.Connection` argument through every caller. That refactor is
-the bulk of this work; do it carefully and keep the old
-`read_session(token, *, secret)` signature working for tests that
-don't care about revocation (they pass `conn=None`, which skips the
-epoch check and emits a deprecation warning at module-import time).
+the bulk of this work; keep the old `read_session(token, *, secret)`
+signature working for tests that don't care about revocation (they
+pass `conn=None`, which skips the epoch check). Production callsites
+MUST pass `conn`; tests don't have to.
+
+**Connection-acquisition pattern:** routes in `auth_routes.py` and
+peers don't use FastAPI `Depends(get_conn)`. They capture `db_conn`
+from the route-factory closure (see `verify` and `verify_page` in
+`auth_routes.py:139,169`). All examples in this plan use closure
+`db_conn`, not `Depends`. Don't introduce a new pattern.
+
+**Atomicity warning:** Task 4 (logout bumps the epoch) and Task 5
+(issuance embeds the user's current epoch) **MUST land in a single
+deploy**. Between Task 4 shipping and Task 5 shipping, a user's first
+logout would bump the column to 1, but new sign-ins would still
+issue cookies with `epoch=0` — locking the user out until secret
+rotation. Tasks 4 and 5 are presented as separate sections for
+clarity, but commit them together (or rebase before opening the PR
+so the PR has a single "feat: logout invalidates outstanding cookies"
+commit covering both).
 
 ---
 
@@ -179,33 +195,34 @@ In `service/sessions.py`:
 ```python
 import sqlite3
 
-def _read_user_epoch(conn: sqlite3.Connection, user_id: str) -> int:
+def _read_user_epoch(conn: sqlite3.Connection, user_id: str) -> int | None:
+    """Return the user's current session_epoch, or None if user does not exist.
+
+    Callers decide what missing-user means:
+    - `read_session`: missing user → InvalidSession (cookie references a
+      deleted account; revoke).
+    - `issue_session`: missing user → epoch=0 (test fixtures issue
+      sessions for synthetic user_ids that aren't in the DB; this keeps
+      those tests working without forcing them to seed the users table).
+    """
     row = conn.execute(
         "SELECT session_epoch FROM users WHERE id = ?", (user_id,)
     ).fetchone()
     if row is None:
-        # User was deleted; treat as fully revoked.
-        raise InvalidSession("user not found")
+        return None
     return int(row[0])
 
 def bump_session_epoch(conn: sqlite3.Connection, *, user_id: str) -> int:
     """Increment the user's session_epoch and return the new value.
 
-    Called from /api/auth/logout (and from a future /api/auth/revoke-all-sessions
-    endpoint). All cookies whose embedded epoch < new epoch will be rejected
-    by read_session on the next request.
+    Called from /api/auth/logout (and from a future
+    /api/auth/revoke-all-sessions endpoint). All cookies whose embedded
+    epoch < new epoch will be rejected by read_session on the next
+    request.
+
+    Definition appears below in this same task — see the RETURNING-based
+    version. (Don't duplicate the function.)
     """
-    cur = conn.execute(
-        "UPDATE users SET session_epoch = session_epoch + 1 WHERE id = ?",
-        (user_id,),
-    )
-    if cur.rowcount == 0:
-        raise InvalidSession("user not found")
-    conn.commit()
-    new = conn.execute(
-        "SELECT session_epoch FROM users WHERE id = ?", (user_id,)
-    ).fetchone()[0]
-    return int(new)
 
 def issue_session(
     user_id: str,
@@ -217,13 +234,22 @@ def issue_session(
     """Return a signed cookie value for `user_id`.
 
     If `conn` is provided, the user's current session_epoch is embedded
-    in the payload. If omitted, the cookie is issued with epoch=0 (which
-    will fail revocation checks on any user whose epoch has been bumped
-    — i.e. the cookie is born stale; this is intentional for tests).
+    in the payload. If omitted, embeds epoch=0 — equivalent to "fresh
+    user," matched by any conn-aware reader on a never-logged-out
+    account. Production callers MUST pass conn; the conn=None path
+    exists for unit tests that don't seed the users table.
+
+    Unknown user_id (no row in users): embeds epoch=0 (does NOT raise).
+    Tests issue sessions for synthetic ids; rejecting them here would
+    force every test that issues a session to seed a users row first.
     """
     if not secret:
         raise ValueError("session secret must be non-empty")
-    epoch = _read_user_epoch(conn, user_id) if conn is not None else 0
+    if conn is not None:
+        e = _read_user_epoch(conn, user_id)
+        epoch = e if e is not None else 0
+    else:
+        epoch = 0
     serializer = Serializer(secret, salt=_SALT)
     exp = (datetime.now(timezone.utc) + timedelta(seconds=max_age_seconds)).isoformat()
     raw = serializer.dumps({"user_id": user_id, "exp": exp, "epoch": epoch})
@@ -261,18 +287,60 @@ def read_session(
     if conn is not None:
         cookie_epoch = int(payload.get("epoch", 0))
         current = _read_user_epoch(conn, payload["user_id"])
+        if current is None:
+            # Cookie references a deleted account — revoke.
+            raise InvalidSession("user not found")
         if cookie_epoch < current:
             raise InvalidSession("session revoked")
     return payload
 ```
 
-- [ ] **Step 4: Run tests to verify passing**
+Also strengthen `bump_session_epoch` to use SQLite's `RETURNING`
+clause (≥ 3.35; we're on a modern Python build) so the bump is a
+single atomic statement instead of `UPDATE` + `SELECT`:
+
+```python
+def bump_session_epoch(conn: sqlite3.Connection, *, user_id: str) -> int:
+    """Increment the user's session_epoch and return the new value.
+
+    Atomic via RETURNING — no read-after-write race with another
+    concurrent bump.
+    """
+    row = conn.execute(
+        "UPDATE users SET session_epoch = session_epoch + 1 "
+        "WHERE id = ? RETURNING session_epoch",
+        (user_id,),
+    ).fetchone()
+    if row is None:
+        raise InvalidSession("user not found")
+    conn.commit()
+    return int(row[0])
+```
+
+- [ ] **Step 4: Update the module docstring**
+
+The current top-of-module docstring in `service/sessions.py` says:
+
+> Cookie name: `mk_session`. Payload: `{"user_id": str, "exp": iso8601}`.
+> Signed with `MARKLAND_SESSION_SECRET`. 30-day default lifetime.
+> Rotating the secret invalidates all outstanding sessions.
+
+Update to reflect:
+- Payload now `{"user_id": str, "exp": iso8601, "epoch": int}`.
+- `bump_session_epoch(conn, user_id=...)` invalidates outstanding
+  cookies for one user; secret rotation still invalidates all
+  globally.
+- Production callers MUST pass `conn` to `read_session` and
+  `issue_session`; the `conn=None` path is for unit tests that don't
+  seed users.
+
+- [ ] **Step 5: Run tests to verify passing**
 
 Run: `.venv/bin/pytest tests/test_service_sessions.py -v`
 Expected: PASS — including the `_without_conn_skips_revocation_check`
 backwards-compat test.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add src/markland/service/sessions.py tests/test_service_sessions.py
@@ -284,43 +352,63 @@ git commit -m "feat(sessions): embed and verify session_epoch (markland-bul)"
 ## Task 3 — Wire `conn` through every `read_session` caller
 
 **Files:**
-- Modify: every file in `src/markland/web/` that calls `read_session` (13 sites — see Pre-work). For each, ensure a `sqlite3.Connection` is available in scope and passed.
+- Modify: every file in `src/markland/web/` that calls `read_session` (13 sites — see Pre-work). Each route handler is wired through a `create_*_router(db_conn=…)` factory in `web/app.py`; the `db_conn` is captured by the handler closure, **not** injected via `Depends(get_conn)`.
+- Modify: `src/markland/service/sessions.py:get_session` — already takes a `request`; extend to accept an optional `conn` kwarg and forward it to `read_session`.
 - Tests: existing route tests should continue to pass.
 
 The current pattern in routes is:
 
 ```python
-def some_route(request: Request):
-    cookie = request.cookies.get(SESSION_COOKIE_NAME, "")
-    try:
-        payload = read_session(cookie, secret=session_secret)
-    except InvalidSession:
-        ...
+def create_foo_router(*, db_conn, session_secret, ...):
+    router = APIRouter()
+
+    @router.get("/foo")
+    def some_route(request: Request):
+        cookie = request.cookies.get(SESSION_COOKIE_NAME, "")
+        try:
+            payload = read_session(cookie, secret=session_secret)
+        except InvalidSession:
+            ...
+    return router
 ```
 
-Most routes already have access to a `conn` via dependency injection
-(grep for `conn: sqlite3.Connection = Depends(get_conn)` in adjacent
-handlers). For each callsite:
+`db_conn` is already available in every handler's closure (every
+factory takes it). The fix is mechanical: pass `conn=db_conn` to
+`read_session`. Do NOT introduce `Depends(get_conn)` — that's not
+how this codebase wires DB access.
 
-- [ ] **Step 1: For each of the 13 callsites, identify how `conn` is obtained.**
+- [ ] **Step 1: Locate the 13 callsites.**
 
 Run: `grep -rn "read_session" src/markland/web/`
-For each result, inspect the surrounding handler. If the handler
-already takes a `conn` Depends, pass it through. If not, add the
-Depends.
 
-- [ ] **Step 2: Update each callsite to pass `conn=conn` to `read_session`.**
+You should see roughly:
+- `auth_routes.py` (logout — touched in Task 4)
+- `dashboard.py`
+- `device_routes.py`
+- `identity_routes.py` (2 sites)
+- `invite_routes.py` (2 sites)
+- `presence_api.py`
+- `routes_agents.py` (2 sites)
+- `save_routes.py`
+- … plus internal helpers in the same files
 
-Example diff for one site:
+- [ ] **Step 2: Update each callsite to pass `conn=db_conn` to `read_session`.**
+
+Example diff for `dashboard.py`:
 
 ```diff
 -payload = read_session(cookie, secret=session_secret)
-+payload = read_session(cookie, secret=session_secret, conn=conn)
++payload = read_session(cookie, secret=session_secret, conn=db_conn)
 ```
 
-- [ ] **Step 3: Update `get_session` in `service/sessions.py`** so it
-  too accepts an optional `conn` and passes it through. Update the few
-  callers that use `get_session` (search via `grep -rn "get_session" src/`).
+The variable name in scope is `db_conn` (closure), not `conn` —
+mirror what's already there.
+
+- [ ] **Step 3: Update `service/sessions.py:get_session`** — it currently
+  reads a `request`, calls `read_session`, returns `SessionInfo`. Add
+  an optional `conn: sqlite3.Connection | None = None` parameter and
+  forward it. Update callers via `grep -rn "get_session" src/` — only
+  a handful, each with closure access to `db_conn`.
 
 - [ ] **Step 4: Run full suite**
 
@@ -333,116 +421,94 @@ require a single retry.
 
 ```bash
 git add src/markland/web/ src/markland/service/sessions.py
-git commit -m "feat(web): pass conn to read_session for revocation checks (markland-bul)"
+git commit -m "feat(web): pass db_conn to read_session for revocation checks (markland-bul)"
 ```
+
+**Note on test callsites:** Tests that call `read_session(cookie, secret=...)`
+without `conn` continue to work — the conn=None branch skips the
+epoch check. **No test files need updating in this task.** Only
+production code in `src/markland/web/` is in scope.
 
 ---
 
-## Task 4 — Logout bumps the epoch
+## Task 4 — Logout bumps + issuance embeds (atomic; ship together)
+
+**⚠ Atomicity:** This task covers both the logout-side bump AND the
+issuance-side epoch read. They MUST land in a single commit (or PR).
+A deploy that ships only the bump would lock users out: their first
+logout sets epoch=1, but the issuance path still hardcodes epoch=0,
+so every subsequent sign-in is born stale and rejected.
 
 **Files:**
-- Modify: `src/markland/web/auth_routes.py` (the `/api/auth/logout` handler)
+- Modify: `src/markland/web/auth_routes.py` — three handlers:
+  - `verify` (JSON `/api/auth/verify`, ~line 139): calls `issue_session`.
+  - `verify_page` (GET `/verify`, ~line 169): calls `issue_session`.
+  - `logout` (POST `/api/auth/logout`, ~line 195): currently only
+    deletes the cookie.
 - Test: `tests/test_auth_routes.py`
 
-- [ ] **Step 1: Write the failing test**
+**Test helper to add first** (used by both tests in this task):
 
 ```python
-def test_logout_invalidates_outstanding_cookie():
+# tests/test_auth_routes.py — add near other helpers
+def _last_magic_link_token(db_conn) -> str:
+    """Read the most recently issued magic-link token from the DB.
+
+    Magic-link tokens are persisted hashed in `magic_link_consumed`
+    (PR #59) but the un-consumed token is held in the email payload —
+    we synthesize it via the same code path the email dispatcher uses.
+
+    NOTE FOR IMPLEMENTER: read how existing tests
+    (`tests/test_auth_routes.py`, `tests/test_service_magic_link.py`)
+    obtain the issued token and adapt. Most likely you can just call
+    `make_magic_link_token(email, secret=session_secret)` directly —
+    this helper exists in `service/magic_link.py`. If so, the helper
+    above can be replaced inline at each callsite.
+    """
+    raise NotImplementedError("Replace with the codebase's actual pattern.")
+```
+
+(The implementer should substitute the actual mechanism used in
+existing tests — most likely calling `make_magic_link_token` directly
+rather than fishing for an enqueued email. Just naming the helper
+here so the test bodies below can reference it.)
+
+- [ ] **Step 1: Write the failing tests**
+
+```python
+def test_logout_invalidates_outstanding_cookie(db_conn):
     """A signed-in user logs out; the *previously issued* cookie no longer
     works on a subsequent request from a different tab."""
     client = TestClient(app)
-    # 1. Sign in and capture the cookie.
-    client.post("/api/auth/magic-link", json={"email": "alice@test"})
-    token = _last_magic_link_token()
-    r = client.get(f"/verify?token={token}")
-    cookie_value = r.cookies.get(SESSION_COOKIE_NAME)
-    # 2. Cookie works.
+    # Seed the user.
+    db_conn.execute(
+        "INSERT INTO users (id, email, created_at) VALUES (?, ?, ?)",
+        ("usr_alice", "alice@test", "2026-01-01T00:00:00+00:00"),
+    )
+    db_conn.commit()
+    # Issue a session directly (bypassing magic-link UI for test simplicity).
+    cookie_value = issue_session("usr_alice", secret=session_secret, conn=db_conn)
+    # 1. Cookie works.
     r = client.get("/api/me", cookies={SESSION_COOKIE_NAME: cookie_value})
     assert r.status_code == 200
-    # 3. Logout from another tab.
+    # 2. Logout from "another tab" with the same cookie.
     client.post("/api/auth/logout", cookies={SESSION_COOKIE_NAME: cookie_value})
-    # 4. Old cookie no longer works.
+    # 3. Old cookie no longer works.
     r = client.get("/api/me", cookies={SESSION_COOKIE_NAME: cookie_value})
     assert r.status_code == 401
-```
 
-- [ ] **Step 2: Run tests to verify failure**
 
-Run: `.venv/bin/pytest tests/test_auth_routes.py::test_logout_invalidates_outstanding_cookie -v`
-Expected: FAIL — old cookie still works on step 4.
-
-- [ ] **Step 3: Update `/api/auth/logout`**
-
-In `auth_routes.py`:
-
-```python
-from markland.service.sessions import bump_session_epoch  # add to imports
-
-@router.post("/api/auth/logout")
-def logout(request: Request, conn: sqlite3.Connection = Depends(get_conn)):
-    cookie = request.cookies.get(SESSION_COOKIE_NAME, "")
-    if cookie:
-        try:
-            payload = read_session(cookie, secret=session_secret, conn=conn)
-            bump_session_epoch(conn, user_id=payload["user_id"])
-        except InvalidSession:
-            # Cookie is already invalid (expired, revoked, tampered) — fine.
-            pass
-    response = RedirectResponse("/", status_code=303)
-    response.delete_cookie(SESSION_COOKIE_NAME, path="/")
-    return response
-```
-
-- [ ] **Step 4: Run tests to verify passing**
-
-Run: `.venv/bin/pytest tests/test_auth_routes.py::test_logout_invalidates_outstanding_cookie -v`
-Expected: PASS.
-
-- [ ] **Step 5: Run full suite**
-
-Run: `.venv/bin/pytest -q --tb=short`
-Expected: full pass.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add src/markland/web/auth_routes.py tests/test_auth_routes.py
-git commit -m "feat(auth): logout bumps session_epoch to revoke outstanding cookies (markland-bul)"
-```
-
----
-
-## Task 5 — Issue cookies with the user's current epoch
-
-**Files:**
-- Modify: `src/markland/web/auth_routes.py` (`/api/auth/verify` and
-  `/verify` — both call `issue_session` post-magic-link)
-- Test: extend `tests/test_auth_routes.py`
-
-The previous task fixed logout but didn't yet update issuance — every
-new cookie is currently issued with `epoch=0`. After Task 4, a user's
-first logout bumps the column to 1, and **every cookie issued
-afterwards must carry epoch=1 too**, otherwise new sign-ins are
-born stale.
-
-- [ ] **Step 1: Write the failing test**
-
-```python
-def test_new_cookie_after_logout_carries_current_epoch():
+def test_new_cookie_after_logout_carries_current_epoch(db_conn):
     """Sign in (epoch 0). Logout (bump to 1). Sign in again — new cookie works."""
     client = TestClient(app)
-    # First sign-in.
-    client.post("/api/auth/magic-link", json={"email": "bob@test"})
-    t1 = _last_magic_link_token()
-    r1 = client.get(f"/verify?token={t1}")
-    cookie1 = r1.cookies.get(SESSION_COOKIE_NAME)
-    # Logout.
+    db_conn.execute(
+        "INSERT INTO users (id, email, created_at) VALUES (?, ?, ?)",
+        ("usr_bob", "bob@test", "2026-01-01T00:00:00+00:00"),
+    )
+    db_conn.commit()
+    cookie1 = issue_session("usr_bob", secret=session_secret, conn=db_conn)
     client.post("/api/auth/logout", cookies={SESSION_COOKIE_NAME: cookie1})
-    # Second sign-in.
-    client.post("/api/auth/magic-link", json={"email": "bob@test"})
-    t2 = _last_magic_link_token()
-    r2 = client.get(f"/verify?token={t2}")
-    cookie2 = r2.cookies.get(SESSION_COOKIE_NAME)
+    cookie2 = issue_session("usr_bob", secret=session_secret, conn=db_conn)
     # Old cookie dead, new cookie alive.
     r = client.get("/api/me", cookies={SESSION_COOKIE_NAME: cookie1})
     assert r.status_code == 401
@@ -450,88 +516,107 @@ def test_new_cookie_after_logout_carries_current_epoch():
     assert r.status_code == 200
 ```
 
-- [ ] **Step 2: Run to verify failure**
+(Issuing the session directly via `issue_session()` rather than
+walking the full magic-link flow keeps these tests crisp. The
+end-to-end magic-link flow is already covered by existing tests in
+this file; we don't need to re-prove it here.)
 
-Run: `.venv/bin/pytest tests/test_auth_routes.py::test_new_cookie_after_logout_carries_current_epoch -v`
-Expected: FAIL — second sign-in's cookie has epoch=0, but user's
-current epoch is 1, so `read_session` rejects it.
+- [ ] **Step 2: Run tests to verify failure**
 
-- [ ] **Step 3: Update issuance sites to pass `conn`**
+Run: `.venv/bin/pytest tests/test_auth_routes.py -v -k "logout_invalidates or new_cookie_after_logout"`
+Expected: BOTH FAIL — old cookie still works on logout test;
+post-logout sign-in cookie hits epoch mismatch.
 
-In `auth_routes.py` — both `/api/auth/verify` (JSON) and `/verify`
-(GET) call `issue_session(user.id, secret=session_secret)`. Change
-to:
+- [ ] **Step 3: Update logout, verify, and verify_page handlers**
 
-```diff
--cookie = issue_session(user.id, secret=session_secret)
-+cookie = issue_session(user.id, secret=session_secret, conn=conn)
+In `auth_routes.py`:
+
+```python
+from markland.service.sessions import bump_session_epoch  # add to imports
+
+# Inside create_auth_router(*, db_conn, session_secret, ...):
+
+@router.post("/api/auth/verify")
+def verify(...):
+    ...
+-   cookie = issue_session(user.id, secret=session_secret)
++   cookie = issue_session(user.id, secret=session_secret, conn=db_conn)
+    ...
+
+@router.get("/verify")
+def verify_page(...):
+    ...
+-   cookie = issue_session(user.id, secret=session_secret)
++   cookie = issue_session(user.id, secret=session_secret, conn=db_conn)
+    ...
+
+@router.post("/api/auth/logout")
+def logout(request: Request):
+    cookie = request.cookies.get(SESSION_COOKIE_NAME, "")
+    if cookie:
+        try:
+            payload = read_session(cookie, secret=session_secret, conn=db_conn)
+            bump_session_epoch(db_conn, user_id=payload["user_id"])
+        except InvalidSession:
+            # Cookie is already invalid (expired, revoked, tampered, or
+            # references a deleted user) — nothing to bump. The legitimate
+            # user can't be locked out by an attacker hitting logout with
+            # a stolen cookie because that bump kills the attacker too.
+            pass
+    response = RedirectResponse("/", status_code=303)
+    response.delete_cookie(SESSION_COOKIE_NAME, path="/")
+    return response
 ```
 
-Also check anywhere else `issue_session` or `make_session_cookie_value`
-is called (`grep -rn "issue_session\|make_session_cookie_value" src/`).
+Use closure `db_conn`, NOT `Depends(get_conn)` — that's not the
+pattern in this codebase.
 
 - [ ] **Step 4: Run tests to verify passing**
 
-Run: `.venv/bin/pytest tests/test_auth_routes.py -v`
+Run: `.venv/bin/pytest tests/test_auth_routes.py -v -k "logout_invalidates or new_cookie_after_logout"`
 Expected: PASS.
 
 - [ ] **Step 5: Run full suite**
 
 Run: `.venv/bin/pytest -q --tb=short`
+Expected: full pass (mod the known flake).
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Commit (single commit covering both halves)**
 
 ```bash
 git add src/markland/web/auth_routes.py tests/test_auth_routes.py
-git commit -m "feat(auth): issue cookies with user's current session_epoch (markland-bul)"
+git commit -m "feat(auth): logout invalidates outstanding cookies via session_epoch (markland-bul)"
 ```
+
+**One commit, both halves.** Don't split this — see atomicity warning
+at top of task.
 
 ---
 
-## Task 6 — Add `/api/auth/revoke-all-sessions` (optional but cheap)
+## Task 5 — `/api/auth/revoke-all-sessions` (optional follow-up)
 
-**Rationale:** Now that `bump_session_epoch` exists, exposing it as
-an explicit endpoint is one route handler. Useful for the
-"compromised account" case (forget the device, kill all sessions on
-all browsers). Skip if scope feels tight — this is a P3-ish
-quality-of-life addition. The bead doesn't require it.
+**Rationale:** `bump_session_epoch` is already exported. A
+`/api/auth/revoke-all-sessions` endpoint is the "I think my session
+was leaked" UX, distinct from the "I'm signing out" UX that logout
+covers. Different button in settings, same primitive.
+
+This is **explicitly optional** for the bead-bul PR. Add it if scope
+feels easy; defer to a follow-up bead if not. The current cookie does
+NOT need to be re-issued by this endpoint — calling tabs can refresh
+and re-authenticate via magic link, which is what we want when
+"my session was compromised" anyway.
 
 If you do it:
 
-- [ ] **Step 1: Write the failing test** that creates a session,
+- [ ] **Step 1: Write the failing test** that issues a session,
   POSTs `/api/auth/revoke-all-sessions`, then asserts the original
   cookie is now 401.
-
-- [ ] **Step 2: Add the route** — same shape as logout but doesn't
-  delete the cookie locally (the user is signing out other browsers,
-  not this one — though the next request from THIS browser will also
-  401 because the current cookie is stale; the route should
-  re-issue a fresh cookie for the calling tab).
-
+- [ ] **Step 2: Add the route** — same logic as logout but no
+  RedirectResponse (return 200/204 with empty body or `{"ok": true}`).
 - [ ] **Step 3: Run tests, commit.**
 
-If skipping, document in the PR body that this endpoint is a
-follow-up.
-
----
-
-## Task 7 — Update `service/sessions.py` docstring
-
-**Files:**
-- Modify: top-of-module docstring in `src/markland/service/sessions.py`
-
-- [ ] **Step 1: Update the docstring** to reflect the new payload
-  shape (`{"user_id", "exp", "epoch"}`) and revocation semantics.
-  Current docstring claims "Rotating the secret invalidates all
-  outstanding sessions" — that's still true but no longer the only
-  way; mention `bump_session_epoch` as the per-user equivalent.
-
-- [ ] **Step 2: Commit (no test needed for a docstring).**
-
-```bash
-git add src/markland/service/sessions.py
-git commit -m "docs(sessions): document session_epoch revocation (markland-bul)"
-```
+If skipping, file a follow-up bead `revoke-all-sessions endpoint`
+and reference it in the PR body.
 
 ---
 
@@ -549,6 +634,28 @@ Before opening the PR, walk this list:
 - [ ] At least one integration-level test that covers: sign in → logout → old cookie 401, sign in again → new cookie 200.
 
 ---
+
+## Rollback
+
+If a bug surfaces post-deploy, revert the deploy (or the merge commit).
+The `users.session_epoch` column stays — it's harmless on rollback
+because:
+- Old code never reads it.
+- New cookies issued during the broken window have an `epoch` field;
+  old code ignores unknown payload fields.
+- The column will pick up where it left off on the next forward
+  deploy.
+
+No migration to undo. No data to back out.
+
+## CSRF tokens are NOT epoch-bound (deliberate)
+
+`make_csrf_token` / `verify_csrf_token` (signed by the same secret
+but separate salt, 1-hour lifetime) are not coupled to the epoch.
+After a logout, an attacker holding a stolen CSRF token has up to 1
+hour of validity remaining — but they no longer have a valid session
+cookie either, so any state-changing route still rejects them on
+session check first. Acceptable for v1.
 
 ## PR checklist
 
