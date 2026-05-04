@@ -7,14 +7,6 @@ post-launch sprint should pick up.
 
 ## Security
 
-- **Magic-link single-use enforcement** — `src/markland/service/magic_link.py`
-  uses `URLSafeTimedSerializer` (stateless), so a token can be replayed any
-  number of times within its 15-minute window. Today this is honestly
-  disclosed on `/security` ("a captured link can be used within its 15-minute
-  window before it expires"), but the long-term fix is to track consumed
-  JTIs in a `magic_link_consumed (jti, email, consumed_at)` table and reject
-  reused tokens at `read_magic_link_token`. Update `/security` wording back
-  to "single-use" once enforced.
 - **No CSRF protection on save routes** — `POST /d/{t}/fork`,
   `POST /d/{t}/bookmark`, and `DELETE /d/{t}/bookmark` in
   `src/markland/web/save_routes.py` accept plain form/fetch submissions with

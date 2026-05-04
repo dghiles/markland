@@ -1,13 +1,18 @@
 """Magic-link login: itsdangerous-signed single-use tokens, delivered via dispatcher.
 
-Token carries the target email; validity = 15 minutes. "Single-use" is enforced at
-the verify route by issuing a session immediately on first success; the token itself
-has no server-side state (the 15-minute expiry is the belt-and-braces).
+Token payload is `{"email": str, "jti": uuid4-hex}`; validity = 15 minutes.
+Single-use is enforced server-side: `consume_magic_link_token` atomically inserts
+the JTI into `magic_link_consumed` and rejects any subsequent verify with the
+same token. Opportunistic GC of rows older than the signature window keeps the
+table small.
 """
 
 from __future__ import annotations
 
 import logging
+import sqlite3
+import time
+import uuid
 from urllib.parse import urlencode
 
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
@@ -45,8 +50,13 @@ def issue_magic_link_token(
     secret: str,
     max_age_seconds: int = MAGIC_LINK_MAX_AGE_SECONDS,  # kept for symmetry; serializer ignores
 ) -> str:
-    """Sign a token carrying this email."""
-    return _serializer(secret).dumps(email.strip().lower())
+    """Sign a token carrying this email plus a unique JTI.
+
+    The JTI is what makes server-side single-use enforcement possible — it
+    gives us a stable per-issuance key to record in `magic_link_consumed`.
+    """
+    payload = {"email": email.strip().lower(), "jti": uuid.uuid4().hex}
+    return _serializer(secret).dumps(payload)
 
 
 def read_magic_link_token(
@@ -55,13 +65,76 @@ def read_magic_link_token(
     secret: str,
     max_age_seconds: int = MAGIC_LINK_MAX_AGE_SECONDS,
 ) -> str:
-    """Return the email encoded in `token`. Raises `InvalidMagicLink`."""
+    """Return the email encoded in `token`. Raises `InvalidMagicLink`.
+
+    NOTE: This decodes without enforcing single-use. Production verify routes
+    must use `consume_magic_link_token` instead. This helper is kept for tests
+    and debugging.
+    """
     try:
-        return _serializer(secret).loads(token, max_age=max_age_seconds)
+        payload = _serializer(secret).loads(token, max_age=max_age_seconds)
     except SignatureExpired as e:
         raise InvalidMagicLink("magic link expired") from e
     except BadSignature as e:
         raise InvalidMagicLink("invalid magic link") from e
+    if not isinstance(payload, dict) or "email" not in payload:
+        raise InvalidMagicLink("invalid magic link payload")
+    email = payload["email"]
+    if not isinstance(email, str):
+        raise InvalidMagicLink("invalid magic link payload")
+    return email
+
+
+def consume_magic_link_token(
+    token: str,
+    *,
+    conn: sqlite3.Connection,
+    secret: str,
+    max_age_seconds: int = MAGIC_LINK_MAX_AGE_SECONDS,
+) -> str:
+    """Verify and atomically consume a magic-link token.
+
+    On success: records the JTI in `magic_link_consumed` and returns the
+    email. On replay: raises `InvalidMagicLink("magic link already used")`.
+    On bad signature / expiry: raises `InvalidMagicLink` with the
+    appropriate message.
+
+    Also opportunistically GCs rows older than `max_age_seconds`. Since the
+    signature check rejects tokens older than that anyway, GC'd rows can
+    never collide with a valid future consume.
+    """
+    try:
+        payload = _serializer(secret).loads(token, max_age=max_age_seconds)
+    except SignatureExpired as e:
+        raise InvalidMagicLink("magic link expired") from e
+    except BadSignature as e:
+        raise InvalidMagicLink("invalid magic link") from e
+    if not isinstance(payload, dict):
+        raise InvalidMagicLink("invalid magic link payload")
+    email = payload.get("email")
+    jti = payload.get("jti")
+    if not isinstance(email, str) or not isinstance(jti, str):
+        raise InvalidMagicLink("invalid magic link payload")
+
+    now = int(time.time())
+    cutoff = now - max_age_seconds
+
+    # Opportunistic GC. Cheap (indexed scan, ~one row per consume in the worst case).
+    conn.execute(
+        "DELETE FROM magic_link_consumed WHERE consumed_at < ?",
+        (cutoff,),
+    )
+
+    # Atomic single-use: INSERT OR IGNORE returns rowcount=0 if the JTI already exists.
+    cur = conn.execute(
+        "INSERT OR IGNORE INTO magic_link_consumed (jti, email, consumed_at) "
+        "VALUES (?, ?, ?)",
+        (jti, email, now),
+    )
+    conn.commit()
+    if cur.rowcount == 0:
+        raise InvalidMagicLink("magic link already used")
+    return email
 
 
 def send_magic_link(

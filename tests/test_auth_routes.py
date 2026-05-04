@@ -145,3 +145,48 @@ def test_magic_link_sent_page_sets_honest_expectations(client_and_conn):
     assert r.status_code == 200
     body = r.text
     assert "up to a minute" in body, "expected honest delivery-time copy in magic_link_sent"
+
+
+def test_verify_json_rejects_replay(client_and_conn):
+    """A magic-link token that has already been redeemed must be rejected on
+    a second verify, even within the 15-minute signature window."""
+    client, _, _ = client_and_conn
+    token = issue_magic_link_token("alice@example.com", secret="test-secret")
+
+    r1 = client.post("/api/auth/verify", json={"token": token})
+    assert r1.status_code == 200, r1.text
+
+    r2 = client.post("/api/auth/verify", json={"token": token})
+    assert r2.status_code == 400, r2.text
+    # Replay must not be distinguishable from "expired/invalid" to the caller.
+    body = r2.text.lower()
+    assert "already used" not in body, "replay state must not leak in JSON response"
+
+
+def test_verify_get_rejects_replay(client_and_conn):
+    """The browser /verify GET path must also enforce single-use."""
+    client, _, _ = client_and_conn
+    token = issue_magic_link_token("alice@example.com", secret="test-secret")
+
+    r1 = client.get(f"/verify?token={token}", follow_redirects=False)
+    # First use: 200 (verify_sent_tpl) or 303 (return_to redirect). Either way, not 400.
+    assert r1.status_code in (200, 303), r1.text
+
+    r2 = client.get(f"/verify?token={token}", follow_redirects=False)
+    assert r2.status_code == 400, r2.text
+    # Generic wording — must not echo "already used".
+    body = r2.text.lower()
+    assert "expired" in body or "invalid" in body
+    assert "already used" not in body
+
+
+def test_security_page_renders_single_use_wording(client_and_conn):
+    """Regression: post single-use enforcement, /security must claim
+    'single-use' and must NOT carry the old 'captured link can be used'
+    caveat."""
+    client, _, _ = client_and_conn
+    r = client.get("/security")
+    assert r.status_code == 200
+    body_lower = r.text.lower()
+    assert "single-use" in body_lower
+    assert "captured link can be used" not in body_lower
