@@ -24,17 +24,38 @@ Current selection: **"Shared notes for you and your agents."** — collaboration
 
 ---
 
-## Where we are (2026-05-03 PM)
+## Where we are (2026-05-04)
 
-Live at **`https://markland.dev`**. Heavy day of shipping since this morning's
-refresh. **`/blog` launched + first anchor post live** (PR #63) — `/blog`,
+Live at **`https://markland.dev`**. Pre-release security pass essentially
+complete: 18 findings filed by a multi-agent review, **P0 batch shipped**
+(PR #62 — markdown XSS via `javascript:` scheme, JS-context XSS in
+`invite.html`/`settings_agents.html`/`device.html`, magic-link tokens
+scrubbed from logs + Sentry), **P1+P2 batch shipped** (PR #64, 11
+commits — `mk_session` `SameSite=Strict`, agents no longer inherit
+owner-action on owning user's docs, CSRF secret-fail-loud, Dockerfile
+non-root, presence-strip for anonymous viewers, CSP `script-src` drops
+`'unsafe-inline'` via per-request nonce, `Fly-Client-IP` trust over
+`X-Forwarded-For`, content size caps, grant-by-unknown-email folds to
+silent invite, share-token rotation on private revoke, `feature` +
+audit-list defense-in-depth admin gates). 3 P2 deferred to focused
+follow-ups (server-side session revocation epoch, O(N) Argon2 verify
+scan, logout-only-cookie). 13 P3 follow-ups filed as beads. **MCP
+discovery hardened** (PR #66) — bearer auth advertised so SDK probes
+don't crash on HTML 404. **Copy-token UX polished** (PR #65) — Copy
+button + 'C' shortcut, agent token row stops disappearing.
+
+`/blog` launched + first anchor post live (PR #63) — `/blog`,
 `/blog/{slug}`, and `/blog/feed.xml` (Atom 1.0) all serving 200; the
 single-post feed is "[What is agent-native publishing?](https://markland.dev/blog/agent-native-publishing)"
 (1,403 words, 155-char meta description, 150-word definition lead in
 the AI-citation sweet spot, full Article + Person + BreadcrumbList
 JSON-LD). Phase 2 of the SEO strategy — content launch — is genuinely
-underway one day after the strategy was written. **GEO batch G1-G5
-shipped** (PR #54, #55, #56) — robots.txt pruned to training-only
+underway one day after the strategy was written.
+
+**Phase 0 dogfooding partial** — Eric ran steps 1-3 with view-grant
+only; environment + Sentry alerts complete; steps 4-14 remain.
+
+**GEO batch G1-G5 shipped** (PR #54, #55, #56) — robots.txt pruned to training-only
 blocks (Perplexity + ChatGPT Search + Claude Web all reachable now),
 `/llms.txt` live, question-shaped FAQ blocks across `/` + `/quickstart` +
 every `/alternatives/{slug}`, 143-word "What is Markland?" answer block
@@ -76,21 +97,19 @@ plans, 864 tests).
 Active or imminent. Items here have a plan or a clear next action.
 
 - **Monetization strategy review + plan-write** — design spec landed at `docs/specs/2026-05-03-monetization-strategy-design.md`: 4-tier ladder (Free / Pro / Team / Enterprise), per-workspace + per-human-seat expansion, agent-operations metered overage reserved as a future lever, $25K MRR target in 12 months. Next move: review, decide tier prices + workspace/seat caps, then write the implementation plan (Stripe wiring, gates, billing UI, marketing pricing page).
-- **Pre-release security review** — beads `markland-06e` (P1). Multi-agent security review across the live build before broader launch. Should bundle remaining hardening items (visibility-change rail, agent-edit grant safety rails) into a single review pass.
 - **MCP audit Plan 7 — Phase B deprecation/removal** — opens 30 days after the `mcp-audit-axis-5-released` tag (laid 2026-05-01, so window opens **2026-05-31**). Removes 4 deprecation shims: `markland_set_visibility`, `markland_feature`, `markland_set_status`, `markland_clear_status`. Plan: `docs/plans/2026-04-27-mcp-phase-b-deprecation-removal.md`.
 - **Install/onboarding flow simplification** — Option 1 shipped (PR #12 + #13). Remaining: (2) prefill `user_code` via `/device?code=…` (route already supports it — runbook needs to construct the link); (3) single-link install — CLI runbook generates one `/device?code=…` URL so sign-in + code-entry happen on the same page; (4) skip device flow for browser-first users — sign in, hit "Connect Claude Code", copy one-shot token from `/me/tokens` into `claude mcp add`. Plan `docs/plans/2026-04-24-setup-install-ux-fix.md`. Worth a brainstorm pass on (2)-(4) before launch — right answer depends on whether the primary install audience is browser-first humans or CLI-first agents.
-- **Agent-edit grant safety rails** — granting `edit` to another agent today carries unsurfaced risk (prompt-injected edits, accidental overwrites, polluted project memory) and the grant UI/MCP surface doesn't show the consequences. Two angles: (a) `/quickstart` + grant UI default-recommend `view` for cross-principal agent grants and require an explicit gesture for `edit`; (b) grant-confirmation copy spells out "this lets that agent rewrite the doc body and revision history." Brainstorm — sourced from the 2026-05-03 third-party concerns review.
 - **Phase 2 content cadence** — `/blog` infrastructure shipped (PR #63) and post #1 ("What is agent-native publishing?") is live at `https://markland.dev/blog/agent-native-publishing`. Next post target ~2026-05-17 (one post / 2 weeks per `docs/audits/2026-05-03-seo-strategy/SEO-STRATEGY.md` §4). Working list of next anchor titles: "How to share Claude Code output without copy-pasting", "MCP, explained for developers", "Five things to publish to Markland from Claude Code", "Why markdown round-trips break in Notion", "Building a public CLAUDE.md library". Pick 3-4 of those between now and ~2026-08.
+- **Phase 0 dogfooding — finish steps 4-14** — Eric ran 1-3 with view-grant only (`b87f338`). Remaining: edit-grant, grant-revocation, MCP-from-CLI, agent token issuance, public-doc reading, `markland_search` from a fresh client, etc. Per `docs/plans/2026-04-28-phase-0-dogfood.md`.
 
 ## Next
 
 Queued. The big security/analytics/MCP-axis batches all landed; what's
 left is launch-readiness polish.
 
-- **Phase 0 dogfooding walkthrough** against live deploy — plan: `docs/plans/2026-04-28-phase-0-dogfood.md` (operationalizes `docs/runbooks/phase-0-checklist.md`). Resend verified, magic-link tested end-to-end — fully unblocked.
-- **CSRF on save routes** — `/d/{t}/fork`, `/d/{t}/bookmark`, `DELETE /d/{t}/bookmark` accept plain form/fetch with `SameSite=Lax`. First user-authored mutating POSTs in the app; ship before any real users. No plan yet — small.
-- **Sentry DSN + alert wiring** — plan: `docs/plans/2026-04-28-sentry-dsn-alerts.md`. Code path lives (`config.sentry_dsn` + conditional init in `run_app.py`); operator action is provisioning the DSN secret and wiring the three alerts (5xx spike, ConflictError spike, EmailSendError spike).
 - **Soak-window analytics check** — beads `markland-fjd` (2 weeks post-launch): pull Umami stats + `/admin/metrics` 14d funnel snapshot + cross-reference signups vs Umami sessions, post a 1-message summary.
+- **Server-side session revocation epoch** — beads `markland-bul` / `markland-ayv` (P2 deferred from PR #64). Today logout is cookie-only; if a session cookie is captured, only secret rotation invalidates it globally. Blast radius is large (13+ `read_session` callers across `web/` need a `conn` argument plumbed through). Mitigations in place: magic-link is single-use, secret rotation works.
+- **O(N) Argon2 verify scan on Bearer auth** — beads `markland-9dm` (P2 deferred from PR #64). Schema change required: token-prefix index or hash-bucket sharding so we don't argon2-verify every row in the user/agent tables on each request.
 - **Self-service deletion** — `/privacy` line 38 already promises "before GA": doc deletion (doc + revisions + grants) and account deletion (magic-link records + agent tokens). Currently "reply to any email and a human will process." External evaluators read this as a "hold off, beta-only" signal — closing it removes a concrete trust friction. No plan yet.
 - **Formal privacy policy** — `/privacy` line 11 says "a formal privacy policy will be published before general availability." Today's page is a working summary, which reads as deliberately stub-y to outside evaluators. Promote to a real policy (data inventory, retention, sub-processors, jurisdiction, contact).
 - **Sharpen agent-to-agent positioning** — third-party eval flagged `markland_grant` to another agent ID as the most interesting differentiator; current homepage treats it as a footnote. Add an above-fold or near-fold use-case block: "agent-to-agent coordination — architect agent publishes plan, QA agent appends test report, you read one doc instead of scraping terminal logs." Brainstorm — touches landing copy + possibly a `/explore`-adjacent example.
@@ -167,6 +186,11 @@ date it landed.
 
 ### Build (v1 plans + post-launch security/MCP)
 
+- **2026-05-04** — **Pre-release security review executed end-to-end.** Multi-agent review (`fdc1707`) filed 18 findings; **P0 batch shipped (PR #62, 3 findings)** — markdown XSS via `javascript:` link scheme (allowlist `http`/`https`/`mailto`/relative/fragment), JS-context XSS in `invite.html`/`settings_agents.html`/`device.html` (via `tojson`, delegated submit handler, `urlencode`), magic-link tokens scrubbed from logs + Sentry (new `markland.log_scrubbing` module masks `token`/`share_token`/`csrf`/`magic_link` query params, strips `Authorization` header). **P1+P2 batch shipped (PR #64, 11 commits, 10 findings)** — `mk_session` `SameSite=Strict`, agent-action inheritance bounded to view/edit (delete/visibility/feature/grant/revoke require explicit owner-grant on the agent), CSRF secret-fail-loud on empty `MARKLAND_SESSION_SECRET`, Dockerfile non-root `app` uid 1000, presence-strip principal_id/display_name/note for anonymous viewers, CSP `script-src` drops `'unsafe-inline'` via per-request `csp_nonce` woven through `render_with_nav`, `Fly-Client-IP` trust over `X-Forwarded-For`, content size caps (1MB UTF-8 / 500-char title), grant-by-unknown-email folds to silent invite (no email-existence oracle), share-token rotation when revoking grants on private docs, defense-in-depth admin gates on `docs_svc.feature` + `audit_svc.list_recent`. 3 P2 deferred to focused follow-ups (server-side session revocation epoch, O(N) Argon2 verify, logout-only-cookie). 13 P3 follow-ups filed as beads.
+- **2026-05-04** — **MCP discovery hardened (PR #66)** — bearer auth advertised on `/mcp` so SDK probes don't crash on HTML 404. Closes `markland-2yj`.
+- **2026-05-04** — Copy-token UX polished (PR #65 + close `markland-31a`). Copy button + 'C' shortcut on `/settings/agents`; agent token row no longer disappears after first reveal.
+- **2026-05-04** — **`/blog` launched (PR #63)** — `/blog`, `/blog/{slug}`, `/blog/feed.xml` (Atom 1.0); first anchor post "[What is agent-native publishing?](https://markland.dev/blog/agent-native-publishing)" (1,403 words, 155-char meta description, 150-word definition lead in the AI-citation sweet spot, full Article + Person + BreadcrumbList JSON-LD). Phase 2 of the SEO strategy underway one day after the strategy was written.
+- **2026-05-04** — Sentry DSN provisioned + three alerts wired (5xx spike, `ConflictError` spike, `EmailSendError` spike) — plan `docs/plans/2026-04-28-sentry-dsn-alerts.md`. Operator step from the Next lane.
 - **2026-05-03** — **Magic-link single-use enforcement (PR #59)** — closes the 15-min capture-and-replay window flagged in the third-party concerns review and on `/security`'s post-beta hardening list. `magic_links.consumed_at` column + single-use guard on verify; replays rejected with the same generic error to avoid timing oracles. Plan `docs/plans/2026-05-03-magic-link-single-use.md`.
 - **2026-05-03** — **Security follow-ups batch (PR #49)** — all 6 items from `docs/plans/2026-04-28-security-followups-batch.md`: `user_code` redirect escape via `urllib.parse.quote`, per-IP rate limit on `POST /device/confirm`, lock-after-N-failed-confirms on the device row, `grant_by_principal_id` defensive `principal_type` check, append-only `audit_log` enforcement (DB trigger), `/admin/audit` middleware coverage widened.
 - **2026-05-01** — **Agent token query-string leak fixed (PR #41)** — `routes_agents.py:223-225` no longer redirects with `?new_token=…`. Now writes the token to a signed flash cookie (`URLSafeTimedSerializer`, mirrors `pending_intent.py`) read once on the next page render, then cleared.
