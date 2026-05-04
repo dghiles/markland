@@ -7,11 +7,13 @@ fail because of email problems.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import sqlite3
 from typing import Any
 
 from markland import db
+from markland.models import Document
 from markland.service import audit, email_templates, metrics
 from markland.service.auth import Principal
 from markland.service.permissions import NotFound, check_permission
@@ -399,17 +401,32 @@ def _grant_via_invite(
         "first_grant", principal_id=principal.principal_id
     )
 
-    # Return the same shape as a successful grant. Use the invite's
-    # creator + creation timestamp so the response is structurally
-    # consistent and leak-free. principal_id is set to the email-shape
-    # target rather than a user id we don't have.
+    # Return the same shape AND value-shape as a successful grant.
+    #
+    # The earlier version leaked the unknown-email branch via VALUES:
+    # principal_id was the literal email (contains `@`) and granted_at
+    # was the invite's ~7-day expiry. A caller could distinguish via
+    # `"@" in principal_id` or by comparing timestamps.
+    #
+    # Fix:
+    #   - principal_id: synthetic, deterministic, opaque user-id-shape
+    #     (`usr_pending_<16 hex>`). Deterministic per email so retrying
+    #     doesn't produce a different id (which would itself be a leak).
+    #     The principal_id field in the API response is informational —
+    #     not used as a foreign key by callers — so a synthetic value
+    #     is safe.
+    #   - granted_at: a "now" UTC ISO string, matching the format and
+    #     time bucket of a real grant write (db.upsert_grant uses
+    #     Document.now()).
+    digest = hashlib.sha256(target_email.strip().lower().encode("utf-8")).hexdigest()[:16]
+    synthetic_principal_id = f"usr_pending_{digest}"
     return {
         "doc_id": doc.id,
-        "principal_id": target_email,
+        "principal_id": synthetic_principal_id,
         "principal_type": "user",
         "level": level,
         "granted_by": principal.principal_id,
-        "granted_at": created.expires_at or "",
+        "granted_at": Document.now(),
     }
 
 

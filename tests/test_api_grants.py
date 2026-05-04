@@ -143,7 +143,12 @@ def test_post_grant_unknown_email_returns_200_with_invite(client):
 def test_post_grant_known_and_unknown_email_have_same_shape(client):
     """P2-E: a grant to a known email and a grant to an unknown email
     must return responses with the same field shape (no field that
-    leaks the difference)."""
+    leaks the difference) AND with values shaped indistinguishably —
+    no `@` in principal_id, both prefixed `usr_`, granted_at within a
+    few seconds of each other (not the invite's ~7-day expiry).
+    """
+    import datetime
+
     c, _, _ = client
     doc_id = _publish(c, "alice")
     r_unknown = c.post(
@@ -157,7 +162,27 @@ def test_post_grant_known_and_unknown_email_have_same_shape(client):
         json={"principal": "b@x", "level": "view"},
     )
     assert r_known.status_code == r_unknown.status_code == 200
-    assert set(r_known.json().keys()) == set(r_unknown.json().keys())
+    body_known = r_known.json()
+    body_unknown = r_unknown.json()
+    assert set(body_known.keys()) == set(body_unknown.keys())
+
+    # Value-level indistinguishability: principal_id must not contain
+    # `@` (else a caller can detect the unknown-email branch by string
+    # match) and must use the `usr_` prefix in both cases.
+    assert "@" not in body_unknown["principal_id"], body_unknown
+    assert "@" not in body_known["principal_id"], body_known
+    assert body_known["principal_id"].startswith("usr_"), body_known
+    assert body_unknown["principal_id"].startswith("usr_"), body_unknown
+
+    # granted_at must be a "now" timestamp in BOTH cases, not the
+    # invite's 7-day expiry — a caller diffing the two values must not
+    # be able to distinguish.
+    def _to_epoch(s: str) -> float:
+        # Accept ISO-8601 with trailing `Z` or offset.
+        return datetime.datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp()
+
+    delta = abs(_to_epoch(body_known["granted_at"]) - _to_epoch(body_unknown["granted_at"]))
+    assert delta < 5, (body_known["granted_at"], body_unknown["granted_at"])
 
 
 def test_post_grant_on_foreign_doc_returns_404(client):

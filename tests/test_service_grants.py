@@ -87,10 +87,22 @@ def test_grant_unknown_email_silently_creates_invite(tmp_path):
         level="view",
         email_client=email_client,
     )
-    # Same shape as a successful grant.
+    # Same shape as a successful grant. Principal_id must NOT contain
+    # the email — that would let the caller detect the unknown-email
+    # branch by `"@" in principal_id`. It must use the `usr_` prefix
+    # like a real user id, and must be deterministic for the same
+    # email (so retrying doesn't leak via different ids either).
     assert result["doc_id"] == doc_id
-    assert result["principal_id"] == "nobody@x"
     assert result["level"] == "view"
+    assert "@" not in result["principal_id"]
+    assert result["principal_id"].startswith("usr_")
+    # granted_at must be a "now" timestamp, not the 7-day invite expiry.
+    import datetime
+    granted_at = datetime.datetime.fromisoformat(
+        result["granted_at"].replace("Z", "+00:00")
+    )
+    now = datetime.datetime.now(datetime.timezone.utc)
+    assert abs((now - granted_at).total_seconds()) < 5, result["granted_at"]
     # Invite was actually created (a row in the invites table).
     rows = conn.execute(
         "SELECT id FROM invites WHERE doc_id = ?", (doc_id,)
@@ -98,6 +110,20 @@ def test_grant_unknown_email_silently_creates_invite(tmp_path):
     assert len(rows) == 1
     # Email was queued.
     email_client.send.assert_called_once()
+    # Deterministic: re-grant for the same email returns the same
+    # synthetic principal_id. (A different id on retry would itself be
+    # a side-channel: the caller could distinguish unknown-email by
+    # observing the id changes whereas a real grant is idempotent.)
+    result2 = grants_svc.grant(
+        conn,
+        base_url=BASE,
+        principal=alice,
+        doc_id=doc_id,
+        target="nobody@x",
+        level="view",
+        email_client=email_client,
+    )
+    assert result2["principal_id"] == result["principal_id"]
 
 
 def test_grant_rejects_non_email_unknown_target(tmp_path):
