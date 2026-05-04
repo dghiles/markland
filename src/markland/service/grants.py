@@ -342,6 +342,13 @@ def revoke(
             doc_id=doc_id,
             metadata={"target_principal_id": principal_id},
         )
+        # P2-F / markland-1e8: rotate share_token on grant-revoke for
+        # private docs. /d/{share_token} bypasses the grants table — so
+        # revoking a grant alone leaves the old URL working forever.
+        # Public docs keep their share_token (the URL IS the capability).
+        doc = db.get_document(conn, doc_id)
+        if doc is not None and not doc.is_public:
+            db.rotate_share_token(conn, doc_id)
     return {"revoked": deleted, "doc_id": doc_id, "principal_id": principal_id}
 
 
