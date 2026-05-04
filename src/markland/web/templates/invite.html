@@ -23,11 +23,16 @@
         <button type="submit">Accept and open document</button>
       </form>
       <script>
+        // JSON-encode server-supplied tokens so unusual characters (e.g. an
+        // accidentally-permitted backslash or quote) cannot break out of the
+        // JS string context. Jinja autoescape only handles HTML contexts.
+        const INVITE_TOKEN = {{ token | tojson }};
+        const DOC_SHARE_TOKEN = {{ doc_share_token | tojson }};
         document.getElementById("accept-form").addEventListener("submit", async (e) => {
           e.preventDefault();
-          const resp = await fetch("/api/invites/{{ token }}/accept", { method: "POST" });
+          const resp = await fetch("/api/invites/" + encodeURIComponent(INVITE_TOKEN) + "/accept", { method: "POST" });
           if (resp.ok) {
-            window.location.href = "/d/{{ doc_share_token }}";
+            window.location.href = "/d/" + encodeURIComponent(DOC_SHARE_TOKEN);
           } else {
             const el = document.createElement("p");
             el.className = "error";

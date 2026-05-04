@@ -209,6 +209,21 @@ def test_device_page_logged_out_prompts_login(client):
     assert "sign in" in r.text.lower()
 
 
+def test_device_page_logged_out_url_encodes_code_in_login_link(client):
+    """A user_code containing ``&`` or ``"`` must be URL-encoded in the
+    ``/login?next=...`` link rendered to logged-out users — otherwise an
+    attacker-supplied query value could break out of the href context or
+    smuggle additional query params.
+    """
+    r = client.get("/device?code=AB%26x%3D1%22onmouseover")
+    assert r.status_code == 200
+    body = r.text
+    # The original raw characters must not appear unescaped in the href.
+    assert '"onmouseover' not in body
+    # The percent-encoded form should appear inside the next= target.
+    assert "AB%26x%3D1%22onmouseover" in body or "AB%26x%3D1%22" in body
+
+
 def test_device_page_logged_in_shows_form(client):
     _login(client)
     r = client.get("/device")
