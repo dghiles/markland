@@ -36,6 +36,14 @@ metrics. Real-time CRDT editing, teams/orgs, and OAuth are explicitly out of sco
   `GET /setup` runbook) is the Claude Code onboarding path and mints a user token
   on authorize. Per-user API tokens (`mk_usr_…`) and per-agent tokens (`mk_agt_…`)
   are argon2id-hashed and minted from `/settings/tokens` / `/settings/agents`.
+  Token plaintext embeds the row's primary key (`mk_usr_<16hex>_<urlsafe32>`)
+  so `resolve_token` does an O(1) PK lookup + single argon2 verify, with a
+  legacy O(N) fallback for tokens minted before PR #69. Cookie posture:
+  `SameSite=Strict`, `HttpOnly`, `Secure` in prod; payload embeds the
+  user's `session_epoch`, bumped on logout to invalidate outstanding
+  cookies server-side (PR #70). CSP drops `script-src 'unsafe-inline'`
+  via per-request nonces; CSRF tokens are signed with the same secret
+  on a separate salt and fail-loud when the secret is unset.
 - **Admin** — `is_admin` boolean on `users`, promoted via SQL. Admin-only
   surfaces: `markland_feature` (MCP), `markland_audit` (MCP), and `/admin/audit`
   (HTML).
@@ -136,9 +144,13 @@ class Principal:
 
 One line per table:
 
-- `users` — `id`, `email` (unique), `display_name`, `is_admin`, `created_at`.
+- `users` — `id`, `email` (unique), `display_name`, `is_admin`, `created_at`,
+  `session_epoch` (server-side revocation counter, bumped on logout).
 - `tokens` — argon2id-hashed API tokens for users (`mk_usr_…`) and agents
-  (`mk_agt_…`), keyed by `(principal_type, principal_id)`.
+  (`mk_agt_…`), keyed by `(principal_type, principal_id)`. Plaintext shape
+  `mk_<usr|agt>_<16hex>_<urlsafe32>` embeds the row's primary key for O(1)
+  resolution; legacy `mk_<usr|agt>_<urlsafe32>` plaintexts (pre-PR #69) still
+  authenticate via fallback scan.
 - `waitlist` — retained pre-launch landing email capture.
 - `agents` — `id` (`agt_…`), `owner_type` (user|service), `owner_id`,
   `display_name`, `revoked_at`.
@@ -147,7 +159,8 @@ One line per table:
 - `grants` — `(doc_id, principal_id)` PK; `level` ∈ `{view, edit}`;
   `principal_type` discriminator for downstream joins.
 - `invites` — argon2id-hashed `mk_inv_…` tokens, `uses_remaining`, optional
-  `expires_at`, `revoked_at`.
+  `expires_at`, `revoked_at`, `target_email` (PR #67 — used to dedup
+  invite-pending grants by `(doc_id, lower(target_email))`).
 - `device_authorizations` — device-flow state: `device_code`, `user_code`,
   status, `expires_at`, `consumed_at`, optional piggyback `invite_token`.
 - `revisions` — pre-update snapshots capped at 50 per doc, index on
