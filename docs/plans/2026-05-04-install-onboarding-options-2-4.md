@@ -623,6 +623,10 @@ Create `src/markland/web/templates/_connect_claude_code.html`:
     The access token stays inside Claude Code's local config — it never
     leaves your machine.
   </p>
+  <p class="fineprint">
+    Using a different MCP client?
+    <a href="/quickstart#other-clients">See /quickstart for setup.</a>
+  </p>
 </aside>
 
 <style>

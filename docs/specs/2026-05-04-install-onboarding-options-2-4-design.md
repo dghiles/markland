@@ -218,8 +218,20 @@ The panel renders iff all three are true:
     authorization. The access token stays inside Claude Code's local
     config — it never leaves your machine.
   </p>
+  <p class="fineprint">
+    Using a different MCP client?
+    <a href="/quickstart#other-clients">See /quickstart for setup.</a>
+  </p>
 </aside>
 ```
+
+(Confirmed by 2026-05-09 brainstorm follow-up: the panel stays
+Claude-Code-first in v1 because Claude Code is the only surface we've
+end-to-end smoke-verified. Cursor / Codex / Claude Desktop / Claude.ai
+(Cowork) get their own brainstorm — see the roadmap entry "Claude
+Desktop + Claude.ai install paths" `[needs brainstorm]`. The footnote
+link gives non-Claude-Code users somewhere to land instead of
+bouncing.)
 
 The Copy button uses the same vanilla-JS clipboard pattern as the
 agent-token Copy button shipped in PR #65. The dismiss `×` button
