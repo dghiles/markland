@@ -78,3 +78,7 @@ desktop-*.png
 
 # Cutover evidence (operator artifact, not committed)
 cutover-evidence/
+
+# Gauntlet QA runs — keep cards + context in git, results out
+.gauntlet/results/
+.gauntlet/run-sets/
