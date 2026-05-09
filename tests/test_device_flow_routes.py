@@ -442,3 +442,18 @@ def test_setup_runbook_uses_single_link_form(client):
     assert "and enter the code" not in body, "runbook still tells user to type the code"
     # And step 1's documented response shape teaches the new field.
     assert "verification_uri_complete" in body, "step 1 shape missing the new field"
+
+
+def test_device_query_param_prefills_form(client):
+    """GET /device?code=<allocated user_code> renders a form prefilled with that code.
+
+    Pinned in addition to test_device_page_prefills_code_from_query — that test
+    feeds a synthetic code; this one threads a real device-start allocation,
+    which exercises the lookup path the Phase 2 onramp depends on.
+    """
+    _login(client)
+    start = client.post("/api/auth/device-start").json()
+    user_code = start["user_code"]
+    r = client.get(f"/device?code={user_code}")
+    assert r.status_code == 200
+    assert f'value="{user_code}"' in r.text, r.text[:1500]
