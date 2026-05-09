@@ -341,14 +341,18 @@ flyctl ssh console -a markland -C "/app/.venv/bin/python -c 'import sqlite3; fro
 ```
 
 Look for `revoked_at IS NULL` rows. If none, ask the user to mint a fresh
-token at `/settings/tokens` and re-run `claude mcp add`.
+token by re-pasting "Install the Markland MCP server from
+https://markland.dev/setup" into Claude Code — the runbook is idempotent,
+allocates a fresh device authorization, and re-installs the MCP server
+with the new token. (Users can also still mint a personal token manually
+at `/settings/tokens` if they're using a non-Claude-Code MCP client.)
 
 ## Republishing the live Quickstart doc
 
-When the install command in the published Quickstart drifts (e.g. after a
-client-side change to `claude mcp add` or a new convention like the
-trailing-slash URL), use `scripts/admin/republish_doc.py` to push the
-local `seed-content/admin/07-quickstart-claude-code.md` to production:
+When the runbook copy at `/setup` (the source of truth Claude Code
+reads) or the published Quickstart drifts from the local
+`seed-content/admin/07-quickstart-claude-code.md`, use
+`scripts/admin/republish_doc.py` to push the local copy to production:
 
 ```bash
 cat > /tmp/sftp_quickstart.txt << 'EOF'

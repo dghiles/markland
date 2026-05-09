@@ -64,7 +64,9 @@ post-launch sprint should pick up.
   identity_routes.py + routes_agents.py + dashboard.py through it. Banner
   now shows on `/`, `/d/<token>`, `/explore`, `/quickstart`, `/about`,
   `/security`, `/privacy`, `/terms`, `/alternatives`, `/alternatives/<slug>`,
-  `/verify_sent`, `/settings/tokens`, `/settings/agents`, and `/dashboard`.
+  `/settings/tokens`, `/settings/agents`, and `/dashboard`. (The
+  `/verify_sent` interstitial was removed 2026-05-09 — naked sign-in now
+  redirects directly to `/dashboard`.)
   Plan: `docs/plans/2026-05-01-signed-in-banner-coverage-and-overflow.md`.
 - **`view_document` cookie/Bearer split for owner controls** — the handler at
   `src/markland/web/app.py` renders the "Signed in as <email>" banner via
