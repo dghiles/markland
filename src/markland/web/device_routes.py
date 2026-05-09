@@ -375,20 +375,26 @@ Parse the JSON response. It has shape:
 
 ```
 {{
-  "device_code":       "<long opaque string>",
-  "user_code":         "ABCD-EFGH",
-  "verification_url":  "{host}/device",
-  "poll_interval":     5,
-  "expires_in":        600
+  "device_code":               "<long opaque string>",
+  "user_code":                 "ABCD-EFGH",
+  "verification_url":          "{host}/device",
+  "verification_uri_complete": "{host}/device?code=ABCD-EFGH",
+  "poll_interval":             5,
+  "expires_in":                600
 }}
 ```
 
+If your client library implements RFC 8628 §3.2 it will surface
+`verification_uri_complete` directly to the user; otherwise build the URL
+yourself (it is `verification_url + "?code=" + user_code`).
+
 ## 2. Show the user exactly this message
 
-> Visit **{host}/device** and enter the code **ABCD-EFGH**.
-> The code expires in 10 minutes.
+> Click here to authorize: **{host}/device?code=ABCD-EFGH**
+> The link expires in 10 minutes.
 
-(Substitute the real `user_code` from step 1.)
+(Substitute the real `user_code` from step 1, or just paste
+`verification_uri_complete` straight from step 1's response.)
 
 ## 3. Poll until authorized
 

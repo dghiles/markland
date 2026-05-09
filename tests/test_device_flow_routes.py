@@ -428,3 +428,17 @@ def test_setup_runbook_has_human_preamble(client):
     assert "You are Claude Code" in body
     # Order matters — preamble first, role prompt second.
     assert body.index("**For humans:**") < body.index("You are Claude Code")
+
+
+def test_setup_runbook_uses_single_link_form(client):
+    """Step 2 should hand the user a single clickable URL, not a code-to-type."""
+    r = client.get("/setup")
+    assert r.status_code == 200
+    body = r.text
+    # Must contain the single-link URL form so any reader (Claude Code or a
+    # human eyeballing the page) sees one URL.
+    assert "/device?code=" in body, "runbook missing single-link form"
+    # Must NOT contain the legacy two-step phrasing.
+    assert "and enter the code" not in body, "runbook still tells user to type the code"
+    # And step 1's documented response shape teaches the new field.
+    assert "verification_uri_complete" in body, "step 1 shape missing the new field"
