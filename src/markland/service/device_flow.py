@@ -21,6 +21,7 @@ import secrets
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
 from markland.service.auth import create_user_token
 from markland.service.invites import accept_invite
@@ -66,8 +67,9 @@ def normalize_user_code(presented: str) -> str:
 @dataclass(frozen=True)
 class DeviceStart:
     device_code: str
-    user_code: str            # formatted: XXXX-XXXX
+    user_code: str                     # formatted: XXXX-XXXX
     verification_url: str
+    verification_uri_complete: str     # RFC 8628 §3.2: single-link form
     poll_interval: int
     expires_in: int
 
@@ -138,11 +140,18 @@ def start(
         (device_code, raw_user_code, invite_token, _iso(now), _iso(expires)),
     )
     conn.commit()
+    formatted_user_code = format_user_code(raw_user_code)
     verification_url = f"{base_url.rstrip('/')}/device" if base_url else "/device"
+    # quote() handles the '-' separator harmlessly; explicit so a future
+    # user_code alphabet change can't silently produce a malformed URL.
+    verification_uri_complete = (
+        f"{verification_url}?code={quote(formatted_user_code, safe='')}"
+    )
     return DeviceStart(
         device_code=device_code,
-        user_code=format_user_code(raw_user_code),
+        user_code=formatted_user_code,
         verification_url=verification_url,
+        verification_uri_complete=verification_uri_complete,
         poll_interval=POLL_INTERVAL_SECONDS,
         expires_in=DEVICE_CODE_TTL_SECONDS,
     )

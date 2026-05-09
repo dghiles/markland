@@ -152,6 +152,7 @@ def build_device_router(
             "device_code": result.device_code,
             "user_code": result.user_code,
             "verification_url": result.verification_url,
+            "verification_uri_complete": result.verification_uri_complete,
             "poll_interval": result.poll_interval,
             "expires_in": result.expires_in,
         })

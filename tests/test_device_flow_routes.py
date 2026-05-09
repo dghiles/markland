@@ -61,6 +61,7 @@ def test_device_start_without_body_returns_expected_shape(client):
         "device_code",
         "user_code",
         "verification_url",
+        "verification_uri_complete",
         "poll_interval",
         "expires_in",
     }
@@ -69,6 +70,18 @@ def test_device_start_without_body_returns_expected_shape(client):
     assert body["verification_url"] == "https://markland.dev/device"
     assert body["poll_interval"] == 5
     assert body["expires_in"] == 600
+
+
+def test_device_start_includes_verification_uri_complete(client):
+    """RFC 8628 §3.2: response carries a single-click URL with the user_code embedded."""
+    r = client.post("/api/auth/device-start")
+    assert r.status_code == 200
+    body = r.json()
+    assert "verification_uri_complete" in body, body
+    user_code = body["user_code"]
+    # The complete URI is verification_uri + ?code=<user_code>.
+    expected = f"https://markland.dev/device?code={user_code}"
+    assert body["verification_uri_complete"] == expected, body["verification_uri_complete"]
 
 
 def test_device_start_with_invite_token_persists_it(client):
