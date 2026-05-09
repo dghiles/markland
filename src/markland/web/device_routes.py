@@ -32,6 +32,7 @@ from markland.service.sessions import (
     read_session,
     verify_csrf_token,
 )
+from markland.web.render_helpers import render_with_nav
 
 logger = logging.getLogger("markland.device_flow")
 
@@ -239,7 +240,9 @@ def build_device_router(
                 invite_token = row[2]
         csrf = make_csrf_token(user_id, secret=session_secret) if user_id else ""
         return HTMLResponse(
-            device_tpl.render(
+            render_with_nav(
+                device_tpl, request, db_conn,
+                base_url=base_url, secret=session_secret,
                 session=session,
                 code=code,
                 csrf=csrf,
@@ -279,7 +282,9 @@ def build_device_router(
             )
         if not verify_csrf_token(csrf, user_id, secret=session_secret):
             return HTMLResponse(
-                device_tpl.render(
+                render_with_nav(
+                    device_tpl, request, db_conn,
+                    base_url=base_url, secret=session_secret,
                     session=session, code=user_code, csrf="",
                     invite_token=None, invite_description=None,
                     error="Your session expired. Reload the page and try again.",
@@ -294,7 +299,9 @@ def build_device_router(
                 "already_authorized": "That code has already been used.",
             }.get(result.reason or "", "Couldn't authorize that code.")
             return HTMLResponse(
-                device_tpl.render(
+                render_with_nav(
+                    device_tpl, request, db_conn,
+                    base_url=base_url, secret=session_secret,
                     session=session,
                     code=user_code,
                     csrf=make_csrf_token(user_id, secret=session_secret),
@@ -334,12 +341,15 @@ def build_device_router(
 
     @router.get("/device/done", response_class=HTMLResponse)
     def page_device_done(
+        request: Request,
         code: str | None = None,
         invite_accepted: str | None = None,
         invite_error: str | None = None,
     ):
         return HTMLResponse(
-            device_done_tpl.render(
+            render_with_nav(
+                device_done_tpl, request, db_conn,
+                base_url=base_url, secret=session_secret,
                 code=code,
                 invite_accepted=(invite_accepted == "1"),
                 invite_error=invite_error,

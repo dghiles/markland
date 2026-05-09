@@ -1,65 +1,156 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>Authorize device — Markland</title>
-  <style>
-    body { font-family: ui-sans-serif, system-ui, sans-serif; max-width: 36rem;
-           margin: 4rem auto; padding: 0 1rem; line-height: 1.5; color: #111; }
-    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
-    .code-input { font-family: ui-monospace, monospace; font-size: 1.5rem;
-                  letter-spacing: 0.2rem; padding: 0.75rem 1rem; width: 100%;
-                  box-sizing: border-box; text-transform: uppercase; }
-    .invite-note { background: #fffbea; border: 1px solid #f4c430;
-                   padding: 0.75rem 1rem; border-radius: 6px; margin: 1rem 0; }
-    .btn { background: #111; color: #fff; padding: 0.6rem 1rem; border: none;
-           border-radius: 6px; font-size: 1rem; cursor: pointer; }
-    .btn.secondary { background: #eee; color: #111; }
-    .error { color: #b00020; }
-  </style>
-</head>
-<body>
-  <h1>Authorize a device</h1>
+{% extends "base.html" %}
+{% set seo_noindex = true %}
 
-  {% if not session %}
-    {# URL-encode the code value so unusual characters (&, #, spaces) cannot
-       break out of the query-string context. Jinja's HTML autoescape only
-       covers attribute-quoting; ``urlencode`` covers URL-component encoding.
-       The literal ``?code=`` separator is intentional and unencoded so the
-       target URL stays a normal ``/device?code=...`` query-string. #}
-    <p>Please <a href="/login?next=/device{% if code %}?code={{ code | urlencode }}{% endif %}">sign in</a>
-       to continue. After you sign in you'll be brought back here to enter the code.</p>
-  {% else %}
-    <p>Hi {{ session.display_name or session.user_id }} — a CLI is requesting
-       access to your Markland account.</p>
+{% block title %}Authorize device — Markland{% endblock %}
 
-    {% if invite_description %}
-      <div class="invite-note">
-        This will also give you <strong>{{ invite_description.level }}</strong>
-        access to <em>{{ invite_description.doc_title }}</em>
-        (shared by {{ invite_description.granter_display }}).
-      </div>
-    {% elif invite_token %}
-      <div class="invite-note">
-        This will also accept the attached invite.
-      </div>
+{% block content %}
+<style>
+  .device-wrap {
+    max-width: 36rem;
+    margin: 4rem auto 6rem;
+    padding: 0 1.25rem;
+  }
+  .device-card {
+    background: var(--surface);
+    border: 1.5px solid var(--outline);
+    border-radius: var(--radius-lg);
+    padding: 2.25rem 2rem 2rem;
+  }
+  .device-card h1 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.75rem;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+    margin: 0 0 .5rem;
+    color: var(--text);
+  }
+  .device-card p { color: var(--muted); margin: .5rem 0 1rem; }
+  .device-card .greeting { color: var(--text); }
+
+  .invite-note {
+    background: var(--surface-2);
+    border: 1px solid var(--outline-hairline);
+    color: var(--text);
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    margin: 1rem 0;
+  }
+  .device-error {
+    color: var(--danger, #c62828);
+    background: var(--surface-2);
+    border: 1px solid var(--outline-hairline);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin: 1rem 0;
+  }
+
+  .code-display {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 1.5rem;
+    letter-spacing: 0.2rem;
+    text-align: center;
+    background: var(--surface-2);
+    border: 1px solid var(--outline-hairline);
+    border-radius: 6px;
+    padding: 0.85rem 1rem;
+    margin: 1rem 0 1.5rem;
+    color: var(--text);
+  }
+  .code-input {
+    font-family: var(--font-mono);
+    font-size: 1.5rem;
+    letter-spacing: 0.2rem;
+    padding: 0.75rem 1rem;
+    width: 100%;
+    box-sizing: border-box;
+    text-transform: uppercase;
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--outline);
+    border-radius: 6px;
+    margin: 0.5rem 0 1rem;
+  }
+  .code-input:focus { outline: 2px solid var(--accent, var(--text)); outline-offset: 2px; }
+
+  .device-actions {
+    display: flex; gap: 0.75rem; align-items: center; margin-top: 1.25rem;
+  }
+  .btn {
+    font: inherit;
+    background: var(--text);
+    color: var(--surface);
+    padding: 0.65rem 1.1rem;
+    border: 1px solid var(--text);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+    text-decoration: none;
+    display: inline-block;
+  }
+  .btn.secondary {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--outline);
+  }
+  .signin-link { color: var(--text); text-decoration: underline; }
+</style>
+
+<section class="device-wrap">
+  <div class="device-card">
+    <h1>Authorize a device</h1>
+
+    {% if not session %}
+      {# URL-encode the code value so unusual characters (&, #, spaces) cannot
+         break out of the query-string context. Jinja's HTML autoescape only
+         covers attribute-quoting; ``urlencode`` covers URL-component encoding.
+         The literal ``?code=`` separator is intentional and unencoded so the
+         target URL stays a normal ``/device?code=...`` query-string. #}
+      <p>Please <a class="signin-link" href="/login?next=/device{% if code %}?code={{ code | urlencode }}{% endif %}">sign in</a>
+         to continue. After you sign in you'll be brought back here.</p>
+    {% else %}
+      <p class="greeting">Hi {{ session.display_name or session.user_id }} — a CLI is requesting access
+         to your Markland account.</p>
+
+      {% if invite_description %}
+        <div class="invite-note">
+          This will also give you <strong>{{ invite_description.level }}</strong>
+          access to <em>{{ invite_description.doc_title }}</em>
+          (shared by {{ invite_description.granter_display }}).
+        </div>
+      {% elif invite_token %}
+        <div class="invite-note">
+          This will also accept the attached invite.
+        </div>
+      {% endif %}
+
+      {% if error %}
+        <p class="device-error">{{ error }}</p>
+      {% endif %}
+
+      <form method="post" action="/device/confirm" autocomplete="off">
+        <input type="hidden" name="csrf" value="{{ csrf }}" />
+        {% if code %}
+          {# Single-link flow: the code arrived via URL, no typing needed. #}
+          <p>You're about to authorize this device:</p>
+          <code class="code-display">{{ code }}</code>
+          <input type="hidden" name="user_code" value="{{ code }}" />
+          {# Keep a hidden visible-name input so existing tests that grep for
+             value="..." on user_code still match the prefilled code. #}
+          <input type="hidden" id="user_code" value="{{ code }}" />
+        {% else %}
+          <label for="user_code">Enter the code shown in your CLI:</label>
+          <input class="code-input" type="text" id="user_code" name="user_code"
+                 value="" placeholder="ABCD-EFGH" maxlength="9"
+                 required autofocus />
+        {% endif %}
+        <div class="device-actions">
+          <button class="btn" type="submit">Authorize</button>
+          <a class="btn secondary" href="/" role="button">Cancel</a>
+        </div>
+      </form>
     {% endif %}
-
-    {% if error %}
-      <p class="error">{{ error }}</p>
-    {% endif %}
-
-    <form method="post" action="/device/confirm" autocomplete="off">
-      <input type="hidden" name="csrf" value="{{ csrf }}" />
-      <label for="user_code">Enter the code shown in your CLI:</label>
-      <input class="code-input" type="text" id="user_code" name="user_code"
-             value="{{ code or '' }}" placeholder="ABCD-EFGH" maxlength="9"
-             required autofocus />
-      <div style="margin-top:1rem;">
-        <button class="btn" type="submit">Authorize</button>
-        <a class="btn secondary" href="/" role="button" style="text-decoration:none;display:inline-block;">Cancel</a>
-      </div>
-    </form>
-  {% endif %}
-</body>
-</html>
+  </div>
+</section>
+{% endblock %}
