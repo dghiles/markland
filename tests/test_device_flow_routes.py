@@ -457,3 +457,20 @@ def test_device_query_param_prefills_form(client):
     r = client.get(f"/device?code={user_code}")
     assert r.status_code == 200
     assert f'value="{user_code}"' in r.text, r.text[:1500]
+
+
+def test_device_confirm_sets_dismiss_cookie(client):
+    """A successful /device/confirm dismisses the dashboard panel for the user."""
+    _login(client)
+    start = client.post("/api/auth/device-start").json()
+    user_code = start["user_code"]
+    page = client.get(f"/device?code={user_code}")
+    csrf = _extract_csrf(page.text)
+    r = client.post(
+        "/device/confirm",
+        data={"user_code": user_code, "csrf": csrf},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303, r.text
+    set_cookie = r.headers.get("set-cookie", "")
+    assert "mk_dismiss_connect=1" in set_cookie, set_cookie

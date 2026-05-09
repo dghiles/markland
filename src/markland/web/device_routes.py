@@ -310,10 +310,23 @@ def build_device_router(
             params.append("invite_accepted=1")
         if result.invite_error:
             params.append(f"invite_error={quote(result.invite_error)}")
-        return RedirectResponse(
+        redirect = RedirectResponse(
             url=f"/device/done?{'&'.join(params)}",
             status_code=303,
         )
+        # Phase 2: dismiss the dashboard "Connect Claude Code" panel
+        # automatically — this user just authorized a device, so the panel
+        # has done its job.
+        redirect.set_cookie(
+            key="mk_dismiss_connect",
+            value="1",
+            max_age=31_536_000,
+            path="/",
+            samesite="strict",
+            secure=True,
+            httponly=False,
+        )
+        return redirect
 
     # -------------------------------------------------------------------
     # GET /device/done
