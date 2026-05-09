@@ -10,7 +10,7 @@ import sqlite3
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pydantic import BaseModel, Field
 
@@ -23,6 +23,7 @@ from markland.service.sessions import (
     SESSION_COOKIE_NAME,
     InvalidSession,
     read_session,
+    verify_csrf_token,
 )
 from markland.service.users import User, get_user
 from markland.web.render_helpers import render_with_nav
@@ -102,6 +103,30 @@ def build_identity_router(
         if not ok:
             raise HTTPException(404, "token not found")
         return JSONResponse({"ok": True})
+
+    @router.post("/api/me/dismiss-connect-claude-code")
+    def api_dismiss_connect_claude_code(request: Request):
+        """Dismiss the dashboard "Connect Claude Code" panel.
+
+        Sets a year-long cookie. CSRF-required, session-required.
+        """
+        user = _require_session_user(request, db_conn, session_secret)
+        csrf = request.headers.get("X-CSRF-Token", "")
+        if not verify_csrf_token(csrf, user.id, secret=session_secret):
+            return JSONResponse({"error": "csrf"}, status_code=403)
+        resp = Response(status_code=204)
+        resp.set_cookie(
+            key="mk_dismiss_connect",
+            value="1",
+            max_age=31_536_000,  # 1 year
+            path="/",
+            samesite="strict",
+            secure=True,
+            # HttpOnly intentionally False — JS reads this for fallback render
+            # decisions; the cookie carries no PII or auth material.
+            httponly=False,
+        )
+        return resp
 
     @router.get("/settings/tokens", response_class=HTMLResponse)
     def settings_tokens(request: Request):
