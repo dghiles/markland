@@ -58,7 +58,6 @@ def build_auth_router(
         autoescape=select_autoescape(["html"]),
     )
     login_tpl = env.get_template("login.html")
-    verify_sent_tpl = env.get_template("verify_sent.html")
     magic_link_sent_tpl = env.get_template("magic_link_sent.html")
 
     @router.get("/login", response_class=HTMLResponse)
@@ -192,16 +191,13 @@ def build_auth_router(
         pending = request.cookies.get("markland_pending_intent", "")
         if pending:
             target = "/resume"
-        if target == "/":
-            resp = HTMLResponse(
-                render_with_nav(
-                    verify_sent_tpl, request, db_conn,
-                    base_url=base_url, secret=session_secret,
-                    signed_in_user={"email": user.email},
-                )
-            )
-        else:
-            resp = RedirectResponse(target, status_code=303)
+        elif target == "/":
+            # Fresh sign-in with no return_to: skip the "you're signed in"
+            # interstitial and land directly on /dashboard. The dashboard
+            # itself runs the Connect Claude Code onramp panel for users
+            # without an authorized device.
+            target = "/dashboard"
+        resp = RedirectResponse(target, status_code=303)
         resp.set_cookie(
             key=SESSION_COOKIE_NAME,
             value=cookie,

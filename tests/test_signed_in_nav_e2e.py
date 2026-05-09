@@ -171,25 +171,21 @@ def test_banner_email_truncates_when_long(harness):
     assert "flex-shrink:0" in body or "flex-shrink: 0" in body
 
 
-def test_verify_sent_page_shows_banner(harness):
-    """A naked sign-in (no return_to) lands on the verify_sent page.
+def test_naked_signin_redirects_to_dashboard(harness):
+    """A naked sign-in (no return_to) lands on /dashboard.
 
-    Pre-fix this rendered as a standalone light-themed page with no
-    banner — the worst place for that gap, since it's the user's first
-    impression after sign-in.
+    Pre-2026-05-09 this rendered an interstitial "you're signed in / go to
+    your tokens / your docs" page; now we route straight to the dashboard
+    (which itself runs the Connect Claude Code onramp panel). Removes one
+    click from the first-impression path.
     """
     from markland.service.magic_link import issue_magic_link_token
 
     client, _ = harness
     token = issue_magic_link_token("alice@example.com", secret=SECRET)
     r = client.get(f"/verify?token={token}", follow_redirects=False)
-    assert r.status_code == 200  # naked sign-in renders verify_sent
-    body = r.text
-    # Banner present
-    assert "Signed in as" in body
-    assert "alice@example.com" in body
-    # Inherits base.html chrome
-    assert 'href="/explore"' in body  # site-nav links
+    assert r.status_code == 303
+    assert r.headers["location"] == "/dashboard"
 
 
 def test_settings_tokens_page_shows_banner_and_drops_bespoke_signout(harness):

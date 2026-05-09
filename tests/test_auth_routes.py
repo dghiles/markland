@@ -169,8 +169,9 @@ def test_verify_get_rejects_replay(client_and_conn):
     token = issue_magic_link_token("alice@example.com", secret="test-secret")
 
     r1 = client.get(f"/verify?token={token}", follow_redirects=False)
-    # First use: 200 (verify_sent_tpl) or 303 (return_to redirect). Either way, not 400.
-    assert r1.status_code in (200, 303), r1.text
+    # First use: 303 redirect (to /dashboard for naked sign-in, or to
+    # the resolved return_to). Either way, not 400.
+    assert r1.status_code == 303, r1.text
 
     r2 = client.get(f"/verify?token={token}", follow_redirects=False)
     assert r2.status_code == 400, r2.text
