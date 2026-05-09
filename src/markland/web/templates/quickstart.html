@@ -237,7 +237,7 @@
   <ul>
     <li>
       <strong><code>claude mcp list</code> doesn't show markland.</strong>
-      Run <code>claude mcp add</code> again &mdash; the setup endpoint is idempotent and safe to re-run.
+      Re-paste <em>&ldquo;Install the Markland MCP server from {{ canonical_host }}/setup&rdquo;</em> into Claude Code &mdash; the runbook is idempotent and safe to re-run; it'll allocate a fresh authorization and re-register the server.
     </li>
     <li>
       <strong>The agent says it doesn't know about <code>markland_publish</code>.</strong>
@@ -267,8 +267,8 @@
     <h3>Do I need an Anthropic account?</h3>
     <p>No. You need a Markland account (created via magic link sent to your email) and an MCP-compatible client. Claude Code is the example throughout this quickstart because the <code>claude mcp add</code> CLI is the cleanest setup, but any client that registers an MCP server works.</p>
 
-    <h3>Does Markland work with Cursor, Continue, or other MCP clients?</h3>
-    <p>Yes. Markland exposes a standard MCP server. Any client that can register one &mdash; Cursor, Continue, Codex, Claude Desktop, custom agents &mdash; can call the eight Markland tools. Setup differs per client; the MCP <code>config.json</code> snippet on the <a href="/">home page</a> is the canonical form.</p>
+    <h3 id="other-clients">Does Markland work with Cursor, Continue, or other MCP clients?</h3>
+    <p>Yes. Markland exposes a standard MCP server. Any client that can register one &mdash; Cursor, Continue, Codex, Claude Desktop, custom agents &mdash; can call the eight Markland tools. The Claude Code paste-the-runbook flow above is Claude-Code-specific; for other clients, sign in to Markland, visit <a href="/settings/tokens">/settings/tokens</a> to mint a personal token, then point your client's MCP config at <code>https://markland.dev/mcp/</code> with an <code>Authorization: Bearer mk_usr_…</code> header. The MCP <code>config.json</code> snippet on the <a href="/">home page</a> is the canonical form.</p>
 
     <h3>Where do my published docs live?</h3>
     <p>On Markland's application server, in SQLite, currently hosted on Fly.io in the US-East region. Documents are bytes-on-disk &mdash; what your agent writes is what readers see. See <a href="/security">/security</a> for hosting and encryption details.</p>

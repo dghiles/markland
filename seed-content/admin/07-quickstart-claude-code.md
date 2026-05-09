@@ -7,27 +7,25 @@ This is the shortest path from "nothing installed" to "your agent can publish a 
 - Claude Code installed and signed in (`claude --version` returns a version)
 - A Markland account at `https://markland.dev` (sign in via magic link if you don't have one yet)
 
-## 1. Get a token
+## 1. Install the MCP server
 
-Visit `https://markland.dev/settings/tokens` while signed in. Click "Create token," give it a label (e.g. `claude-code`), and copy the plaintext value that's displayed once. It looks like `mk_usr_<long-random-string>`.
+In Claude Code, send this message verbatim:
 
-The plaintext is shown exactly once. If you lose it, revoke and create a new one.
+> Install the Markland MCP server from https://markland.dev/setup
 
-## 2. Add the MCP server to Claude Code
+Claude Code fetches the runbook at that URL and walks itself through the install:
 
-```bash
-claude mcp add --transport http --scope user markland \
-  --header "Authorization: Bearer mk_usr_..." \
-  https://markland.dev/mcp/
-```
+1. It hits `POST /api/auth/device-start` to allocate a one-time device code.
+2. It shows you a single clickable URL — `https://markland.dev/device?code=ABCD-EFGH`. Click it. If you're already signed in to Markland the form is prefilled; otherwise the magic-link flow threads the code through and brings you back to a prefilled form. One click on **Authorize**.
+3. While you authorize, Claude Code polls in the background. The moment authorization completes, it captures the access token and calls `claude mcp add` for you with the right transport flag (`--transport http`), scope (`--scope user` so the server is available regardless of which directory you launch from), bearer header, and trailing-slash URL (`https://markland.dev/mcp/` — the trailing slash skips a 307 redirect that otherwise adds latency to every session startup).
 
-`--scope user` registers Markland globally — it'll be available no matter which directory you launch Claude Code from. Drop the flag (or use `--scope project`) if you only want it active in one project.
+The access token never appears on a webpage and never goes through your clipboard. It lives inside Claude Code's local config from the moment it's minted.
 
-The trailing slash on `https://markland.dev/mcp/` is intentional — without it, every request gets a 307 redirect, which adds noticeable latency to session startup.
+Restart Claude Code if you had a session open already. You'll see `markland_*` tools available the next time you open a session.
 
-Claude Code stores the header; restart the session if you had Claude Code open already. You'll see `markland_*` tools available the next time you open a session.
+If the install fails partway through, just re-paste the same message — the runbook is idempotent and the device-flow allocation is short-lived (10 minutes), so a re-run starts cleanly.
 
-## 3. First five tool calls
+## 2. First five tool calls
 
 Once the server is registered, ask Claude to run these. Each one demonstrates a different layer.
 
@@ -50,7 +48,7 @@ Returns `id`, `share_url`, `is_public: false`. The doc is private to you. Open t
 **Make it public:**
 
 ```
-markland_set_visibility(doc_id="<the id from step 2>", public=true)
+markland_set_visibility(doc_id="<the id from the publish call above>", public=true)
 ```
 
 Now the share URL works for anyone with the link. The doc shows up on `/explore` if it's been edited recently.
@@ -91,8 +89,8 @@ If `markland_whoami()` returns your email and the publish flow above works end-t
 
 If something fails, check:
 
-1. `claude mcp list` — confirms `markland` is registered. If you used `--scope user` it shows up regardless of your current directory; if you used the default (project scope), you'll only see it from the project where you ran `mcp add`.
-2. The token starts with `mk_usr_` and was copied without truncation.
+1. `claude mcp list` — confirms `markland` is registered. The runbook installs it with `--scope user` so it shows up regardless of your current directory.
+2. Re-paste the install message — *"Install the Markland MCP server from https://markland.dev/setup"* — the runbook is idempotent and will allocate a fresh device authorization.
 3. `https://markland.dev/health` returns `{"status": "ok"}` (rules out service-side issues).
 
 ## Next steps
