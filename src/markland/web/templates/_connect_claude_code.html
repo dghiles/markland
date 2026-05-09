@@ -1,0 +1,101 @@
+{# Connect Claude Code — dashboard onramp for browser-first signups.
+   Visible iff the viewer has no authorized device and has not dismissed.
+   Auto-dismisses on successful /device/confirm via Set-Cookie. #}
+<aside class="connect-claude-code"
+       aria-label="Connect Claude Code"
+       data-csrf="{{ csrf_token }}">
+  <header>
+    <h2>Connect Claude Code</h2>
+    <button class="dismiss" type="button"
+            data-dismiss-connect aria-label="Dismiss">×</button>
+  </header>
+  <p>In Claude Code, paste this message:</p>
+  <div class="connect-cli-instruction">
+    <code id="connect-instr">Install the Markland MCP server from {{ canonical_host }}/setup</code>
+    <button class="copy" type="button" data-copy-target="connect-instr">Copy</button>
+  </div>
+  <p class="fineprint">
+    Claude Code will walk you through a one-click browser authorization.
+    The access token stays inside Claude Code's local config — it never
+    leaves your machine.
+  </p>
+  <p class="fineprint">
+    Using a different MCP client?
+    <a href="/quickstart#other-clients">See /quickstart for setup.</a>
+  </p>
+</aside>
+
+<style>
+  .connect-claude-code {
+    max-width: 48rem;
+    margin: 2rem auto;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid var(--outline);
+    border-radius: 8px;
+    background: var(--surface);
+  }
+  .connect-claude-code header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 0.5rem;
+  }
+  .connect-claude-code header h2 { font-size: 1.1rem; margin: 0; }
+  .connect-claude-code .dismiss {
+    background: none; border: none; font-size: 1.5rem; line-height: 1;
+    cursor: pointer; color: var(--muted); padding: 0 0.25rem;
+  }
+  .connect-claude-code .connect-cli-instruction {
+    display: flex; align-items: center; gap: 0.5rem;
+    background: var(--surface-2);
+    border: 1px solid var(--outline-hairline);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    margin: 0.5rem 0;
+    font-family: var(--font-mono); font-size: 0.85rem;
+  }
+  .connect-claude-code .connect-cli-instruction code {
+    flex: 1; background: none; border: none; padding: 0;
+  }
+  .connect-claude-code .connect-cli-instruction .copy {
+    font: inherit; padding: 0.25rem 0.6rem;
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--outline); border-radius: 4px;
+    cursor: pointer; font-size: 0.8rem;
+  }
+  .connect-claude-code .fineprint {
+    color: var(--muted); font-size: 0.85rem; margin: 0.5rem 0 0;
+  }
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var panel = document.querySelector('.connect-claude-code');
+  if (!panel) return;
+
+  var copyBtn = panel.querySelector('[data-copy-target]');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', function () {
+      var target = document.getElementById(copyBtn.getAttribute('data-copy-target'));
+      if (!target) return;
+      navigator.clipboard.writeText(target.textContent.trim()).then(function () {
+        var original = copyBtn.textContent;
+        copyBtn.textContent = 'Copied';
+        setTimeout(function () { copyBtn.textContent = original; }, 1500);
+      });
+    });
+  }
+
+  var dismissBtn = panel.querySelector('[data-dismiss-connect]');
+  if (dismissBtn) {
+    dismissBtn.addEventListener('click', function () {
+      var csrf = panel.getAttribute('data-csrf') || '';
+      fetch('/api/me/dismiss-connect-claude-code', {
+        method: 'POST',
+        headers: { 'X-CSRF-Token': csrf },
+        credentials: 'same-origin',
+      }).then(function () {
+        panel.remove();
+      });
+    });
+  }
+})();
+</script>

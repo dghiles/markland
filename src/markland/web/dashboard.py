@@ -15,7 +15,13 @@ from markland.db import (
     list_shared_with_principal,
 )
 from markland.service.auth import Principal
-from markland.service.sessions import SESSION_COOKIE_NAME, InvalidSession, read_session
+from markland.service.device_flow import has_authorized_device
+from markland.service.sessions import (
+    SESSION_COOKIE_NAME,
+    InvalidSession,
+    make_csrf_token,
+    read_session,
+)
 from markland.web.render_helpers import render_with_nav
 
 
@@ -65,6 +71,14 @@ def build_router(
         if user_id is None:
             return JSONResponse({"error": "unauthenticated"}, status_code=401)
 
+        # Phase 2: Connect Claude Code panel — show iff no authorized device
+        # AND no dismiss cookie.
+        dismissed = request.cookies.get("mk_dismiss_connect") == "1"
+        show_connect_panel = (
+            not dismissed and not has_authorized_device(conn, user_id)
+        )
+        csrf_token = make_csrf_token(user_id, secret=session_secret)
+
         owned_docs = list_documents_for_owner(conn, user_id)
         shared_docs = list_shared_with_principal(conn, user_id)
         bookmarked_docs = list_bookmarks_for_user(conn, user_id=user_id)
@@ -100,6 +114,8 @@ def build_router(
                 tpl, request, conn,
                 base_url=base_url, secret=session_secret,
                 owned=owned, shared=shared, bookmarks=bookmarks,
+                show_connect_panel=show_connect_panel,
+                csrf_token=csrf_token,
             )
         )
 

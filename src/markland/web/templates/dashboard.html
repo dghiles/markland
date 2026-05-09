@@ -15,6 +15,10 @@
   .dashboard-section button { font: inherit; padding: 0.25rem 0.6rem; background: var(--surface-2); color: var(--text); border: 1px solid var(--outline); border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
 </style>
 <section class="dashboard-section">
+  {% if show_connect_panel %}
+    {% include "_connect_claude_code.html" %}
+  {% endif %}
+
   <h1>Your documents</h1>
 
   <h2>My documents</h2>
