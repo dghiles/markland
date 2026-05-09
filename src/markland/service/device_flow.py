@@ -347,3 +347,20 @@ def authorize(
         invite_accepted=invite_accepted,
         invite_error=invite_error,
     )
+
+
+# ---------------------------------------------------------------------------
+# has_authorized_device — Phase 2 dashboard panel gating
+# ---------------------------------------------------------------------------
+
+
+def has_authorized_device(conn: sqlite3.Connection, user_id: str) -> bool:
+    """True if `user_id` has at least one row in device_authorizations
+    with status='authorized'. Used by the dashboard "Connect Claude Code"
+    panel to decide whether to show the prompt."""
+    row = conn.execute(
+        "SELECT 1 FROM device_authorizations "
+        "WHERE user_id = ? AND status = 'authorized' LIMIT 1",
+        (user_id,),
+    ).fetchone()
+    return row is not None
