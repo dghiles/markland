@@ -65,6 +65,33 @@ def test_blog_index_links_atom_feed(client):
     assert "/blog/feed.xml" in r.text
 
 
+def test_blog_index_has_atom_alternate_link_in_head(client):
+    """RSS readers like Feedly auto-discover feeds via <link rel="alternate"
+    type="application/atom+xml"> in <head>. The visible "Subscribe via RSS"
+    body link does not satisfy this — it has to be a <link> tag in <head>
+    pointing at the absolute feed URL. Surfaced by gauntlet card
+    .gauntlet/cards/blog-atom-feed-valid.md (markland-d14)."""
+    r = client.get("/blog")
+    head = r.text.split("</head>", 1)[0]
+    assert 'rel="alternate"' in head, "no alternate link in <head>"
+    assert 'type="application/atom+xml"' in head, "no atom+xml alternate link in <head>"
+    assert 'href="https://markland.test/blog/feed.xml"' in head, (
+        "alternate link in <head> must point at the absolute feed URL"
+    )
+
+
+def test_blog_post_has_atom_alternate_link_in_head(client):
+    """Blog post pages should also expose the feed for auto-discovery —
+    readers landing on a single post via search should be able to subscribe."""
+    posts = list_published_posts()
+    assert posts, "expected at least one published post"
+    r = client.get(f"/blog/{posts[0].slug}")
+    head = r.text.split("</head>", 1)[0]
+    assert 'rel="alternate"' in head
+    assert 'type="application/atom+xml"' in head
+    assert 'href="https://markland.test/blog/feed.xml"' in head
+
+
 def test_blog_index_no_indexability_block(client):
     """Blog index must not be noindex (would defeat the SEO goal)."""
     r = client.get("/blog")

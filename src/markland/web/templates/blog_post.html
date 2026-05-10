@@ -6,6 +6,10 @@
 
 {% block nav_blog %}active{% endblock %}
 
+{% block extra_head %}
+<link rel="alternate" type="application/atom+xml" title="Markland Blog" href="{{ canonical_host }}/blog/feed.xml">
+{% endblock %}
+
 {% block extra_jsonld %}
 {%- set _post_url = canonical_host ~ "/blog/" ~ post.slug -%}
 {%- set _blog_url = canonical_host ~ "/blog" -%}
