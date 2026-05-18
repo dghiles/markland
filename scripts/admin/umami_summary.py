@@ -30,9 +30,14 @@ HOST = "https://api.umami.is"
 
 def _get(path: str, params: dict, key: str) -> object:
     url = f"{HOST}{path}?" + urllib.parse.urlencode(params)
+    # Cloudflare in front of api.umami.is blocks urllib's default UA (error 1010).
     req = urllib.request.Request(
         url,
-        headers={"x-umami-api-key": key, "Accept": "application/json"},
+        headers={
+            "x-umami-api-key": key,
+            "Accept": "application/json",
+            "User-Agent": "markland-admin/1.0 (+https://markland.dev)",
+        },
     )
     with urllib.request.urlopen(req, timeout=30) as r:
         return json.loads(r.read())
