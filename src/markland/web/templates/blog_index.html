@@ -7,6 +7,7 @@
 
 {% block extra_jsonld %}
 {%- set _blog_url = canonical_host ~ "/blog" -%}
+{%- set _org_id = canonical_host ~ "/#organization" -%}
 <script type="application/ld+json" nonce="{{ csp_nonce }}">
 {
   "@context": "https://schema.org",
@@ -15,7 +16,7 @@
   "url": {{ _blog_url | tojson }},
   "name": "Markland Blog",
   "description": "Notes on agent-native publishing, MCP, and the workflow gap between AI agents and the humans they work with.",
-  "publisher": { "@id": (canonical_host ~ "/#organization") | tojson },
+  "publisher": { "@id": {{ _org_id | tojson }} },
   "inLanguage": "en"
 }
 </script>

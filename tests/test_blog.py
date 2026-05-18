@@ -1,5 +1,6 @@
 """Tests for /blog index and /blog/{slug} post detail (markland-xgj, markland-380)."""
 
+import json
 import re
 import pytest
 from fastapi.testclient import TestClient
@@ -7,6 +8,23 @@ from fastapi.testclient import TestClient
 from markland.db import init_db
 from markland.web.app import create_app
 from markland.web.blog import list_published_posts, reset_cache
+
+
+JSONLD_RE = re.compile(
+    r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>',
+    re.DOTALL,
+)
+
+
+def _jsonld_blocks(html: str) -> list[dict]:
+    """Extract every JSON-LD block from a page and parse it.
+
+    Catches Jinja-leak bugs: if a template ships `(canonical_host ~ "/x") | tojson`
+    outside `{{ }}` delimiters, json.loads() raises and the test fails. GSC saw
+    the symptom of this on 2026-05-15 ("Unparsable structured data: Incorrect
+    value type") on /blog — string-substring asserts didn't catch it.
+    """
+    return [json.loads(m.group(1)) for m in JSONLD_RE.finditer(html)]
 
 
 @pytest.fixture
@@ -149,3 +167,31 @@ def test_blog_post_links_back_to_quickstart(client):
     """Footer CTA on every post should drive to /quickstart (single high-intent target)."""
     r = client.get("/blog/agent-native-publishing")
     assert 'href="/quickstart"' in r.text
+
+
+def test_blog_index_jsonld_is_valid_json(client):
+    """Every JSON-LD block on /blog must parse as JSON. Regression test for
+    the 2026-05-15 GSC "Unparsable structured data" report — Jinja expressions
+    were leaking as literal text because they weren't wrapped in `{{ }}`."""
+    r = client.get("/blog")
+    blocks = _jsonld_blocks(r.text)
+    assert len(blocks) >= 1, "expected at least one JSON-LD block on /blog"
+    types = [b.get("@type") for b in blocks]
+    assert "Blog" in types, f"missing @type=Blog block; saw {types}"
+    blog_block = next(b for b in blocks if b.get("@type") == "Blog")
+    assert blog_block["publisher"]["@id"] == "https://markland.test/#organization"
+
+
+def test_blog_post_jsonld_is_valid_json(client):
+    """Every JSON-LD block on a post detail page must parse as JSON. Covers
+    Article + Person + BreadcrumbList; would catch any future Jinja leak."""
+    r = client.get("/blog/agent-native-publishing")
+    blocks = _jsonld_blocks(r.text)
+    types = [b.get("@type") for b in blocks]
+    assert "Article" in types
+    assert "Person" in types
+    assert "BreadcrumbList" in types
+    article = next(b for b in blocks if b.get("@type") == "Article")
+    assert article["publisher"]["@id"] == "https://markland.test/#organization"
+    assert article["isPartOf"]["@id"] == "https://markland.test/blog"
+    assert article["author"]["@id"] == "https://markland.test/about/dghiles#person"

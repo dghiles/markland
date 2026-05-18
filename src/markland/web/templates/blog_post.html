@@ -8,7 +8,9 @@
 
 {% block extra_jsonld %}
 {%- set _post_url = canonical_host ~ "/blog/" ~ post.slug -%}
+{%- set _blog_url = canonical_host ~ "/blog" -%}
 {%- set _author_id = canonical_host ~ "/about/dghiles#person" -%}
+{%- set _org_id = canonical_host ~ "/#organization" -%}
 {%- set _logo_url = canonical_host ~ "/og.png" -%}
 <script type="application/ld+json" nonce="{{ csp_nonce }}">
 {
@@ -22,9 +24,9 @@
   "dateModified": {{ post.updated_at | tojson }},
   "inLanguage": "en",
   "mainEntityOfPage": {{ _post_url | tojson }},
-  "isPartOf": { "@id": (canonical_host ~ "/blog") | tojson },
-  "author": { "@id": _author_id | tojson },
-  "publisher": { "@id": (canonical_host ~ "/#organization") | tojson },
+  "isPartOf": { "@id": {{ _blog_url | tojson }} },
+  "author": { "@id": {{ _author_id | tojson }} },
+  "publisher": { "@id": {{ _org_id | tojson }} },
   "image": {
     "@type": "ImageObject",
     "url": {{ _logo_url | tojson }},
@@ -54,7 +56,7 @@
       "@type": "ListItem",
       "position": 1,
       "name": "Blog",
-      "item": {{ (canonical_host ~ "/blog") | tojson }}
+      "item": {{ _blog_url | tojson }}
     },
     {
       "@type": "ListItem",
