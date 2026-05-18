@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#0A0A0A"/>
+
+  <!-- Subtle radial vignette for depth -->
+  <defs>
+    <radialGradient id="vignette" cx="50%" cy="42%" r="65%">
+      <stop offset="0%" stop-color="#161616"/>
+      <stop offset="100%" stop-color="#0A0A0A"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#vignette)"/>
+
+  <!-- Wordmark group: M + red dot, centered horizontally, upper-middle vertically -->
+  <!-- M glyph: bold sans, anchored to center; sized so the M is ~280px tall -->
+  <g transform="translate(600 290)">
+    <text
+      x="0" y="0"
+      text-anchor="middle"
+      dominant-baseline="central"
+      font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+      font-weight="900"
+      font-size="360"
+      letter-spacing="-18"
+      fill="#FFFFFF">M</text>
+    <!-- Red dot positioned at the top-right of the M, matching favicon -->
+    <circle cx="172" cy="-122" r="22" fill="#EA4335"/>
+  </g>
+
+  <!-- Tagline -->
+  <text
+    x="600" y="490"
+    text-anchor="middle"
+    font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+    font-weight="700"
+    font-size="44"
+    letter-spacing="-0.5"
+    fill="#FFFFFF">Markland</text>
+
+  <text
+    x="600" y="548"
+    text-anchor="middle"
+    font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+    font-weight="500"
+    font-size="30"
+    letter-spacing="-0.3"
+    fill="#9CA3AF">Agent-native document publishing for Claude Code</text>
+</svg>
