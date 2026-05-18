@@ -31,7 +31,12 @@ Available scripts:
 | `make_admin.py <email>` | Flip `is_admin=1` on a user. |
 | `mint_admin_token.py [label]` | Mint a fresh user-token bound to the first admin. Plaintext printed once. |
 | `lookup_user.py <email>` | Show user row + doc/grant/token counts. |
+| `list_users.py [--since N] [--limit N]` | List all users with footprint counts (newest first). |
 | `list_admin_tokens.py` | List metadata of admin-bound tokens (no plaintexts; revocation cleanup). |
+| `umami_summary.py [--days N]` | Pull Umami stats/referrers/top pages from prod env. |
+
+For periodic reviews of activity (funnel, who's signed up, where traffic
+came from), see [`metrics-review.md`](metrics-review.md).
 
 ## Becoming an admin
 
