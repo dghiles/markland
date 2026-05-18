@@ -31,7 +31,13 @@ def test_read_rejects_tampered_token():
     token = issue_pending_intent(
         secret=SECRET, action="bookmark", share_token="abc123"
     )
-    tampered = token[:-1] + ("A" if token[-1] != "A" else "B")
+    # Mutate a middle char of the signature segment. The last base64url char of
+    # an HMAC-SHA1 signature only encodes 4 significant bits (the other 2 are
+    # padding), so flipping it lands in the same 4-char equivalence class ~1/16
+    # of the time and the token still verifies — making any token[-1] tamper flaky.
+    sig_start = token.rfind(".") + 1
+    mid = sig_start + (len(token) - sig_start) // 2
+    tampered = token[:mid] + ("A" if token[mid] != "A" else "B") + token[mid + 1 :]
     with pytest.raises(InvalidPendingIntent):
         read_pending_intent(tampered, secret=SECRET)
 
