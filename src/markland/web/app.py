@@ -787,6 +787,7 @@ def create_app(
             conn=db_conn,
             base_url=base_url,
             email_client=email_client,
+            session_secret=session_secret,
         )
     )
 

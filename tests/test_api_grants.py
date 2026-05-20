@@ -216,6 +216,39 @@ def test_unauthenticated_returns_401(client):
     assert r.status_code == 401
 
 
+def test_post_grant_accepts_session_cookie(client):
+    """markland-grant-401: the in-app Share dialog posts with the
+    `mk_session` cookie and no Bearer token. PrincipalMiddleware only
+    runs for /mcp, so the endpoint must fall back to cookie auth."""
+    from markland.service.sessions import SESSION_COOKIE_NAME, issue_session
+
+    c, conn, ec = client
+    doc_id = _publish(c, "alice")
+    c.cookies.set(SESSION_COOKIE_NAME, issue_session("usr_alice", secret="test", conn=conn))
+    r = c.post(
+        f"/api/docs/{doc_id}/grants",
+        json={"principal": "b@x", "level": "view"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["principal_id"] == "usr_bob"
+    ec.send.assert_called_once()
+
+
+def test_post_grant_session_cookie_for_foreign_doc_returns_404(client):
+    """A cookie-auth'd non-owner gets 404 (not 401) — auth succeeded,
+    authorization didn't."""
+    from markland.service.sessions import SESSION_COOKIE_NAME, issue_session
+
+    c, conn, _ = client
+    doc_id = _publish(c, "alice")
+    c.cookies.set(SESSION_COOKIE_NAME, issue_session("usr_bob", secret="test", conn=conn))
+    r = c.post(
+        f"/api/docs/{doc_id}/grants",
+        json={"principal": "b@x", "level": "view"},
+    )
+    assert r.status_code == 404
+
+
 def test_grant_by_principal_id_rejects_unknown_principal_type(client):
     """grant_by_principal_id must reject principal_type outside {'user','agent'}."""
     from markland.service.grants import grant_by_principal_id

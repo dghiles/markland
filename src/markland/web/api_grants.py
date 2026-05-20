@@ -1,8 +1,9 @@
 """FastAPI routes for per-doc grants + publish.
 
-Mounted by `create_app`. Depends on a Principal being attached to
-request.state.principal (Plan 2's PrincipalMiddleware or test injector).
-Falls through to 401 if absent.
+Mounted by `create_app`. Resolves the Principal from
+request.state.principal (Plan 2's PrincipalMiddleware or test injector),
+falling back to the `mk_session` cookie for browser callers. 401 if
+neither is present.
 """
 
 from __future__ import annotations
@@ -36,20 +37,30 @@ def _parse_if_match(value: str | None) -> int | None:
         return None
 
 
-def _principal(request: Request) -> Principal:
-    principal = getattr(request.state, "principal", None)
-    if principal is None:
-        raise HTTPException(status_code=401, detail={"error": "unauthenticated"})
-    return principal
-
-
 def build_router(
     *,
     conn: sqlite3.Connection,
     base_url: str,
     email_client: EmailClient,
+    session_secret: str = "",
 ) -> APIRouter:
     r = APIRouter(prefix="/api")
+
+    def _principal(request: Request) -> Principal:
+        principal = getattr(request.state, "principal", None)
+        # PrincipalMiddleware only runs for /mcp paths, so cookie-auth'd
+        # browser sessions never get request.state.principal set. The
+        # in-app Share dialog posts here with `credentials: include` —
+        # fall back to the session cookie like the /d/{slug} page does.
+        if principal is None and session_secret:
+            from markland.web.session_principal import session_principal as _sp
+
+            principal = _sp(request, conn, secret=session_secret)
+        if principal is None:
+            raise HTTPException(
+                status_code=401, detail={"error": "unauthenticated"}
+            )
+        return principal
 
     @r.post("/docs")
     def publish(request: Request, body: dict = Body(...)):
