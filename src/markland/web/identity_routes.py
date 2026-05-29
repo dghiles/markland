@@ -128,6 +128,29 @@ def build_identity_router(
         )
         return resp
 
+    @router.post("/api/me/dismiss-welcome")
+    def api_dismiss_welcome(request: Request):
+        """Dismiss the dashboard welcome / first-publish panel.
+
+        Sets a year-long cookie. CSRF-required, session-required.
+        Mirrors /api/me/dismiss-connect-claude-code.
+        """
+        user = _require_session_user(request, db_conn, session_secret)
+        csrf = request.headers.get("X-CSRF-Token", "")
+        if not verify_csrf_token(csrf, user.id, secret=session_secret):
+            return JSONResponse({"error": "csrf"}, status_code=403)
+        resp = Response(status_code=204)
+        resp.set_cookie(
+            key="mk_dismiss_welcome",
+            value="1",
+            max_age=31_536_000,
+            path="/",
+            samesite="strict",
+            secure=True,
+            httponly=False,
+        )
+        return resp
+
     @router.get("/settings/tokens", response_class=HTMLResponse)
     def settings_tokens(request: Request):
         cookie = request.cookies.get(SESSION_COOKIE_NAME, "")

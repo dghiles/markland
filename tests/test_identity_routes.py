@@ -143,3 +143,36 @@ def test_dismiss_endpoint_sets_cookie(client):
     )
     assert r.status_code == 204
     assert r.cookies.get("mk_dismiss_connect") == "1"
+
+
+# ---------------------------------------------------------------------------
+# POST /api/me/dismiss-welcome  (Track D3: dashboard welcome panel)
+# ---------------------------------------------------------------------------
+
+
+def test_dismiss_welcome_requires_auth(client):
+    """Anonymous callers get 401, no cookie set."""
+    r = client.post("/api/me/dismiss-welcome")
+    assert r.status_code == 401
+    assert "mk_dismiss_welcome" not in r.cookies
+
+
+def test_dismiss_welcome_requires_csrf(client):
+    """Signed-in but missing CSRF header → 403."""
+    _sign_in(client, "alice@example.com")
+    r = client.post("/api/me/dismiss-welcome")
+    assert r.status_code == 403
+
+
+def test_dismiss_welcome_sets_cookie(client):
+    """Signed-in + valid CSRF → 204 and Set-Cookie."""
+    _sign_in(client, "alice@example.com")
+    user_id = client.get("/api/me").json()["user_id"]
+    from markland.service.sessions import make_csrf_token
+    csrf = make_csrf_token(user_id, secret="test-secret")
+    r = client.post(
+        "/api/me/dismiss-welcome",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert r.status_code == 204
+    assert r.cookies.get("mk_dismiss_welcome") == "1"
