@@ -71,3 +71,16 @@ def test_dashboard_empty_sections_render(client):
     r = c.get("/dashboard", headers={"Authorization": "Bearer alice"})
     assert r.status_code == 200
     assert "no documents yet" in r.text.lower() or "nothing here yet" in r.text.lower()
+
+
+def test_dashboard_shows_delete_button_on_owned_docs(client):
+    """Owned docs render a Delete button with the share_token + title in
+    data-attributes so the typed-confirmation modal can match the typed
+    input against the doc title."""
+    c, conn, alice, _ = client
+    doc = docs_svc.publish(conn, BASE, alice, "x", title="My Doc")
+    r = c.get("/dashboard", headers={"Authorization": "Bearer alice"})
+    assert r.status_code == 200
+    body = r.text
+    assert "data-delete-doc" in body
+    assert 'data-delete-title="My Doc"' in body

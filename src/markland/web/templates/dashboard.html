@@ -32,6 +32,10 @@
         <li>
           <a href="/d/{{ d.share_token }}">{{ d.title }}</a>
           <span class="meta">· updated {{ d.updated_at }}</span>
+          <button type="button"
+                  data-delete-doc="{{ d.share_token }}"
+                  data-delete-title="{{ d.title }}"
+                  style="margin-left: 0.5rem; color: var(--red);">Delete</button>
         </li>
       {% endfor %}
     </ul>
@@ -84,5 +88,66 @@
   })();
   </script>
   {% endif %}
+
+  <dialog id="delete-doc-modal" style="border: 1px solid var(--outline); padding: 1.5rem; border-radius: 8px; max-width: 420px;">
+    <h2 style="font-size: 1.1rem; margin: 0 0 0.5rem;">Delete document</h2>
+    <p>This permanently deletes the document, its full revision history, and any grants on it. <strong>This cannot be undone.</strong></p>
+    <p>Type the document title to confirm:</p>
+    <p id="delete-doc-target-title" style="font-family: var(--font-mono); background: var(--surface-2); padding: 0.4rem 0.6rem; border-radius: 4px;"></p>
+    <input type="text" id="delete-doc-input" style="width: 100%; padding: 0.4rem 0.6rem; font: inherit; margin-bottom: 1rem;" />
+    <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+      <button type="button" id="delete-doc-cancel">Cancel</button>
+      <button type="button" id="delete-doc-confirm" disabled style="background: var(--red); color: white;">Delete</button>
+    </div>
+  </dialog>
+
+  <script nonce="{{ csp_nonce }}">
+  (function () {
+    var modal = document.getElementById('delete-doc-modal');
+    if (!modal) return;
+    var titleP = document.getElementById('delete-doc-target-title');
+    var input = document.getElementById('delete-doc-input');
+    var confirmBtn = document.getElementById('delete-doc-confirm');
+    var cancelBtn = document.getElementById('delete-doc-cancel');
+    var currentToken = null;
+    var currentTitle = null;
+
+    document.querySelectorAll('[data-delete-doc]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        currentToken = btn.getAttribute('data-delete-doc');
+        currentTitle = btn.getAttribute('data-delete-title');
+        titleP.textContent = currentTitle;
+        input.value = '';
+        confirmBtn.disabled = true;
+        modal.showModal();
+        input.focus();
+      });
+    });
+
+    input.addEventListener('input', function () {
+      confirmBtn.disabled = (input.value !== currentTitle);
+    });
+
+    cancelBtn.addEventListener('click', function () {
+      modal.close();
+    });
+
+    confirmBtn.addEventListener('click', function () {
+      if (!currentToken) return;
+      fetch('/d/' + encodeURIComponent(currentToken) + '/delete', {
+        method: 'POST',
+        credentials: 'same-origin',
+        redirect: 'manual',
+      }).then(function (r) {
+        if (r.ok || r.type === 'opaqueredirect' || r.status === 0) {
+          window.location.href = '/dashboard';
+        } else {
+          alert('Could not delete document. Please try again.');
+          modal.close();
+        }
+      });
+    });
+  })();
+  </script>
 </section>
 {% endblock %}
