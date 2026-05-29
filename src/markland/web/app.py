@@ -275,6 +275,25 @@ def create_app(
     def health():
         return JSONResponse({"status": "ok"})
 
+    _GO_SOURCES = {"twitter", "x", "linkedin", "hn", "bsky", "mastodon", "reddit", "youtube"}
+
+    @app.get("/go/{source}")
+    def go_redirect(source: str, request: Request):
+        src = source.lower()
+        if src not in _GO_SOURCES:
+            return RedirectResponse("/", status_code=302)
+        q = request.query_params
+        campaign = q.get("c", "launch")
+        landing = q.get("to", "/")
+        if not landing.startswith("/") or landing.startswith("//"):
+            landing = "/"
+        params = f"utm_source={src}&utm_medium=social&utm_campaign={campaign}"
+        variant = q.get("v")
+        if variant:
+            params += f"&utm_content={variant}"
+        sep = "&" if "?" in landing else "?"
+        return RedirectResponse(f"{landing}{sep}{params}", status_code=302)
+
     _FAVICON_BYTES = (_ASSETS_DIR / "favicon.svg").read_bytes()
     _OG_IMAGE_BYTES = (_ASSETS_DIR / "og.png").read_bytes()
     _ASSET_CACHE = {"Cache-Control": "public, max-age=86400"}
