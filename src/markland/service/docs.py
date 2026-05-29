@@ -804,6 +804,17 @@ def list_docs(
     return list_for_principal(conn, principal)
 
 
+def user_has_owned_docs(conn: sqlite3.Connection, user_id: str) -> bool:
+    """True if ``user_id`` owns at least one document. Used by the
+    dashboard welcome panel — when False, the panel suggests publishing
+    a first doc."""
+    row = conn.execute(
+        "SELECT 1 FROM documents WHERE owner_id = ? LIMIT 1",
+        (user_id,),
+    ).fetchone()
+    return row is not None
+
+
 __all__ = [
     "publish",
     "publish_doc",
@@ -820,6 +831,7 @@ __all__ = [
     "delete_doc",
     "set_visibility",
     "feature",
+    "user_has_owned_docs",
     # re-exports for callers
     "NotFound",
     "PermissionDenied",
