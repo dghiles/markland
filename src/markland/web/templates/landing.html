@@ -569,7 +569,7 @@
 
     <span class="hero-chip">
         <span class="chip-dot" aria-hidden="true"></span>
-        Agent-native publishing &middot; v0.1
+        Public beta &middot; free during beta
     </span>
 
     <h1 aria-label="Shared documents for you and your agents">Shared documents<span class="period-red">.</span><br>For you <em>and</em> your agents<span class="period-blue">.</span></h1>
@@ -578,17 +578,22 @@
       <strong>Markland is an MCP-based document publishing platform</strong> that lets AI agents like Claude Code publish, share, and grant access to markdown documents via a single tool call.
     </p>
 
-    <form class="waitlist-form" method="post" action="/api/waitlist">
+    <form class="waitlist-form" method="get" action="/login">
         <input type="email" name="email" required placeholder="you@company.com" aria-label="Email address">
         <input type="hidden" name="source" value="hero">
-        <button type="submit" class="btn primary">Get started</button>
+        <button type="submit" class="btn primary">Sign in &amp; try it</button>
     </form>
+
+    <p class="cta-hint" style="margin-top: 0.7rem; font-size: 0.88rem; color: var(--muted);">
+      We'll email you a magic link. No password to set up.
+    </p>
 
     <a href="/explore" class="hero-secondary-link">See a sample doc &rarr;</a>
     <p class="hero-cta" style="margin-top: 0.8rem; font-size: 0.95rem; color: var(--muted);">
-      New here? <a href="/quickstart">Start with the 5-step quickstart &rarr;</a>
+      Need the install steps? <a href="/quickstart">5-step quickstart &rarr;</a>
+      &nbsp;&middot;&nbsp;
+      Not ready yet? <a href="#waitlist-footer">Join the waitlist</a>
     </p>
-    <span class="cta-hint">Pre-launch &middot; we'll email when it's ready</span>
 </section>
 
 <section class="section" id="what-is-markland">
@@ -686,16 +691,16 @@
 </section>
 
 <section class="section cta-center">
-    <div class="section-eyebrow eb-red">Get early access</div>
-    <h2 class="section-title">Be the first to publish.</h2>
-    <p class="cta-subtext">We'll email you when hosted Markland is live, with install instructions and your early access link.</p>
+    <div class="section-eyebrow eb-red">Ready to publish</div>
+    <h2 class="section-title">Start publishing in minutes.</h2>
+    <p class="cta-subtext">Sign in with your email &mdash; we'll send a one-time magic link. No password to set up.</p>
 
-    <form class="waitlist-form" method="post" action="/api/waitlist">
+    <form class="waitlist-form" method="get" action="/login">
         <input type="email" name="email" required placeholder="you@company.com" aria-label="Email address">
         <input type="hidden" name="source" value="cta-section">
-        <button type="submit" class="btn primary">Get started</button>
+        <button type="submit" class="btn primary">Sign in &amp; try it</button>
     </form>
-    <span class="cta-hint">No spam &middot; we'll email when it's ready</span>
+    <span class="cta-hint">Free during the public beta</span>
 </section>
 
 <section class="section">
@@ -765,6 +770,15 @@
         <h3>What about CRDTs and real-time co-editing?</h3>
         <p>Out of scope for v1. Concurrent writes use an <code>if_version</code> argument that returns a clean conflict instead of clobbering the loser &mdash; safe for two-party editing, but not the cursor-presence experience Google Docs gives a meeting-note workflow. <a href="/alternatives/google-docs">When to use which</a>.</p>
 </section>
+
+<aside id="waitlist-footer" style="max-width: 32rem; margin: 2rem auto; padding: 1rem 1.25rem; border: 1px solid var(--outline); border-radius: var(--radius-lg); background: var(--surface);">
+  <p style="margin: 0 0 0.4rem; color: var(--muted); font-size: 0.92rem;">Prefer to wait?</p>
+  <form class="waitlist-form" method="post" action="/api/waitlist">
+      <input type="email" name="email" required placeholder="you@company.com" aria-label="Email address for waitlist">
+      <input type="hidden" name="source" value="footer">
+      <button type="submit" class="btn">Join the waitlist</button>
+  </form>
+</aside>
 
 <script nonce="{{ csp_nonce }}">
 const MCP_SNIPPET = {{ mcp_config_json | safe }};

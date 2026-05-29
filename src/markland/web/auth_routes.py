@@ -63,11 +63,13 @@ def build_auth_router(
     @router.get("/login", response_class=HTMLResponse)
     def login_page(request: Request, next: str | None = None) -> HTMLResponse:
         safe_next = safe_return_to(next)
+        prefill_email = request.query_params.get("email", "")
         return HTMLResponse(
             render_with_nav(
                 login_tpl, request, db_conn,
                 base_url=base_url, secret=session_secret,
                 next=safe_next,
+                prefill_email=prefill_email,
             )
         )
 
