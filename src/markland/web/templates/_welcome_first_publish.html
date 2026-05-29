@@ -1,0 +1,72 @@
+{# Welcome — first-publish nudge for new accounts (no owned docs).
+   Mirrors the _connect_claude_code pattern: dismiss button + cookie. #}
+<aside class="welcome-first-publish"
+       aria-label="Welcome — publish your first doc"
+       data-csrf="{{ csrf_token }}">
+  <header>
+    <h2>Welcome to Markland</h2>
+    <button class="dismiss" type="button"
+            data-dismiss-welcome aria-label="Dismiss">×</button>
+  </header>
+  <p>You're signed in. Now ask Claude Code (or any MCP-compatible agent) to publish your first doc:</p>
+  <pre class="welcome-prompt"><code>Publish a markdown doc titled "Hello Markland" with some notes about a project I'm working on.</code></pre>
+  <p class="fineprint">
+    Your doc shows up in <a href="/dashboard">your dashboard</a> with a shareable URL. Default-private — only people you grant access to can read it.
+  </p>
+  <p class="fineprint">
+    Haven't installed Markland in Claude Code yet?
+    <a href="/quickstart">5-step quickstart &rarr;</a>
+  </p>
+</aside>
+
+<style>
+  .welcome-first-publish {
+    max-width: 48rem;
+    margin: 2rem auto;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid var(--outline);
+    border-radius: 8px;
+    background: var(--surface);
+  }
+  .welcome-first-publish header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 0.5rem;
+  }
+  .welcome-first-publish header h2 { font-size: 1.1rem; margin: 0; }
+  .welcome-first-publish .dismiss {
+    background: none; border: none; font-size: 1.5rem; line-height: 1;
+    cursor: pointer; color: var(--muted); padding: 0 0.25rem;
+  }
+  .welcome-first-publish .welcome-prompt {
+    background: var(--surface-2);
+    border: 1px solid var(--outline-hairline);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    margin: 0.5rem 0;
+    font-family: var(--font-mono); font-size: 0.85rem;
+    white-space: pre-wrap;
+  }
+  .welcome-first-publish .welcome-prompt code {
+    background: none; border: none; padding: 0;
+  }
+  .welcome-first-publish .fineprint {
+    color: var(--muted); font-size: 0.85rem; margin: 0.5rem 0 0;
+  }
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var panel = document.querySelector('.welcome-first-publish');
+  if (!panel) return;
+  var dismissBtn = panel.querySelector('[data-dismiss-welcome]');
+  if (!dismissBtn) return;
+  dismissBtn.addEventListener('click', function () {
+    var csrf = panel.getAttribute('data-csrf') || '';
+    fetch('/api/me/dismiss-welcome', {
+      method: 'POST',
+      headers: { 'X-CSRF-Token': csrf },
+      credentials: 'same-origin',
+    }).then(function () { panel.remove(); });
+  });
+})();
+</script>

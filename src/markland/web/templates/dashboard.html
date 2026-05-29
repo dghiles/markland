@@ -19,6 +19,10 @@
     {% include "_connect_claude_code.html" %}
   {% endif %}
 
+  {% if show_welcome_panel %}
+    {% include "_welcome_first_publish.html" %}
+  {% endif %}
+
   <h1>Your documents</h1>
 
   <h2>My documents</h2>

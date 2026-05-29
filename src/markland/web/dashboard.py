@@ -16,6 +16,7 @@ from markland.db import (
 )
 from markland.service.auth import Principal
 from markland.service.device_flow import has_authorized_device
+from markland.service.docs import user_has_owned_docs
 from markland.service.sessions import (
     SESSION_COOKIE_NAME,
     InvalidSession,
@@ -77,6 +78,10 @@ def build_router(
         show_connect_panel = (
             not dismissed and not has_authorized_device(conn, user_id)
         )
+        dismissed_welcome = request.cookies.get("mk_dismiss_welcome") == "1"
+        show_welcome_panel = (
+            not dismissed_welcome and not user_has_owned_docs(conn, user_id)
+        )
         csrf_token = make_csrf_token(user_id, secret=session_secret)
 
         owned_docs = list_documents_for_owner(conn, user_id)
@@ -115,6 +120,7 @@ def build_router(
                 base_url=base_url, secret=session_secret,
                 owned=owned, shared=shared, bookmarks=bookmarks,
                 show_connect_panel=show_connect_panel,
+                show_welcome_panel=show_welcome_panel,
                 csrf_token=csrf_token,
             )
         )
