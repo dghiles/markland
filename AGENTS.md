@@ -16,6 +16,17 @@ ln -s ../../scripts/git-hooks/post-checkout .git/hooks/post-checkout
 
 ## Worktree discipline
 
+**Worktree-centric is the deploy flow.** Every code change — `src/`,
+`tests/`, `pyproject.toml`, `fly.toml`, hooks, templates, blog posts
+under `src/markland/web/content/blog/` — goes through a worktree →
+branch → PR → squash-merge. The merge IS the deploy gesture; CI auto-
+deploys on push to main. There is no `flyctl deploy` step in the normal
+flow.
+
+The only exception is **docs-only direct push** (see below): `docs/`,
+`seed-content/`, `.beads/issues.jsonl`, and pure-markdown `README.md`
+updates ship via commit-on-main + push.
+
 The primary worktree at `/Users/daveyhiles/Developer/markland` stays on
 `main`. **Do feature work in an isolated worktree:**
 
