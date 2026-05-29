@@ -65,7 +65,7 @@
 - Modify: `src/markland/web/save_routes.py` — append a new route handler.
 - Test: `tests/test_doc_delete_route.py` (new).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/test_doc_delete_route.py`:
 
@@ -150,7 +150,7 @@ def test_anonymous_cannot_delete_doc(client):
     assert get_document(client.state_conn, doc["id"]) is not None
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 ```bash
 uv run pytest tests/test_doc_delete_route.py -v
@@ -158,7 +158,7 @@ uv run pytest tests/test_doc_delete_route.py -v
 
 Expected: FAIL — route returns 404 (not registered).
 
-- [ ] **Step 3: Add the route**
+- [x] **Step 3: Add the route**
 
 Append to `src/markland/web/save_routes.py` inside the `build_router` function, after the existing `DELETE /d/{share_token}/bookmark` route:
 
@@ -208,7 +208,7 @@ Append to `src/markland/web/save_routes.py` inside the `build_router` function, 
 `from markland.service.sessions import SESSION_COOKIE_NAME, InvalidSession, read_session`,
 `from markland import db`.)
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 ```bash
 uv run pytest tests/test_doc_delete_route.py -v
@@ -216,7 +216,7 @@ uv run pytest tests/test_doc_delete_route.py -v
 
 Expected: 3 PASS.
 
-- [ ] **Step 5: Run the broader save-routes suite**
+- [x] **Step 5: Run the broader save-routes suite**
 
 ```bash
 uv run pytest tests/test_save_routes.py tests/test_doc_delete_route.py -q
@@ -224,7 +224,7 @@ uv run pytest tests/test_save_routes.py tests/test_doc_delete_route.py -q
 
 Expected: all green.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/markland/web/save_routes.py tests/test_doc_delete_route.py
@@ -239,7 +239,7 @@ git commit -m "feat(docs): POST /d/{share_token}/delete HTTP route — owner-onl
 - Modify: `src/markland/web/templates/dashboard.html`.
 - Test: `tests/test_dashboard_shared.py` (extend).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/test_dashboard_shared.py`:
 
@@ -260,7 +260,7 @@ def test_dashboard_shows_delete_button_on_owned_docs(client):
     assert f'data-delete-title="My Doc"' in r.text
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 uv run pytest tests/test_dashboard_shared.py::test_dashboard_shows_delete_button_on_owned_docs -v
@@ -268,7 +268,7 @@ uv run pytest tests/test_dashboard_shared.py::test_dashboard_shows_delete_button
 
 Expected: FAIL — no `data-delete-doc` attribute in dashboard output.
 
-- [ ] **Step 3: Add the Delete button to owned-doc rows**
+- [x] **Step 3: Add the Delete button to owned-doc rows**
 
 Edit `src/markland/web/templates/dashboard.html`. Find the My-documents `<ul>` (the block starting `<ul id="my-docs">` at line 22). Replace each `<li>...</li>` body with:
 
@@ -347,7 +347,7 @@ Then append, before the closing `</section>`, the modal markup + script:
 </script>
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 ```bash
 uv run pytest tests/test_dashboard_shared.py::test_dashboard_shows_delete_button_on_owned_docs -v
@@ -355,7 +355,7 @@ uv run pytest tests/test_dashboard_shared.py::test_dashboard_shows_delete_button
 
 Expected: PASS.
 
-- [ ] **Step 5: Run the dashboard suite**
+- [x] **Step 5: Run the dashboard suite**
 
 ```bash
 uv run pytest tests/test_dashboard_shared.py tests/test_dashboard_bookmarks.py -q
@@ -363,7 +363,7 @@ uv run pytest tests/test_dashboard_shared.py tests/test_dashboard_bookmarks.py -
 
 Expected: all green.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/markland/web/templates/dashboard.html tests/test_dashboard_shared.py
@@ -378,7 +378,7 @@ git commit -m "feat(dashboard): Delete button + typed-confirmation modal on owne
 - Modify: `src/markland/web/templates/viewer.html`.
 - Test: `tests/test_viewer.py` (find the right existing file or extend `tests/test_viewer_owner_actions.py` if present; verify with `ls tests/test_viewer*.py`).
 
-- [ ] **Step 1: Locate the viewer test file**
+- [x] **Step 1: Locate the viewer test file**
 
 ```bash
 ls tests/test_viewer*.py
@@ -386,7 +386,7 @@ ls tests/test_viewer*.py
 
 Pick the file that already tests owner-only viewer features (e.g., the share dialog). If none, create `tests/test_viewer_delete.py` using the standard fixture pattern from `tests/test_doc_delete_route.py:Step 1`.
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 Append to the chosen file:
 
@@ -429,7 +429,7 @@ def test_viewer_hides_delete_button_for_anonymous(client):
     assert 'data-delete-doc' not in r.text
 ```
 
-- [ ] **Step 3: Run the tests to verify they fail**
+- [x] **Step 3: Run the tests to verify they fail**
 
 ```bash
 uv run pytest <chosen_test_file> -v -k delete
@@ -437,7 +437,7 @@ uv run pytest <chosen_test_file> -v -k delete
 
 Expected: 3 FAIL.
 
-- [ ] **Step 4: Add the Delete button to the viewer template**
+- [x] **Step 4: Add the Delete button to the viewer template**
 
 Edit `src/markland/web/templates/viewer.html`. The viewer renders `is_owner` somewhere as a context flag — find the existing owner-only block (likely a share/visibility/manage panel) and add inside its `{% if is_owner %}` conditional:
 
@@ -452,7 +452,7 @@ Then include the same modal markup + script from Task 1.2 (extract into a partia
 
 Create `src/markland/web/templates/_delete_doc_modal.html` containing the `<dialog>` + `<script>` block from Task 1.2 Step 3. Then in **both** `dashboard.html` and `viewer.html`, replace the inline modal/script with `{% include "_delete_doc_modal.html" %}`. (This refactor is small — avoid duplication once two callers exist.)
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 ```bash
 uv run pytest <chosen_test_file> -v -k delete
@@ -460,7 +460,7 @@ uv run pytest <chosen_test_file> -v -k delete
 
 Expected: 3 PASS.
 
-- [ ] **Step 6: Run dashboard + viewer suites to confirm the partial extraction didn't regress dashboard**
+- [x] **Step 6: Run dashboard + viewer suites to confirm the partial extraction didn't regress dashboard**
 
 ```bash
 uv run pytest tests/test_dashboard_shared.py <chosen_test_file> -q
@@ -468,7 +468,7 @@ uv run pytest tests/test_dashboard_shared.py <chosen_test_file> -q
 
 Expected: all green.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/markland/web/templates/viewer.html \
