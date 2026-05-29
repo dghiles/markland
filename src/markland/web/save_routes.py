@@ -9,11 +9,14 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from markland.db import get_document_by_token
+from markland.service import docs as docs_svc
+from markland.service.auth import Principal
 from markland.service.pending_intent import (
     PENDING_INTENT_COOKIE_NAME,
     PENDING_INTENT_MAX_AGE_SECONDS,
     issue_pending_intent,
 )
+from markland.service.permissions import NotFound, PermissionDenied
 from markland.service.save import fork_document, toggle_bookmark, user_can_view
 from markland.service.sessions import SESSION_COOKIE_NAME, InvalidSession, read_session
 
@@ -109,6 +112,38 @@ def build_router(
 
         toggle_bookmark(conn, user_id=user_id, doc_id=doc.id, bookmarked=True)
         return RedirectResponse(f"/d/{share_token}", status_code=303)
+
+    @r.post("/d/{share_token}/delete")
+    def delete_doc(share_token: str, request: Request):
+        """Owner-only HTTP doc deletion. Calls the existing
+        `service.docs.delete`, which cascades to revisions, grants, and
+        bookmarks via `db.delete_document`. Returns 401 unauthenticated,
+        404 for unknown or non-owner (existence-hiding), 303 to /dashboard
+        on success."""
+        user_id = _current_user_id(
+            request, session_secret=session_secret, conn=conn
+        )
+        if user_id is None:
+            raise HTTPException(401, "login_required")
+
+        doc = get_document_by_token(conn, share_token)
+        if doc is None:
+            raise HTTPException(404, "document_not_found")
+
+        principal = Principal(
+            principal_id=user_id,
+            principal_type="user",
+            display_name=None,
+            is_admin=False,
+            user_id=None,
+        )
+        try:
+            docs_svc.delete(conn, principal, doc.id)
+        except (PermissionDenied, NotFound):
+            # Treat as not-found to avoid revealing existence to non-owners.
+            raise HTTPException(404, "document_not_found")
+
+        return RedirectResponse("/dashboard", status_code=303)
 
     @r.delete("/d/{share_token}/bookmark")
     def remove_bookmark_route(share_token: str, request: Request):
