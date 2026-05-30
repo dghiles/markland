@@ -32,6 +32,10 @@
         <li>
           <a href="/d/{{ d.share_token }}">{{ d.title }}</a>
           <span class="meta">· updated {{ d.updated_at }}</span>
+          <button type="button"
+                  data-delete-doc="{{ d.share_token }}"
+                  data-delete-title="{{ d.title }}"
+                  style="margin-left: 0.5rem; color: var(--red);">Delete</button>
         </li>
       {% endfor %}
     </ul>
@@ -83,6 +87,10 @@
     });
   })();
   </script>
+  {% endif %}
+
+  {% if owned %}
+    {% include "_delete_doc_modal.html" %}
   {% endif %}
 </section>
 {% endblock %}
