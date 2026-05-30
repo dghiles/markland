@@ -166,7 +166,15 @@ def build_auth_router(
             max_age=SESSION_MAX_AGE_SECONDS,
             httponly=True,
             secure=base_url.startswith("https://"),
-            samesite="strict",
+            # Lax (not Strict) is required for magic-link auth: an email
+            # client is a cross-site context, and Strict cookies are not
+            # sent on the 303 follow-up after a cross-site top-level nav,
+            # so the signed-in target page sees an anonymous user and
+            # bounces back to /login. CSRF on mutating routes is enforced
+            # by explicit tokens (make_csrf_token / verify_csrf_token);
+            # Lax already blocks cross-site form POSTs. Reverts the
+            # too-aggressive change in commit 8469504 (markland-qzo).
+            samesite="lax",
             path="/",
         )
         return resp
@@ -206,7 +214,9 @@ def build_auth_router(
             max_age=SESSION_MAX_AGE_SECONDS,
             httponly=True,
             secure=base_url.startswith("https://"),
-            samesite="strict",
+            # See the matching note in /api/auth/verify above: Lax is the
+            # max strictness the magic-link click flow tolerates.
+            samesite="lax",
             path="/",
         )
         return resp

@@ -181,24 +181,33 @@ def test_verify_get_rejects_replay(client_and_conn):
     assert "already used" not in body
 
 
-def test_verify_json_sets_session_cookie_samesite_strict(client_and_conn):
-    """P1-A: session cookie issued by /api/auth/verify must be SameSite=Strict."""
+def test_verify_json_sets_session_cookie_samesite_lax(client_and_conn):
+    """mk_session must be SameSite=Lax so magic-link clicks from email work.
+
+    Reverts the markland-qzo change to Strict: in a real browser, Strict
+    cookies are NOT sent on the 303 follow-up after a cross-site top-level
+    nav (an email-client click). The target page then sees an anonymous
+    user and bounces back to /login. CSRF on mutating routes is defended
+    via explicit tokens (make_csrf_token / verify_csrf_token); Lax already
+    blocks the cross-site form-POST vector that motivated qzo.
+    """
     client, _, _ = client_and_conn
     token = issue_magic_link_token("alice@example.com", secret="test-secret")
     r = client.post("/api/auth/verify", json={"token": token})
     assert r.status_code == 200
     set_cookie = r.headers.get("set-cookie", "")
     assert SESSION_COOKIE_NAME in set_cookie
-    assert "samesite=strict" in set_cookie.lower()
-    assert "samesite=lax" not in set_cookie.lower()
+    assert "samesite=lax" in set_cookie.lower()
+    assert "samesite=strict" not in set_cookie.lower()
 
 
-def test_verify_get_sets_session_cookie_samesite_strict(client_and_conn):
-    """P1-A: session cookie issued by /verify GET (link click) must be SameSite=Strict.
+def test_verify_get_sets_session_cookie_samesite_lax(client_and_conn):
+    """GET /verify (link click) must issue the session cookie as SameSite=Lax.
 
-    With Strict, magic-link clicks from email still work because /verify
-    issues a *fresh* session cookie on success — no pre-existing session is
-    needed for the GET to function.
+    Same reasoning as the JSON variant above. This is the path real users
+    hit when they click the magic link in their email — the request is
+    cross-site, and the 303 to /dashboard would drop a Strict cookie on
+    the followup.
     """
     client, _, _ = client_and_conn
     token = issue_magic_link_token("alice@example.com", secret="test-secret")
@@ -206,8 +215,8 @@ def test_verify_get_sets_session_cookie_samesite_strict(client_and_conn):
     assert r.status_code in (200, 303)
     set_cookie = r.headers.get("set-cookie", "")
     assert SESSION_COOKIE_NAME in set_cookie
-    assert "samesite=strict" in set_cookie.lower()
-    assert "samesite=lax" not in set_cookie.lower()
+    assert "samesite=lax" in set_cookie.lower()
+    assert "samesite=strict" not in set_cookie.lower()
 
 
 def test_magic_link_click_creates_authenticated_session(client_and_conn):
