@@ -186,10 +186,12 @@ def test_verify_json_sets_session_cookie_samesite_lax(client_and_conn):
 
     Reverts the markland-qzo change to Strict: in a real browser, Strict
     cookies are NOT sent on the 303 follow-up after a cross-site top-level
-    nav (an email-client click). The target page then sees an anonymous
-    user and bounces back to /login. CSRF on mutating routes is defended
-    via explicit tokens (make_csrf_token / verify_csrf_token); Lax already
-    blocks the cross-site form-POST vector that motivated qzo.
+    nav (the email-link click typically traverses a cross-site redirector
+    like mail.google.com/url first). The target page then sees an
+    anonymous user and bounces back to /login. See the inline comment in
+    auth_routes.py for the post-revert CSRF posture (layered: tokens on
+    a few routes, content-type discipline on JSON endpoints, Lax-only on
+    form-body routes).
     """
     client, _, _ = client_and_conn
     token = issue_magic_link_token("alice@example.com", secret="test-secret")
@@ -220,9 +222,14 @@ def test_verify_get_sets_session_cookie_samesite_lax(client_and_conn):
 
 
 def test_magic_link_click_creates_authenticated_session(client_and_conn):
-    """P1-A regression: even with Strict, GET /verify?token=... fully
-    authenticates the user — subsequent same-origin requests carry the
-    session cookie."""
+    """GET /verify?token=... fully authenticates the user — subsequent
+    same-origin requests carry the session cookie.
+
+    Caveat: the test client does not enforce SameSite, so this test only
+    proves that the cookie is *issued* and *accepted* by the same client
+    on the next request — it cannot prove a real browser would send a
+    Strict cookie on the post-redirect hop. The samesite=lax assertions
+    in the two tests above are what lock in the right value."""
     client, _, _ = client_and_conn
     token = issue_magic_link_token("alice@example.com", secret="test-secret")
     r = client.get(f"/verify?token={token}", follow_redirects=False)
