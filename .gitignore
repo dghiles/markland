@@ -82,3 +82,8 @@ cutover-evidence/
 # Gauntlet QA runs — keep cards + context in git, results out
 .gauntlet/results/
 .gauntlet/run-sets/
+
+# Gauntlet secret fixtures — keep .example templates, ignore real values
+.gauntlet/context/secrets/*
+!.gauntlet/context/secrets/*.example
+!.gauntlet/context/secrets/README.md

@@ -20,26 +20,30 @@ the exact scenario the unit tests cannot: cross-origin → /verify → 303
 
 ## How to drive it
 
-1. **Mint a fresh verify URL** by POSTing to the e2e smoke endpoint.
+1. **Read the e2e mint secret from the fixture file** via the `read`
+   tool: `read .gauntlet/context/secrets/e2e-mint-secret.md`. Parse
+   the `MARKLAND_E2E_SECRET=<value>` line.
+
+   If the file is missing or the value is still the literal placeholder
+   `<paste-value-here>`, abort and call `report_result` with status
+   `errored` and reason: *"Secret fixture missing — see
+   `.gauntlet/context/secrets/README.md` for setup."*
+
+2. **Mint a fresh verify URL** by POSTing to the e2e smoke endpoint.
    The endpoint mints a real prod-signed token without round-tripping
    through Resend, so the card stays under 60 seconds:
 
    ```js
    const r = await fetch('https://markland.dev/api/test/mint-magic-link?email=smoke-' + Date.now() + '@markland.test', {
      method: 'POST',
-     headers: { 'X-Markland-E2E-Secret': '<MARKLAND_E2E_SECRET from runner env>' }
+     headers: { 'X-Markland-E2E-Secret': '<value from step 1>' }
    });
    ({ status: r.status, body: await r.json() })
    ```
 
    Expect HTTP 200 and a body shaped `{ verify_url: "https://markland.dev/verify?token=...", email: "..." }`.
 
-   **Get the secret value from the `MARKLAND_E2E_SECRET` env var on the
-   runner.** Do NOT hardcode it in the card. If the env var is unset,
-   abort the card and call `report_result` with status `errored` and
-   reason `MARKLAND_E2E_SECRET not configured in runner env`.
-
-2. **Establish a cross-site browsing context** by navigating to a
+3. **Establish a cross-site browsing context** by navigating to a
    non-markland origin first. This is critical — without the cross-site
    start, the test passes for `Strict` too, which is the exact blind
    spot that caused the original bug:
@@ -48,7 +52,7 @@ the exact scenario the unit tests cannot: cross-origin → /verify → 303
    await page.goto('https://example.com');
    ```
 
-3. **Trigger the cross-site navigation to /verify** via JS, NOT by
+4. **Trigger the cross-site navigation to /verify** via JS, NOT by
    calling `navigate` directly. `navigate` from the same Playwright
    page typically counts as same-site for SameSite purposes; setting
    `window.location.href` from a script running on example.com is the
@@ -56,10 +60,10 @@ the exact scenario the unit tests cannot: cross-origin → /verify → 303
    click:
 
    ```js
-   window.location.href = '<verify_url from step 1>';
+   window.location.href = '<verify_url from step 2>';
    ```
 
-4. **Wait for the redirect chain to settle**, then read the final URL
+5. **Wait for the redirect chain to settle**, then read the final URL
    and confirm signed-in state:
 
    ```js
@@ -70,13 +74,13 @@ the exact scenario the unit tests cannot: cross-origin → /verify → 303
 
 ## Acceptance Criteria
 
-- Step 1: `/api/test/mint-magic-link` returns HTTP 200 with a `verify_url`
+- Step 2: `/api/test/mint-magic-link` returns HTTP 200 with a `verify_url`
   string that starts with `https://markland.dev/verify?token=`.
-- Step 4: the final `window.location.href` ends with `/dashboard`
+- Step 5: the final `window.location.href` ends with `/dashboard`
   (NOT `/login`, NOT `/login?next=...`, NOT any path containing
   `magic-link` or `verify`).
-- Step 4: `/api/me` returns HTTP 200 with a body whose `email` field
-  equals the email from step 1's response. This is the proof that the
+- Step 5: `/api/me` returns HTTP 200 with a body whose `email` field
+  equals the email from step 2's response. This is the proof that the
   session cookie survived the cross-site → 303 → same-origin chain.
 - The doc page title is `Dashboard · Markland` (extract via
   `document.title` or the page snapshot).
@@ -91,9 +95,9 @@ the exact scenario the unit tests cannot: cross-origin → /verify → 303
   `Secure` flag mismatch with the request scheme, or `Path` mismatch.
 - **Mint endpoint returns 404** → either `MARKLAND_E2E_SECRET` isn't
   set on Fly (check `flyctl secrets list -a markland`) or the secret
-  the runner sent doesn't match. Endpoint 404s on both "not deployed"
+  in the fixture file is stale. Endpoint 404s on both "not deployed"
   and "wrong secret" by design.
 - **Mint endpoint returns 400** → the test email didn't end with
-  `@markland.test`. Fix the local-part generation in step 1.
+  `@markland.test`. Fix the local-part generation in step 2.
 
 Capture one screenshot of the dashboard after step 4 as evidence.
