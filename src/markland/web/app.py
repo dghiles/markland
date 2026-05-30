@@ -869,6 +869,18 @@ def create_app(
         )
     )
 
+    # E2E smoke endpoints. Empty router when MARKLAND_E2E_SECRET is unset,
+    # so the routes 404 on environments without the seam configured.
+    from markland.web.e2e_routes import build_e2e_router, e2e_secret_from_env
+    app.include_router(
+        build_e2e_router(
+            db_conn=db_conn,
+            session_secret=session_secret,
+            base_url=base_url,
+            e2e_secret=e2e_secret_from_env(),
+        )
+    )
+
     # Test-only principal injection: in production PrincipalMiddleware wires
     # `request.state.principal`; here we accept a header→Principal map so
     # api_grants/dashboard tests can exercise the full stack without tokens.
