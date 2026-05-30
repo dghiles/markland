@@ -15,5 +15,5 @@ dbs:
         access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
         secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
         sync-interval: 10s
-        retention: 72h
-        snapshot-interval: 6h
+        retention: 720h        # 30 days — matches /privacy + /security RPO commitment
+        snapshot-interval: 6h  # ~120 PIT points in retention window

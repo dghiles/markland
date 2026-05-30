@@ -132,6 +132,24 @@ def test_security_page_discloses_umami(client):
     assert "cookie" in r.text.lower()  # confirms the no-cookie note is present
 
 
+def test_security_page_commits_backup_rpo_rto(client):
+    """The /security page must carry the Backups & recovery section with
+    concrete RPO/RTO/retention numbers. These are public commitments;
+    changing them is a deliberate edit, not a drive-by refactor."""
+    r = client.get("/security")
+    assert r.status_code == 200
+    text = r.text
+    assert "Backups &amp; recovery" in text, "section heading missing"
+    # RPO: 10 seconds (matches litestream.yml sync-interval)
+    assert "10 seconds" in text, "RPO commitment missing"
+    # RTO: under 5 minutes (boot-dominated, restore itself sub-second)
+    assert "under 5 minutes" in text, "RTO commitment missing"
+    # Retention: 30 days (matches litestream.yml retention: 720h)
+    assert "30 days" in text, "retention commitment missing"
+    # Off-site copy is named — the "separate provider" promise
+    assert "Cloudflare R2" in text or "Litestream" in text, "backup tech missing"
+
+
 def test_privacy_has_standard_sections(client):
     """The /privacy page must carry the ten standard sections of a real
     privacy policy. Section presence is asserted via the <h2> heading
