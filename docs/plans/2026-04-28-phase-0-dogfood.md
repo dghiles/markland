@@ -173,15 +173,15 @@ echo "SENTRY_EVENT_VISIBLE=1 (manually verified at $(date -u +%FT%TZ))" \
 Trigger a sign-in:
 
 ```bash
-curl -fsS -X POST https://markland.fly.dev/auth/start \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  --data-urlencode "email=<operator-email>" \
-  -o /dev/null -w "auth-start: %{http_code}\n" \
+curl -fsS -X POST https://markland.dev/api/auth/magic-link \
+  -H "Content-Type: application/json" \
+  -d '{"email":"<operator-email>"}' \
+  -o /dev/null -w "magic-link: %{http_code}\n" \
   | tee -a phase-0-evidence/01-env-checks.log
 date -u +"trigger-ts: %FT%TZ" | tee -a phase-0-evidence/01-env-checks.log
 ```
 
-Expected: `auth-start: 200` (or 302 — record either; both indicate the form was accepted).
+Expected: `magic-link: 200`. (Per markland-axc 2026-05-29: the legacy `/auth/start` form route 404s; the real magic-link trigger is `POST /api/auth/magic-link` accepting a JSON body. `markland.fly.dev` 301-redirects to `markland.dev` post-cutover, so hit the apex directly.)
 
 Then check the operator inbox. The email subject should match the production magic-link subject (look at `src/markland/web/auth_routes.py` if uncertain — typically `Sign in to Markland`).
 
