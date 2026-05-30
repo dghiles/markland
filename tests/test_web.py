@@ -130,13 +130,18 @@ def test_landing_has_how_it_works_section(client):
 
 
 def test_landing_has_get_early_access_section(client):
+    """Mid-page CTA now routes to magic-link sign-in (was waitlist gate
+    pre-2026-05-29; see docs/plans/2026-05-29-pre-launch-cleanup.md Track B).
+    Waitlist is demoted to a single footer aside."""
     response = client.get("/")
     assert response.status_code == 200
-    assert "Get early access" in response.text
-    assert "Be the first to publish" in response.text
-    assert response.text.count('action="/api/waitlist"') >= 2
+    assert "Start publishing in minutes." in response.text
     assert 'value="cta-section"' in response.text
-    assert response.text.count(">Get started<") >= 2
+    # The mid-page CTA points at /login, not the waitlist.
+    assert response.text.count('action="/login"') >= 2
+    # Waitlist still exists exactly once, as the demoted footer affordance.
+    assert response.text.count('action="/api/waitlist"') == 1
+    assert 'id="waitlist-footer"' in response.text
 
 
 def test_landing_escapes_title_xss(tmp_path):

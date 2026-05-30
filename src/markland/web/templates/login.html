@@ -100,7 +100,7 @@
     <p class="lede">Enter your email and we'll send you a one-time sign-in link.</p>
     <form id="f" novalidate>
       <label for="email">Email</label>
-      <input type="email" id="email" name="email" placeholder="you@example.com" autocomplete="email" required>
+      <input type="email" id="email" name="email" placeholder="you@example.com" autocomplete="email" required value="{{ prefill_email | default('', true) }}">
       <input type="hidden" id="next" value="{{ next | default('/', true) }}">
       <button type="submit" id="submit-btn">Send magic link</button>
     </form>
