@@ -755,3 +755,19 @@ Run after writing this plan; fix issues inline.
 Plan complete and saved to `docs/plans/2026-04-28-phase-0-dogfood.md`.
 
 This is a runbook walkthrough — execute it inline with the operator and a real human "Alex" present. Do **not** dispatch subagents (no agent has the inboxes or Alex's machine). Use `superpowers:executing-plans` for checkpoint-style stepping; pause after Task 2 to confirm UX findings before continuing.
+
+---
+
+## Audit log
+
+| Date | Operator | Steps run | Verdict | Evidence |
+|---|---|---|---|---|
+| 2026-04-28 | Eric (b87f338) | 1-3 (view-grant only) | partial | (no evidence dir captured) |
+| 2026-05-29 | daveyhiles@gmail.com | 4-14 (operator-only sweep + audit-reconstruction of 2.4 + synthetic 2.5/2.6) | **GO** | `docs/launch/phase-0-evidence-2026-05-29/` |
+
+### 2026-05-29 run notes
+
+- **Plan-text drift caught:** `/auth/start` is stale → real route is `POST /api/auth/magic-link`. `LITESTREAM_REPLICA_URL` is stale → current config uses `LITESTREAM_BUCKET` + `LITESTREAM_ENDPOINT` + `LITESTREAM_ACCESS_KEY_ID` + `LITESTREAM_SECRET_ACCESS_KEY` (4 separate vars). `markland.fly.dev` 301-redirects to `markland.dev` post-cutover.
+- **Two-actor walkthrough substituted:** Eric and noah's existing audit rows (May 2 and May 4) provided 2.4 evidence; a synthetic 2.5/2.6 with operator's own agent token closed the rest. The real two-human walkthrough is queued for the first real signup arrival.
+- **P0 found and fixed mid-run:** `markland-9n0` — Litestream WAL `permission denied` crash loop, root cause was UID drift between pre/post `markland-l2p` containers. Fixed with `chown` only, no deploy.
+- **Verdict:** GO. See `docs/launch/phase-0-evidence-2026-05-29/06-go-no-go.md`.

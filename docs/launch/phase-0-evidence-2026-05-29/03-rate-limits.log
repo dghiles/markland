@@ -1,0 +1,78 @@
+=== Task 3.1: User token 60/min ===
+200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 
+-- 3.1b Retry-After header on 71st req --
+HTTP/2 200 
+
+-- 3.1c retry with parallel bursts (60/min bucket; bucket was prob refilled by curl loop pacing on previous run) --
+burst of 200 user-token reqs in parallel (xargs -P 30)
+  90 200
+ 110 429
+elapsed: 40s
+-- 3.1d Retry-After header on follow-up 429 --
+HTTP/2 200 
+-- 3.1d (retry, during fresh burst) --
+-- 3.1e drain + immediate header capture --
+HTTP/2 429 
+retry-after: 1
+
+-- 3.1f recovery (sleep 65, expect 200) --
+post-window: 200
+
+=== 3.2: Agent token 120/min ===
+-- minting agent token --
+agent-mint-response: {"detail":[{"type":"missing","loc":["body","label"],"msg":"Field required","input":{"kind":"agent","name":"phase-0-rate-test-2026-05-29"}}]}
+agent-mint-response (first 200 chars): {"detail":"unauthenticated"}
+=== 3.2 Agent 120/min ===
+-- drain 150 reqs --
+ 150 200
+-- immediate header probe --
+HTTP/2 200 
+-- 3.2b 300 reqs P=50 --
+
+!! HALTED Task 3 + Task 5 — Litestream P0 (markland-9n0) discovered in logs
+!! continuous 'sync wal: ... permission denied' errors since ~2026-05-29T19:44Z
+!! Background 300-req burst stopped (b85r5dqb8) — caused 'no good candidate' LB errors
+!! Phase 0 GO/NO-GO will be NO-GO until markland-9n0 is fixed
+
+Evidence captured up to this point:
+  - Task 0 (preflight): PASS
+  - Task 1.1-1.5 (env): PASS — Litestream snapshot existed at probe time (19:44Z, ~2hr stale by re-probe)
+  - Task 4 (audit): PASS — 13 publish, 2 grant, 2 update (operator-only), 3 invite_create, 2 invite_accept, 0 revoke
+  - noah 2.4-2.6 reconstruction: 2.4 yes (eric->op view-grant), 2.5 NO (no external update row), 2.6 unverifiable
+  - Task 3.1 user-tier: PASS — 200-req burst 90/200 + 110/429; Retry-After: 1 confirmed
+  - Task 3.2 agent-tier: INTERRUPTED (background burst killed mid-run)
+  - Task 3.3 anon-tier: NOT STARTED
+  - Task 5 funnel metrics: INCONCLUSIVE — fly logs --no-tail only returned ~100 most-recent lines all of which were the Litestream error spam
+  - Task 7 (rollback rehearsal): NOT STARTED
+=== 3.2 (resumed, smaller burst) Agent 120/min ===
+-- drain 130 reqs P=15 (tame the LB) --
+ 130 200
+-- immediate header probe --
+HTTP/2 200 
+-- 3.2b 250 reqs P=25 --
+ 130 200
+ 120 429
+elapsed: 41s
+-- immediate header probe --
+HTTP/2 429 
+retry-after: 1
+-- 3.2c recovery (sleep 65) --
+agent-post-window: 200
+
+=== 3.3 Anon 20/min on /explore ===
+-- 30 reqs sequential to /explore --
+200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 429 429 429 429 429 429 429 429 429 429 
+-- header probe (no auth) --
+HTTP/2 200 
+-- 3.3b drain anon + immediate header --
+HTTP/2 429 
+retry-after: 3
+
+=== 3.4 recovery sweep (sleep 65, all tiers expect 200) ===
+recovery-user: 000
+recovery-agent: 000
+recovery-anon: 200
+-- 3.4 re-verify recovery (post-litestream-fix) --
+user:  200
+agent: 200
+anon:  200

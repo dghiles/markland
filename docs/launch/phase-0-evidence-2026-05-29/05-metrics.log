@@ -1,0 +1,4 @@
+{"event":"first_mcp_call","first_time":true,"principal_id":"usr_67c667bfc6062731","ts":"2026-05-30T00:49:35.875414Z"}
+{"event":"first_publish","first_time":true,"principal_id":"usr_67c667bfc6062731","ts":"2026-05-30T00:49:36.438568Z"}
+{"event":"first_grant","first_time":true,"principal_id":"usr_67c667bfc6062731","ts":"2026-05-30T00:50:17.509291Z"}
+{"event":"first_mcp_call","first_time":true,"principal_id":"agt_f958a22739255f52","ts":"2026-05-30T00:50:17.929379Z"}

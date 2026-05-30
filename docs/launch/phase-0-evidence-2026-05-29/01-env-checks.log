@@ -1,0 +1,42 @@
+=== Task 1: Environment checks ===
+-- 1.1 /health (against markland.dev — prod custom domain) --
+{"status":"ok"}
+-- 1.1b /health (against markland.fly.dev — plan's literal hostname) --
+
+-- 1.2 /mcp/ POST without auth --
+mcp-no-auth: 401
+-- 1.3 hosted_smoke.sh against markland.dev with operator token --
+==> GET https://markland.dev/health
+{"status":"ok"}{"status":"ok"}
+==> GET https://markland.dev/ (landing page, expect 200)
+ok
+==> POST https://markland.dev/mcp/ without auth (expect 401)
+ok
+==> POST https://markland.dev/mcp/ initialize with auth (expect 200)
+ok (session=3f09ca0c56fa41ba82e0090cc15727f2)
+==> POST https://markland.dev/mcp/ tools/call markland_whoami (expect 200 and principal)
+ok
+
+All hosted smoke checks passed.
+-- 1.4 Sentry test event --
+Connecting to fdaa:45:37b2:a7b:6e8:6320:8102:2...
+sent
+  File "<string>", line 1
+    import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime(\"%FT%TZ\"))
+                                                                                  ^
+SyntaxError: unexpected character after line continuation character
+SENTRY_EVENT_VISIBLE=1 (MARKLAND-4 'phase-0 dogfood smoke 2026-05-29', first seen ~1m after trigger, verified via Sentry MCP at )
+SENTRY_ISSUE_URL=https://markland.sentry.io/issues/MARKLAND-4
+SENTRY_VERIFIED_AT=2026-05-29T21:41:30Z
+-- 1.5a auth-start to operator inbox --
+trigger-ts: 2026-05-29T21:41:39Z
+auth-start: 404
+(inbox check is human-side; the Resend Activity dashboard is the auth source for delivery, not curl)
+-- 1.5a (corrected route) /api/auth/magic-link --
+trigger-ts: 2026-05-29T21:41:55Z
+magic-link: 200
+(plan's /auth/start path is stale — actual route is /api/auth/magic-link)
+-- 1.5b Litestream snapshots --
+Connecting to fdaa:45:37b2:a7b:6e8:6320:8102:2...
+replica  generation        index  size   created
+s3       500b7e4f67465de5  37     57113  2026-05-29T19:44:24Z

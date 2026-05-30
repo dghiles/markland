@@ -74,8 +74,14 @@ the AI-citation sweet spot, full Article + Person + BreadcrumbList
 JSON-LD). Phase 2 of the SEO strategy — content launch — is genuinely
 underway one day after the strategy was written.
 
-**Phase 0 dogfooding partial** — Eric ran steps 1-3 with view-grant
-only; environment + Sentry alerts complete; steps 4-14 remain.
+~~**Phase 0 dogfooding partial** — Eric ran steps 1-3 with view-grant
+only; environment + Sentry alerts complete; steps 4-14 remain.~~
+**Phase 0 dogfooding complete [2026-05-29]** — operator-only sweep of steps
+4-14 + audit-derived reconstruction of 2.4 + synthetic 2.5/2.6 with operator's
+own agent token. Found and fixed one P0 mid-run (`markland-9n0`: Litestream
+WAL `permission denied` from UID drift, fixed with `chown`, no deploy). Plan
+audit log updated; evidence at `docs/launch/phase-0-evidence-2026-05-29/`.
+**GO** decision recorded.
 
 **GEO batch G1-G5 shipped** (PR #54, #55, #56) — robots.txt pruned to training-only
 blocks (Perplexity + ChatGPT Search + Claude Web all reachable now),
@@ -139,7 +145,7 @@ Active or imminent. Items here have a plan or a clear next action.
 **Working theory (2026-05-29 soak-window):** the funnel isn't starving — it's leaking. 52 visitors / 14d → 0 signups; 91% bounce on `/` (which is 64% of all pageviews). All 5 organic signups happened in the first 2 weeks post-launch; adoption has flatlined since. The bottleneck is **homepage conversion + content velocity**, not the trust-gate items we'd been queueing. Re-ordered Now/Next accordingly.
 
 - **Pre-launch clean up** — bundle plan: `docs/plans/2026-05-29-pre-launch-cleanup.md`. 8 individually pickable tracks below, each with its own plan link. Sequencing: **A blocks B**; B + C + D + E run in parallel after A; F drafts during; G is close-out. Background: soak-window 2026-05-29 found 91% bounce on `/` and 0 signups in 14d — leak at the hero, not at the trust gates. Show HN (F) posts only after B–E ship and funnel evidence confirms conversion is fixed.
-  - **[Pre-launch A] Phase 0 dogfood finish — steps 4-14** — Plan: `docs/plans/2026-04-28-phase-0-dogfood.md`. Validate the install + publish + grant + revoke flow end-to-end against prod before optimizing the hero. Eric did 1-3 with view-grant; 4-14 cover edit-grant, grant-revocation, MCP-from-CLI, agent token issuance, public-doc reading, `markland_search` from a fresh client. File any bugs found before doing Track B. **Blocks [Pre-launch B].**
+  - ~~**[Pre-launch A] Phase 0 dogfood finish — steps 4-14**~~ **shipped 2026-05-29** — operator-only sweep + audit-reconstruction of 2.4 + synthetic 2.5/2.6 via operator's own agent token. One P0 fixed mid-run (`markland-9n0` Litestream UID drift). Evidence at `docs/launch/phase-0-evidence-2026-05-29/`. GO decision recorded. **Unblocks [Pre-launch B].**
   - **[Pre-launch B] Homepage conversion fix** — Plan: `docs/plans/2026-05-29-pre-launch-cleanup.md` Track B. Replace hero "Pre-launch · we'll email when it's ready" copy + `/api/waitlist` primary CTA with magic-link sign-in routing to `/login`. Demote waitlist to a small footer affordance. 3 TDD-shaped tasks (pin failing test → swap copy + form → deploy + verify). Highest-leverage single change in the entire bundle.
   - **[Pre-launch C] Blog post #2 — "How to share Claude Code output without copy-pasting"** — Plan: `docs/plans/2026-05-29-pre-launch-cleanup.md` Track C. ~1,100-word draft already in the plan; one task to write the file at `src/markland/web/content/blog/share-claude-code-output.md` + ship. Restarts the content cadence the SEO strategy doc identified as the #1 organic growth lever.
   - **[Pre-launch D] Dashboard welcome / first-publish panel** — Plan: `docs/plans/2026-05-29-pre-launch-cleanup.md` Track D. New `user_has_owned_docs(conn, user_id)` service helper + `_welcome_first_publish.html` partial + `POST /api/me/dismiss-welcome` endpoint. Mirrors the `_connect_claude_code` pattern shipped under `markland-qd2`. 3 TDD-shaped tasks. Captures the converting users Track B brings in.
@@ -149,7 +155,6 @@ Active or imminent. Items here have a plan or a clear next action.
   - **[Pre-launch F] Show HN draft (queue, do not post)** — Plan: `docs/plans/2026-05-29-pre-launch-cleanup.md` Track F. Write the full Show HN post + 4 canned-reply patterns + anti-mistake checklist to `docs/launch/2026-05-29-show-hn-draft.md`. **Posting is gated:** Tracks B + C + D + E1/E2/E3 must all be live AND a follow-up soak-window check must show the funnel converting before this gets posted. Drafting now means zero activation energy when conditions are met.
 - **MCP audit Plan 7 — Phase B deprecation/removal** — opens 30 days after the `mcp-audit-axis-5-released` tag (laid 2026-05-01, so window opens **2026-05-31**, ~2 days). Removes 4 deprecation shims: `markland_set_visibility`, `markland_feature`, `markland_set_status`, `markland_clear_status`. Plan: `docs/plans/2026-04-27-mcp-phase-b-deprecation-removal.md`.
 - **Monetization strategy review + plan-write** `[spec, plan TBD]` — Spec: `docs/specs/2026-05-03-monetization-strategy-design.md` (4-tier ladder Free/Pro/Team/Enterprise, per-workspace + per-human-seat expansion, agent-operations metered overage as a future lever, $25K MRR / 12 months target). Demoted in priority pending soak-window evidence — monetization without a converting funnel optimizes the wrong stage. Next move: review spec, decide tier prices + workspace/seat caps, then run `superpowers:writing-plans` to produce the implementation plan. **Pre-launch clean up ships first.**
-- **Phase 0 dogfooding — finish steps 4-14** — Eric ran 1-3 with view-grant only (`b87f338`). Remaining: edit-grant, grant-revocation, MCP-from-CLI, agent token issuance, public-doc reading, `markland_search` from a fresh client. Per `docs/plans/2026-04-28-phase-0-dogfood.md`. Folded into the pre-launch clean-up bundle.
 
 ## Next
 

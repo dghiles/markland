@@ -1,0 +1,49 @@
+=== Task 7: Rollback rehearsal (read-only) ===
+-- 7.1 last 10 releases --
+ VERSION │ STATUS   │ DESCRIPTION │ USER                 │ DATE              
+ v194    │ complete │ Release     │ daveyhiles@gmail.com │ 3h6m ago          
+ v193    │ complete │ Release     │ daveyhiles@gmail.com │ 3h7m ago          
+ v192    │ failed   │ Release     │ daveyhiles@gmail.com │ 3h8m ago          
+ v191    │ complete │ Release     │ daveyhiles@gmail.com │ 3h8m ago          
+ v190    │ complete │ Release     │ daveyhiles@gmail.com │ 3h14m ago         
+ v189    │ complete │ Release     │ daveyhiles@gmail.com │ 3h23m ago         
+ v188    │ complete │ Release     │ daveyhiles@gmail.com │ 3h46m ago         
+ v187    │ complete │ Release     │ daveyhiles@gmail.com │ May 20 2026 20:44 
+ v186    │ complete │ Release     │ daveyhiles@gmail.com │ May 20 2026 15:18 
+ v185    │ complete │ Release     │ daveyhiles@gmail.com │ May 19 2026 13:50 
+ v184    │ complete │ Release     │ daveyhiles@gmail.com │ May 18 2026 20:31 
+ v183    │ complete │ Release     │ daveyhiles@gmail.com │ May 18 2026 20:23 
+ v182    │ complete │ Release     │ daveyhiles@gmail.com │ May 18 2026 20:21 
+ v181    │ complete │ Release     │ daveyhiles@gmail.com │ May 18 2026 20:20 
+
+-- 7.1b current and previous image refs --
+CURRENT_VERSION=194 IMAGE=registry.fly.io/markland:deployment-01KSTV6H1KQRSAJHQQ7M259A25
+PREVIOUS_VERSION=193 IMAGE=registry.fly.io/markland:deployment-01KSTV5JPX59QYZ0XEXK4QJB7A
+
+-- 7.3 confirm Litestream snapshots still listable (post-fix) --
+Connecting to fdaa:45:37b2:a7b:6e8:6320:8102:2...
+replica  generation        index  size   created
+s3       500b7e4f67465de5  37     57113  2026-05-29T19:44:24Z
+-- 7.3b WAL generations (live replication signal) --
+Connecting to fdaa:45:37b2:a7b:6e8:6320:8102:2...
+name  generation        lag    start                 end
+s3    500b7e4f67465de5  -3.1s  2026-05-04T03:13:48Z  2026-05-30T00:52:23Z
+
+-- 7.2 dry-run rollback command (DOCUMENTED, not executed) --
+# In a real incident: roll back the app image:
+#   flyctl deploy -a markland --image registry.fly.io/markland:deployment-01KSTV5JPX59QYZ0XEXK4QJB7A
+# Verify:
+#   curl -fsS https://markland.dev/health
+#   fly status -a markland
+# If DB corruption (not just app bug), restore from Litestream:
+#   fly machine stop <id> -a markland
+#   fly ssh console -a markland -C "litestream restore -o /data/markland.db.restored s3://<bucket>/<replica>"
+#   fly ssh console -a markland -C "mv /data/markland.db.restored /data/markland.db"
+#   fly machine start <id> -a markland
+# Re-run Task 1 (env checks) to confirm rollback succeeded.
+
+-- 7.3-7.3b post-fix Litestream evidence --
+Litestream WAL end=2026-05-30T00:52:23Z with lag=-3.1s (was stuck at 2026-05-29T19:44:24Z before markland-9n0 fix).
+Snapshot timestamp unchanged at 19:44 because snapshot-interval=6h; WAL replication is the live signal and is flowing.
+
+VERIFICATION: markland-9n0 confirmed fixed.

@@ -1,0 +1,45 @@
+=== 2.5 operator-side synthetic (op publishes, op grants edit to own agent, agent edits) ===
+
+-- MCP initialize as operator (user token) --
+op-session: 205b89f18b6a4a9d...
+-- send initialized notification --
+-- publish doc as op --
+publish response: event: message
+data: {"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"{
+  \"id\": \"1c6691cd84054b0a\",
+  \"title\": \"phase-0 2.5 synthetic 2026-05-29\",
+  \"content\": \"v1 content from operator\",
+  \"version\": 1,
+  \"owner_id\": \"usr_67c667bfc6062731\",
+  \"share_url\": \"https://markland.dev/d/WGZ9wpAdPz_pmYjAdHzGUw\",
+  \"is_public\": false,
+  \"is_featured\": f
+
+-- need fresh op session (sessions are POST-bound; reusing prev session) --
+(continuing with same session 205b89f18b6a4a9d)
+
+-- grant edit on doc 1c6691cd84054b0a to agent agt_f958a22739255f52 --
+grant: {"jsonrpc":"2.0","id":"server-error","error":{"code":-32600,"message":"Session not found"}}
+op_sid: 8430e7a858a74d9f...
+grant: {"jsonrpc": "2.0", "id": 3, "result": {"content": [{"type": "text", "text": "{\n  \"doc_id\": \"1c6691cd84054b0a\",\n  \"principal_id\": \"agt_f958a22739255f52\",\n  \"principal_type\": \"agent\",\n  \"level\": \"edit\",\n  \"granted_by\": \"usr_67c667bfc6062731\",\n  \"granted_at\": \"2026-05-30T00
+ag_sid: b2e824e0e8ba4dc2...
+fetch as agent: {"jsonrpc": "2.0", "id": 10, "result": {"content": [{"type": "text", "text": "Unknown tool: markland_fetch"}], "isError": true}}
+current version: None
+update: {"jsonrpc": "2.0", "id": 11, "result": {"content": [{"type": "text", "text": "Error executing tool markland_update: 1 validation error for markland_updateArguments\nif_version\n  Input should be a valid integer [type=int_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.13/v/int_type"}], "isError": true}}
+ag_sid: 6012b08cd37f4010...
+get as agent: {"jsonrpc": "2.0", "id": 10, "result": {"content": [{"type": "text", "text": "{\n  \"id\": \"1c6691cd84054b0a\",\n  \"title\": \"phase-0 2.5 synthetic 2026-05-29\",\n  \"content\": \"v1 content from operator\",\n  \"version\": 1,\n  \"owner_id\": \"usr_67c667bfc6062731\",\n  \"share_url\": \"https://markland.dev/d/WGZ9wpAdPz_pmYjAdHzGUw\",\n  \"is_public\": false,\n  \"is_featured\": false,\n  \"c
+current version: 1
+update: {"jsonrpc": "2.0", "id": 11, "result": {"content": [{"type": "text", "text": "{\n  \"id\": \"1c6691cd84054b0a\",\n  \"title\": \"phase-0 2.5 synthetic 2026-05-29\",\n  \"content\": \"v1 content from operator\\n\\nEdited by agent agt_f958a22739255f52 at 2026-05-29 phase-0 synthetic.\",\n  \"version\": 2,\n  \"owner_id\": \"usr_67c667bfc6062731\",\n  \"share_url\": \"https://markland.dev/d/WGZ9wpAdP
+
+-- 2.6 viewer-side: fetch share URL, expect new content --
+phase-0 2.5 synthetic
+Edited by agent agt_f958a22739255f52 at 2026-05-29 phase-0 synthetic.
+-- status code --
+200
+search: {"jsonrpc": "2.0", "id": 20, "result": {"content": [{"type": "text", "text": "{\n  \"items\": [\n    {\n      \"id\": \"1c6691cd84054b0a\",\n      \"title\": \"phase-0 2.5 synthetic 2026-05-29\",\n      \"owner_id\": \"usr_67c667bfc6062731\",\n      \"is_public\": false,\n      \"is_featured\": false,\n      \"created_at\": \"2026-05-30T00:49:36.438044+00:00\",\n      \"updated_at\": \"2026-05-30T00:51:00.273249+00:00\",\n      \"version\": 2\n    }\n  ],\n  \"next_cursor\": null\n}"}], "isError
+
+-- public-doc reading: pick a known public doc and curl anon --
+first public doc on /explore: /d/ukglp7mO8Dbyx2SbvYOoWg
+anon-GET public doc: 200
+revoke grant: {"jsonrpc": "2.0", "id": 30, "result": {"content": [{"type": "text", "text": "{\n  \"revoked\": true,\n  \"doc_id\": \"1c6691cd84054b0a\",\n  \"principal_id\": \"agt_f958a22739255f52\"\n}"}], "isError": false}}
+delete doc: {"jsonrpc": "2.0", "id": 31, "result": {"content": [{"type": "text", "text": "{\n  \"deleted\": true,\n  \"id\": \"1c6691cd84054b0a\"\n}"}], "isError": false}}

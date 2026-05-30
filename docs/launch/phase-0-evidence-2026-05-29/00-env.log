@@ -1,0 +1,33 @@
+=== Task 0: Pre-flight ===
+-- 0.2 fly auth whoami --
+daveyhiles@gmail.com
+-- 0.3 fly status -a markland --
+[1mApp[0m
+ Name     │ markland                                       
+ Owner    │ personal                                       
+ Hostname │ markland.fly.dev                               
+ Image    │ markland:deployment-01KSTTR40X0DCCTMDMYGWSMWVB 
+
+[1mMachines[0m
+ PROCESS │ ID             │ VERSION │ REGION │ STATE   │ ROLE │ CHECKS             │ LAST UPDATED         
+ app     │ 7813932c203948 │ 190     │ iad    │ started │      │ 1 total, 1 passing │ 2026-05-29T21:38:23Z 
+
+-- 0.4 fly secrets list -a markland --
+ NAME                         │ DIGEST           │ STATUS   
+ MARKLAND_SESSION_SECRET      │ 4e458175b8a4a07d │ Deployed 
+ RESEND_API_KEY               │ 6bd5359ad6153d14 │ Deployed 
+ RESEND_FROM_EMAIL            │ deeec5a10499283f │ Deployed 
+ LITESTREAM_ACCESS_KEY_ID     │ a27b0deecd04b794 │ Deployed 
+ LITESTREAM_SECRET_ACCESS_KEY │ 400abb9975aefc37 │ Deployed 
+ LITESTREAM_BUCKET            │ b2f14a6cd3011631 │ Deployed 
+ LITESTREAM_ENDPOINT          │ feb0b6257c29266b │ Deployed 
+ UMAMI_WEBSITE_ID             │ 8a0a13edb9d74489 │ Deployed 
+ UMAMI_API_KEY                │ 9bf9d1f519804a7e │ Deployed 
+ SENTRY_DSN                   │ 5ad68e1a9e7c1666 │ Deployed 
+
+-- 0.5 SENTRY_DSN flag --
+SENTRY_DSN_PRESENT=0
+-- 0.5 SENTRY_DSN flag (corrected) --
+SENTRY_DSN_PRESENT=1
+
+-- Note: plan references LITESTREAM_REPLICA_URL; current config uses LITESTREAM_BUCKET + LITESTREAM_ENDPOINT + ACCESS_KEY_ID + SECRET_ACCESS_KEY (4 vars). Functionally equivalent. --

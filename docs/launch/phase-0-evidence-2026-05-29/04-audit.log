@@ -1,0 +1,33 @@
+=== Task 4: Audit log ===
+-- 4.1 admin check (operator) --
+audit-status: 200, bytes: 9063
+-- 4.2 row counts by action --
+audit-publish: 13
+audit-grant: 2
+audit-revoke: 0
+audit-update: 2
+audit-invite_create: 3
+audit-invite_accept: 2
+
+-- 4.3 noah-reconstruction findings --
+  - usr_67c667bfc6062731 = operator (admin/daveyhiles)
+  - usr_c9442e3056fa47b3 = noah
+  - usr_4031840c622602a8 = eric
+
+  publish: 13 rows (all from operator+eric+noah)
+  grant:   2 rows  - operator->noah edit (2026-05-04 15:36); eric->operator view (2026-05-02 19:59)
+  update:  2 rows  - BOTH operator-on-operator (own doc 3366aa58, ver 2 + 3, 2026-05-04)
+           NO external-user update row -> 2.5 (agent-edits-shared-doc) not yet validated by real user
+  revoke:  0 rows  - not exercised (matches noah's grants remaining live)
+  invite_create: 3 rows (all from operator)
+  invite_accept: 2 rows - eric accepted inv_22c11ff00ac35828 (2026-05-02); noah accepted inv_e3b6237acac74c6c (2026-04-29)
+
+  CONCLUSION: 2.4 reconstructed via Eric-view-grant + operator-Sept-edit; 2.5 NOT yet reconstructed (no external edit); 2.6 unverifiable from audit. Operator-side synthetic check needed for 2.5.
+-- re-fetch audit, look for new revoke + update + delete rows --
+audit-publish: 14
+audit-grant: 3
+audit-revoke: 1
+audit-update: 3
+audit-delete: 1
+audit-invite_create: 3
+audit-invite_accept: 2

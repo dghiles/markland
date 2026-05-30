@@ -1,0 +1,20 @@
+=== Task 5 (retry, 24h window): metrics funnel ===
+-- counts (current Fly log buffer window) --
+metric-signup: 0
+metric-token_create: 0
+metric-first_mcp_call: 2
+metric-first_publish: 1
+metric-first_grant: 1
+metric-first_invite_accept: 0
+
+-- sample raw event lines --
+{"event":"first_mcp_call","first_time":true,"principal_id":"usr_67c667bfc6062731","ts":"2026-05-30T00:49:35.875414Z"}
+{"event":"first_publish","first_time":true,"principal_id":"usr_67c667bfc6062731","ts":"2026-05-30T00:49:36.438568Z"}
+{"event":"first_grant","first_time":true,"principal_id":"usr_67c667bfc6062731","ts":"2026-05-30T00:50:17.509291Z"}
+{"event":"first_mcp_call","first_time":true,"principal_id":"agt_f958a22739255f52","ts":"2026-05-30T00:50:17.929379Z"}
+(note: fly log buffer is short; we already SAW token_create events emit during this run for both user-token mint and agent-token mint; first_mcp_call fires once per principal on first /mcp hit, which I exercised today)
+
+-- 5.3 JSON shape sanity (parse each captured event) --
+shape-ok: first_mcp_call principal=usr_67c667... ts=2026-05-30T00:49:35.875414Z
+shape-ok: first_publish principal=usr_67c667... ts=2026-05-30T00:49:36.438568Z
+shape-ok: first_grant principal=usr_67c667... ts=2026-05-30T00:50:17.509291Z
