@@ -473,7 +473,7 @@ Expected: line present. If not, find where `/llms.txt` is rendered and confirm i
 - Modify: `src/markland/service/docs.py` — append helper.
 - Test: `tests/test_service_docs.py` (extend) or create `tests/test_user_has_owned_docs.py`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to whichever file tests `service/docs.py`. If unclear, create `tests/test_user_has_owned_docs.py`:
 
@@ -519,7 +519,7 @@ def test_user_has_owned_docs_false_for_user_with_only_grants(conn):
     assert user_has_owned_docs(conn, bob.id) is False
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 ```bash
 uv run pytest tests/test_user_has_owned_docs.py -v
@@ -527,7 +527,7 @@ uv run pytest tests/test_user_has_owned_docs.py -v
 
 Expected: FAIL — `user_has_owned_docs` doesn't exist.
 
-- [ ] **Step 3: Implement the helper**
+- [x] **Step 3: Implement the helper**
 
 Append to `src/markland/service/docs.py`:
 
@@ -543,7 +543,7 @@ def user_has_owned_docs(conn: sqlite3.Connection, user_id: str) -> bool:
     return row is not None
 ```
 
-- [ ] **Step 4: Run tests to verify pass**
+- [x] **Step 4: Run tests to verify pass**
 
 ```bash
 uv run pytest tests/test_user_has_owned_docs.py -v
@@ -551,7 +551,7 @@ uv run pytest tests/test_user_has_owned_docs.py -v
 
 Expected: 3 PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/markland/service/docs.py tests/test_user_has_owned_docs.py
@@ -568,7 +568,7 @@ git commit -m "feat(docs): user_has_owned_docs helper for welcome panel"
 - Modify: `src/markland/web/dashboard.py` — pass `show_welcome_panel: bool` and `csrf_token: str`.
 - Test: `tests/test_dashboard_welcome_panel.py` (new).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/test_dashboard_welcome_panel.py`:
 
@@ -653,7 +653,7 @@ def test_panel_absent_when_dismiss_cookie_set(client):
     assert PANEL_MARKER not in r.text
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 ```bash
 uv run pytest tests/test_dashboard_welcome_panel.py -v
@@ -661,7 +661,7 @@ uv run pytest tests/test_dashboard_welcome_panel.py -v
 
 Expected: 3 FAIL (panel doesn't exist yet).
 
-- [ ] **Step 3: Create the partial template**
+- [x] **Step 3: Create the partial template**
 
 Create `src/markland/web/templates/_welcome_first_publish.html`:
 
@@ -707,7 +707,7 @@ Create `src/markland/web/templates/_welcome_first_publish.html`:
 </script>
 ```
 
-- [ ] **Step 4: Wire visibility logic into `src/markland/web/dashboard.py`**
+- [x] **Step 4: Wire visibility logic into `src/markland/web/dashboard.py`**
 
 In `src/markland/web/dashboard.py`, locate the existing block that computes `show_connect_panel` (added by the install/onboarding Phase 2 plan). Immediately after it, add:
 
@@ -728,7 +728,7 @@ Then in the `render_with_nav(...)` call, add the new kwargs alongside `show_conn
                 csrf_token=csrf_token,
 ```
 
-- [ ] **Step 5: Wire the partial into `dashboard.html`**
+- [x] **Step 5: Wire the partial into `dashboard.html`**
 
 In `src/markland/web/templates/dashboard.html`, find the existing `{% if show_connect_panel %}` block and add immediately below it:
 
@@ -738,7 +738,7 @@ In `src/markland/web/templates/dashboard.html`, find the existing `{% if show_co
 {% endif %}
 ```
 
-- [ ] **Step 6: Run tests to verify pass**
+- [x] **Step 6: Run tests to verify pass**
 
 ```bash
 uv run pytest tests/test_dashboard_welcome_panel.py -v
@@ -746,7 +746,7 @@ uv run pytest tests/test_dashboard_welcome_panel.py -v
 
 Expected: 4 PASS.
 
-- [ ] **Step 7: Run the broader dashboard suite to confirm no regression**
+- [x] **Step 7: Run the broader dashboard suite to confirm no regression**
 
 ```bash
 uv run pytest tests/test_dashboard*.py -q
@@ -754,7 +754,7 @@ uv run pytest tests/test_dashboard*.py -q
 
 Expected: all green.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/markland/web/templates/_welcome_first_publish.html \
@@ -771,7 +771,7 @@ git commit -m "feat(dashboard): welcome / first-publish nudge for new users"
 **Files:**
 - Modify: `src/markland/web/identity_routes.py` — append `/api/me/dismiss-welcome`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/test_identity_routes.py`:
 
@@ -799,7 +799,7 @@ def test_dismiss_welcome_sets_cookie(client):
     assert r.cookies.get("mk_dismiss_welcome") == "1"
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 ```bash
 uv run pytest tests/test_identity_routes.py -v -k dismiss_welcome
@@ -807,7 +807,7 @@ uv run pytest tests/test_identity_routes.py -v -k dismiss_welcome
 
 Expected: FAIL — route doesn't exist (404).
 
-- [ ] **Step 3: Add the route**
+- [x] **Step 3: Add the route**
 
 Append to `src/markland/web/identity_routes.py` (inside `build_router`, after the existing `/api/me/dismiss-connect-claude-code` route from PR markland-qd2):
 
@@ -836,7 +836,7 @@ Append to `src/markland/web/identity_routes.py` (inside `build_router`, after th
         return resp
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 ```bash
 uv run pytest tests/test_identity_routes.py -v -k dismiss_welcome
@@ -844,7 +844,7 @@ uv run pytest tests/test_identity_routes.py -v -k dismiss_welcome
 
 Expected: 3 PASS.
 
-- [ ] **Step 5: Commit + deploy**
+- [x] **Step 5: Commit + deploy**
 
 ```bash
 git add src/markland/web/identity_routes.py tests/test_identity_routes.py
