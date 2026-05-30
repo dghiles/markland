@@ -1,5 +1,6 @@
-<section id="share-dialog" style="border:1px solid #ccc;padding:1rem;margin:1rem 0;">
-  <h3 style="margin-top:0;">Share</h3>
+<details id="share-dialog" style="margin:1rem 0;">
+  <summary style="cursor:pointer; display:inline-block; color: var(--text); background: var(--surface-2); border: 1px solid var(--outline); border-radius: 6px; padding: 0.35rem 0.75rem; font: inherit; list-style:none;">Share{% if grants %} ({{ grants|length }}){% endif %}</summary>
+  <div style="border:1px solid var(--outline-hairline); border-radius:12px; padding:1rem; margin-top:0.75rem;">
   <form id="share-form">
     <label>
       Email
@@ -51,4 +52,5 @@
       });
     })();
   </script>
-</section>
+  </div>
+</details>
