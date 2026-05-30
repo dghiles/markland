@@ -166,7 +166,27 @@ def build_auth_router(
             max_age=SESSION_MAX_AGE_SECONDS,
             httponly=True,
             secure=base_url.startswith("https://"),
-            samesite="strict",
+            # Lax (not Strict) is required for magic-link auth: an
+            # email-link click typically traverses a cross-site
+            # redirector (mail.google.com/url, safelinks.protection
+            # .outlook.com) before landing on /verify, and Strict cookies
+            # are not sent on the 303 follow-up after a cross-site
+            # top-level nav — so the signed-in target page sees an
+            # anonymous user and bounces back to /login. Reverts the
+            # too-aggressive change in commit 8469504 (markland-qzo).
+            #
+            # CSRF posture after this revert is layered, not uniform:
+            #   - Explicit tokens on /api/me/dismiss-* and /device/confirm
+            #     (make_csrf_token / verify_csrf_token).
+            #   - JSON-body endpoints are de-facto CSRF-safe because
+            #     pydantic rejects the form-encoded payloads that a
+            #     cross-site <form> can send.
+            #   - Form-body endpoints under /settings/agents/* and
+            #     /d/{t}/* rely on SameSite=Lax alone, equivalent to
+            #     the pre-qzo posture that shipped for months.
+            # The structural fix (per-route CSRF tokens or Origin/
+            # Referer middleware) is tracked separately.
+            samesite="lax",
             path="/",
         )
         return resp
@@ -206,7 +226,9 @@ def build_auth_router(
             max_age=SESSION_MAX_AGE_SECONDS,
             httponly=True,
             secure=base_url.startswith("https://"),
-            samesite="strict",
+            # See the matching note in /api/auth/verify above: Lax is the
+            # max strictness the magic-link click flow tolerates.
+            samesite="lax",
             path="/",
         )
         return resp
