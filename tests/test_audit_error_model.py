@@ -60,7 +60,7 @@ def test_feature_non_admin_is_forbidden(tmp_path):
     h = MCPHarness.create(tmp_path, mode="direct")
     alice = h.as_user(email="alice@example.com")
     pub = alice.call("markland_publish", content="# t")
-    r = alice.call_raw("markland_feature", doc_id=pub["id"], featured=True)
+    r = alice.call_raw("markland_doc_meta", doc_id=pub["id"], featured=True)
     r.assert_error("forbidden")
 
 

@@ -885,48 +885,6 @@ def build_mcp(
         return _delete(ctx, doc_id)
 
     @mcp.tool()
-    def markland_set_visibility(ctx: Context, doc_id: str, public: bool) -> dict:
-        """Deprecated. Use markland_doc_meta(doc_id, public=...) instead.
-
-        Removed in the release scheduled 30 days after this one.
-
-        Args:
-            doc_id: The document to update.
-            public: True for public, False for unlisted.
-
-        Returns:
-            doc_envelope.
-
-        Raises:
-            not_found: doc does not exist or caller cannot see it.
-            forbidden: caller is not the owner.
-
-        Idempotency: Idempotent.
-        """
-        return _doc_meta(ctx, doc_id, public=public, featured=None)
-
-    @mcp.tool()
-    def markland_feature(ctx: Context, doc_id: str, featured: bool = True) -> dict:
-        """Deprecated. Use markland_doc_meta(doc_id, featured=...) instead.
-
-        Removed in the release scheduled 30 days after this one.
-
-        Args:
-            doc_id: The document to update.
-            featured: True to pin, False to unpin.
-
-        Returns:
-            doc_envelope.
-
-        Raises:
-            not_found: doc does not exist or caller cannot see it.
-            forbidden: caller is not an admin.
-
-        Idempotency: Idempotent.
-        """
-        return _doc_meta(ctx, doc_id, public=None, featured=featured)
-
-    @mcp.tool()
     def markland_doc_meta(
         ctx: Context,
         doc_id: str,
@@ -1211,46 +1169,6 @@ def build_mcp(
         """
         return _status(ctx, doc_id, status=status, note=note)
 
-    def _set_status_shim(ctx, doc_id, status, note=None):
-        # JSON-RPC clients can pass any JSON value through the type hint;
-        # the shim's docstring promises invalid_argument when status isn't
-        # in {reading, editing}, so reject None explicitly rather than
-        # silently delegating to the clear path in _status.
-        if status is None:
-            raise tool_error(
-                "invalid_argument",
-                reason="status_must_be_reading_or_editing",
-            )
-        return _status(ctx, doc_id, status=status, note=note)
-
-    @mcp.tool()
-    def markland_set_status(
-        ctx: Context,
-        doc_id: str,
-        status: str,
-        note: str | None = None,
-    ) -> dict:
-        """Deprecated. Use markland_status(doc_id, status=...) instead.
-
-        Removed in the release scheduled 30 days after this one.
-
-        Args:
-            doc_id: The document.
-            status: "reading" or "editing".
-            note: Optional free-text note.
-
-        Returns:
-            {doc_id, status, expires_at}.
-
-        Raises:
-            not_found: doc does not exist or caller cannot see it.
-            forbidden: caller does not have view access.
-            invalid_argument: status not in {reading, editing}.
-
-        Idempotency: Idempotent.
-        """
-        return _set_status_shim(ctx, doc_id, status=status, note=note)
-
     def _audit(
         ctx,
         doc_id: str | None = None,
@@ -1359,28 +1277,6 @@ def build_mcp(
         """
         return _admin_metrics(ctx, window_seconds=window_seconds)
 
-    def _clear_status_shim(ctx, doc_id):
-        _status(ctx, doc_id, status=None)
-        # Preserve the pre-deprecation {ok: true} shape so existing
-        # callers don't break before the 30-day removal deadline.
-        return {"ok": True}
-
-    @mcp.tool()
-    def markland_clear_status(ctx: Context, doc_id: str) -> dict:
-        """Deprecated. Use markland_status(doc_id, status=None) instead.
-
-        Removed in the release scheduled 30 days after this one.
-
-        Args:
-            doc_id: The document whose presence row should be removed.
-
-        Returns:
-            {ok: true} — the pre-deprecation shape, preserved for back-compat.
-
-        Idempotency: Idempotent — safe to call even if no presence row exists.
-        """
-        return _clear_status_shim(ctx, doc_id)
-
     handlers.update(
         markland_whoami=_whoami,
         markland_publish=_publish,
@@ -1394,12 +1290,6 @@ def build_mcp(
         markland_share=_share,
         markland_update=_update,
         markland_delete=_delete,
-        markland_set_visibility=lambda ctx, doc_id, public: _doc_meta(
-            ctx, doc_id, public=public, featured=None
-        ),
-        markland_feature=lambda ctx, doc_id, featured=True: _doc_meta(
-            ctx, doc_id, public=None, featured=featured
-        ),
         markland_doc_meta=_doc_meta,
         markland_grant=_grant,
         markland_revoke=lambda ctx, doc_id, target=None, *, principal=None: _revoke(
@@ -1410,8 +1300,6 @@ def build_mcp(
         markland_create_invite=_create_invite,
         markland_list_invites=_list_invites,
         markland_revoke_invite=_revoke_invite,
-        markland_set_status=_set_status_shim,
-        markland_clear_status=_clear_status_shim,
         markland_status=_status,
         markland_audit=_audit,
         markland_admin_metrics=_admin_metrics,

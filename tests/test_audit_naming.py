@@ -33,3 +33,11 @@ def test_boolean_inputs_drop_is_prefix(mcp):
             assert pname not in forbidden_input_names, (
                 f"{name} uses {pname} as input; per §8.1 use bare name."
             )
+
+
+def test_deprecated_shims_removed_in_phase_b(mcp):
+    """Phase B: the four folded predecessors no longer exist."""
+    assert "markland_set_visibility" not in mcp.markland_handlers
+    assert "markland_feature" not in mcp.markland_handlers
+    assert "markland_set_status" not in mcp.markland_handlers
+    assert "markland_clear_status" not in mcp.markland_handlers
