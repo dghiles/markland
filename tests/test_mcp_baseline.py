@@ -268,14 +268,14 @@ def test_baseline_markland_revoke_existing_grant(mcp):
     bob = mcp.as_user(email="bob@example.com")
     pub = alice.call("markland_publish", content="# Revoke test")
     alice.call("markland_grant", doc_id=pub["id"], target="bob@example.com", level="view")
-    r = alice.call_raw("markland_revoke", doc_id=pub["id"], principal="bob@example.com")
+    r = alice.call_raw("markland_revoke", doc_id=pub["id"], target="bob@example.com")
     mcp.snapshot("markland_revoke", "existing_grant", _envelope_of_response(r))
 
 
 def test_baseline_markland_revoke_unknown_target_invalid_argument(mcp):
     alice = mcp.as_user(email="alice@example.com")
     pub = alice.call("markland_publish", content="# Revoke no-grant test")
-    r = alice.call_raw("markland_revoke", doc_id=pub["id"], principal="nobody@example.com")
+    r = alice.call_raw("markland_revoke", doc_id=pub["id"], target="nobody@example.com")
     mcp.snapshot("markland_revoke", "unknown_target_invalid_argument", _envelope_of_response(r))
 
 
@@ -286,7 +286,7 @@ def test_baseline_markland_revoke_non_owner_forbidden(mcp):
     pub = alice.call("markland_publish", content="# Alice doc for revoke")
     alice.call("markland_grant", doc_id=pub["id"], target="carol@example.com", level="view")
     # Bob tries to revoke on Alice's doc — per §12.5 deny-as-NotFound
-    r = bob.call_raw("markland_revoke", doc_id=pub["id"], principal="carol@example.com")
+    r = bob.call_raw("markland_revoke", doc_id=pub["id"], target="carol@example.com")
     mcp.snapshot("markland_revoke", "non_owner_forbidden", _envelope_of_response(r))
 
 

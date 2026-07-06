@@ -926,13 +926,7 @@ def build_mcp(
         return _grant(ctx, doc_id, target, level)
 
     @mcp.tool()
-    def markland_revoke(
-        ctx: Context,
-        doc_id: str,
-        target: str | None = None,
-        *,
-        principal: str | None = None,  # Deprecated alias for `target`.
-    ) -> dict:
+    def markland_revoke(ctx: Context, doc_id: str, target: str) -> dict:
         """Revoke an existing grant. Owner only.
 
         `target` accepts the same forms as `markland_grant`: an email
@@ -942,8 +936,7 @@ def build_mcp(
         Args:
             doc_id: Document id.
             target: Email, `usr_…`, or `agt_…` identifier of the grantee
-                to remove. Replaces the `principal` keyword (deprecated;
-                removed in the release scheduled 30 days after this one).
+                to remove.
 
         Returns:
             `{revoked: bool, doc_id, target}`. `revoked` is `False`
@@ -956,10 +949,7 @@ def build_mcp(
         Idempotency: Idempotent — calling on a non-existent target/grant
             is a no-op success.
         """
-        chosen_target = target if target is not None else principal
-        if chosen_target is None:
-            raise tool_error("invalid_argument", reason="target is required")
-        return _revoke(ctx, doc_id, chosen_target)
+        return _revoke(ctx, doc_id, target)
 
     @mcp.tool()
     def markland_list_grants(
@@ -1268,9 +1258,7 @@ def build_mcp(
         markland_delete=_delete,
         markland_doc_meta=_doc_meta,
         markland_grant=_grant,
-        markland_revoke=lambda ctx, doc_id, target=None, *, principal=None: _revoke(
-            ctx, doc_id, target if target is not None else principal
-        ),
+        markland_revoke=_revoke,
         markland_list_grants=_list_grants,
         markland_list_my_agents=_list_my_agents,
         markland_create_invite=_create_invite,

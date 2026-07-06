@@ -118,7 +118,7 @@ def test_grant_revoke_list_happy_path(harness):
     assert len(listed["items"]) == 1 and listed["items"][0]["principal_id"] == "usr_bob"
 
     revoke_out = h["markland_revoke"](
-        _Ctx(alice), doc_id=a["id"], principal="usr_bob"
+        _Ctx(alice), doc_id=a["id"], target="usr_bob"
     )
     assert revoke_out["revoked"] is True
     after = h["markland_list_grants"](_Ctx(alice), doc_id=a["id"])
