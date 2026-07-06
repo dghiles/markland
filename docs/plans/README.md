@@ -14,17 +14,15 @@ executed, plan superseded).
 
 | Status | Count |
 |---|---|
-| Complete | 49 |
+| Complete | 50 |
 | Complete (diagnostic record — preserved, not executed) | 1 |
 | Design notes (no tasks) | 3 |
 | Partial | 1 |
-| Ready to execute now | 1 |
 | Trigger-gated | 1 |
 | **Total** | **56** |
 
-The two actionable rows are **mcp-phase-b-deprecation-removal** (its
-30-day window opened 2026-05-31 — executable immediately) and the
-deferred phases of **self-service-deletion**.
+The only remaining actionable row is the deferred phases of
+**self-service-deletion**.
 
 ## Plans
 
@@ -55,7 +53,7 @@ deferred phases of **self-service-deletion**.
 | 2026-04-27-mcp-axis-3-error-model.md | Complete | MCP audit Plan 3 |
 | 2026-04-27-mcp-axis-4-8-granularity-idempotency.md | Complete | MCP audit Plan 5 (PR #36) |
 | 2026-04-27-mcp-axis-5-new-tools.md | Complete | MCP audit Plan 6 (PR #38); laid `mcp-audit-axis-5-released` tag |
-| 2026-04-27-mcp-phase-b-deprecation-removal.md | **Ready to execute now** | 30-day window opened **2026-05-31**. Removes 4 shims (`markland_set_visibility`, `markland_feature`, `markland_set_status`, `markland_clear_status`) + `principal=` alias; MCP surface 27→23. All 4 shims verified still present in `server.py` on 2026-07-05 |
+| 2026-04-27-mcp-phase-b-deprecation-removal.md | Complete | Executed 2026-07-06; 4 shims + principal= alias removed; surface 27→23. Bead markland-thh |
 | 2026-04-28-agent-token-leak-fix.md | Complete | PR #41, 2026-05-01 |
 | 2026-04-28-dispatcher-observability.md | Complete | Verified in source 2026-07-05: `_classify` / `_recipient_hash` / Sentry capture live in `service/email_dispatcher.py`. Was missing from the roadmap Shipped log until this reconciliation |
 | 2026-04-28-phase-0-dogfood.md | Complete | GO recorded 2026-05-29; audit log in-file; evidence at `docs/launch/phase-0-evidence-2026-05-29/` |
@@ -95,7 +93,7 @@ deferred phases of **self-service-deletion**.
 | 2026-04-18-landing-waitlist-design.md | Resolved | landing-waitlist-implementation shipped |
 | 2026-04-19-multi-agent-auth-design.md | Resolved | users-and-tokens + agents shipped |
 | 2026-04-19-read-only-viewer-save-to-account-design.md | Resolved | plan shipped 2026-04-20 |
-| 2026-04-27-mcp-audit-design.md | In flight | 6 of 7 plan waves shipped; Phase B removal is the last open plan (window open) |
+| 2026-04-27-mcp-audit-design.md | Resolved | all 7 plan waves shipped (Phase B executed 2026-07-06) |
 | 2026-05-03-monetization-strategy-design.md | Awaiting plan | Deliberately demoted until the F-gate soak check confirms the funnel converts |
 | 2026-05-04-install-onboarding-options-2-4-design.md | Resolved | plan shipped 2026-05-09 |
 | 2026-05-04-self-service-deletion-design.md | In flight | Phase 1 shipped; Phases 2–3 deferred (trigger above) |

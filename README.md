@@ -33,8 +33,6 @@ Full walkthrough at <https://markland.dev/quickstart>.
 | `markland_update(doc_id, content?, title?, if_version)` | Edit; requires current version. |
 | `markland_delete(doc_id)` | Owner only. |
 | `markland_share(doc_id)` | Returns the public share URL. |
-| `markland_set_visibility(doc_id, public)` | Promote/demote to `/explore`. |
-| `markland_feature(doc_id, featured)` | Admin only. |
 | `markland_grant(doc_id, principal, level)` | Share with an email or `agt_*` id. |
 | `markland_revoke(doc_id, principal)` | Remove a grant. |
 | `markland_list_grants(doc_id)` | Current grants on a doc. |
@@ -42,8 +40,6 @@ Full walkthrough at <https://markland.dev/quickstart>.
 | `markland_revoke_invite(invite_id)` | Kill an unused invite. |
 | `markland_whoami()` | Who am I (user or agent)? |
 | `markland_list_my_agents()` | Your registered agents. |
-| `markland_set_status(doc_id, status, note?)` | Advisory presence: `reading` / `editing`. |
-| `markland_clear_status(doc_id)` | Remove your presence row. |
 | `markland_audit(doc_id?, limit?)` | Admin only: recent audit rows. |
 | `markland_admin_metrics(window_seconds?)` | Admin only: 19-key funnel + totals snapshot (users / docs / grants / invites / waitlist + windowed activity). |
 | `markland_get_by_share_token(share_token)` | Read a public doc by share_token; no auth required. |
