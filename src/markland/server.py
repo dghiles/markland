@@ -331,25 +331,15 @@ def build_mcp(
             raise tool_error("forbidden")
         return doc_envelope(body)
 
-    def _grant(
-        ctx,
-        doc_id: str,
-        target: str | None = None,
-        level: str = "view",
-        *,
-        principal: str | None = None,  # Deprecated alias for `target`.
-    ):
+    def _grant(ctx, doc_id: str, target: str, level: str = "view"):
         p = _require_principal(ctx)
-        chosen_target = target if target is not None else principal
-        if chosen_target is None:
-            raise tool_error("invalid_argument", reason="target is required")
         try:
             return grants_svc.grant(
                 db_conn,
                 base_url=base_url,
                 principal=p,
                 doc_id=doc_id,
-                target=chosen_target,
+                target=target,
                 level=level,
                 email_client=email_client,
             )
@@ -913,41 +903,27 @@ def build_mcp(
 
     @mcp.tool()
     def markland_grant(
-        ctx: Context,
-        doc_id: str,
-        target: str | None = None,
-        level: str = "view",
-        *,
-        principal: str | None = None,  # Deprecated alias for `target`.
+        ctx: Context, doc_id: str, target: str, level: str = "view",
     ) -> dict:
         """Grant view or edit access to a user or agent. Owner only.
 
-        `target` accepts an email address (resolves to a user, creating
-        a placeholder row if needed) or an `agt_…` id (agent grant). A
-        best-effort notification email is sent for user grants when an
-        EmailClient was wired into `build_mcp`.
-
         Args:
-            doc_id: Document id.
-            target: Email address or `agt_…` agent id. Replaces the
-                `principal` keyword (deprecated; removed in the release
-                scheduled 30 days after this one).
-            level: `"view"` or `"edit"`. Defaults to `"view"`.
+            doc_id: The document to share.
+            target: An email address (creates the user if missing) or an `agt_…` id.
+            level: `view` or `edit`.
 
         Returns:
-            Grant row dict `{doc_id, principal_id, principal_type, level,
-            granted_by, granted_at}`.
+            grant_envelope: {doc_id, principal_id, level, created_at, owner_id}.
 
         Raises:
-            not_found: Document does not exist.
-            forbidden: Caller is not the owner.
-            invalid_argument: `target_not_found`, `invalid_level`, or
-                `agent_grants_not_supported`.
+            not_found: doc does not exist or caller cannot see it.
+            forbidden: caller is not the owner.
+            invalid_argument: target not found, agent grants not supported, or
+                              level not in {view, edit}.
 
-        Idempotency: Idempotent (upsert) — re-granting the same target is a
-            no-op; re-granting at a different level updates the row.
+        Idempotency: Idempotent (upsert).
         """
-        return _grant(ctx, doc_id, target, level, principal=principal)
+        return _grant(ctx, doc_id, target, level)
 
     @mcp.tool()
     def markland_revoke(

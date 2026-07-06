@@ -94,7 +94,7 @@ def test_delete_requires_owner(harness):
     alice = _user("usr_alice")
     bob = _user("usr_bob")
     a = h["markland_publish"](_Ctx(alice), content="x", title="A")
-    h["markland_grant"](_Ctx(alice), doc_id=a["id"], principal="b@x", level="edit")
+    h["markland_grant"](_Ctx(alice), doc_id=a["id"], target="b@x", level="edit")
     with pytest.raises(ToolError) as exc_info:
         h["markland_delete"](_Ctx(bob), doc_id=a["id"])
     assert exc_info.value.data["code"] == "forbidden"
@@ -107,7 +107,7 @@ def test_grant_revoke_list_happy_path(harness):
     alice = _user("usr_alice")
     a = h["markland_publish"](_Ctx(alice), content="x", title="A")
     grant_out = h["markland_grant"](
-        _Ctx(alice), doc_id=a["id"], principal="b@x", level="view"
+        _Ctx(alice), doc_id=a["id"], target="b@x", level="view"
     )
     assert grant_out["level"] == "view"
     ec.send.assert_called_once()
@@ -130,10 +130,10 @@ def test_non_owner_cannot_grant(harness):
     alice = _user("usr_alice")
     bob = _user("usr_bob")
     a = h["markland_publish"](_Ctx(alice), content="x", title="A")
-    h["markland_grant"](_Ctx(alice), doc_id=a["id"], principal="b@x", level="edit")
+    h["markland_grant"](_Ctx(alice), doc_id=a["id"], target="b@x", level="edit")
     with pytest.raises(ToolError) as exc_info:
         h["markland_grant"](
-            _Ctx(bob), doc_id=a["id"], principal="b@x", level="edit"
+            _Ctx(bob), doc_id=a["id"], target="b@x", level="edit"
         )
     assert exc_info.value.data["code"] == "forbidden"
 
@@ -147,7 +147,7 @@ def test_grant_with_unknown_email_silently_creates_invite(harness):
     alice = _user("usr_alice")
     a = h["markland_publish"](_Ctx(alice), content="x", title="A")
     result = h["markland_grant"](
-        _Ctx(alice), doc_id=a["id"], principal="nobody@x", level="view"
+        _Ctx(alice), doc_id=a["id"], target="nobody@x", level="view"
     )
     # Same shape as a successful grant.
     assert result["doc_id"] == a["id"]
@@ -167,7 +167,7 @@ def test_grant_with_non_email_target_still_invalid_argument(harness):
     a = h["markland_publish"](_Ctx(alice), content="x", title="A")
     with pytest.raises(ToolError) as exc_info:
         h["markland_grant"](
-            _Ctx(alice), doc_id=a["id"], principal="not-an-email", level="view"
+            _Ctx(alice), doc_id=a["id"], target="not-an-email", level="view"
         )
     assert exc_info.value.data["code"] == "invalid_argument"
 
@@ -178,6 +178,6 @@ def test_grant_with_unknown_agent_id_returns_not_found(harness):
     a = h["markland_publish"](_Ctx(alice), content="x", title="A")
     with pytest.raises(ToolError) as exc_info:
         h["markland_grant"](
-            _Ctx(alice), doc_id=a["id"], principal="agt_future", level="view"
+            _Ctx(alice), doc_id=a["id"], target="agt_future", level="view"
         )
     assert exc_info.value.data["code"] == "not_found"
