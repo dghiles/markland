@@ -24,107 +24,46 @@ Current selection: **"Shared notes for you and your agents."** — collaboration
 
 ---
 
-## Where we are (2026-05-30)
+## Where we are (2026-07-05)
 
-**Pre-launch clean-up bundle: 8 of 8 tracks shipped.** Dispatched 2026-05-29 evening via Agent View; six tracks landed on `main` within 12 hours: Track A (Phase 0 dogfood — full GO decision recorded), Track B (homepage CRO — 91% bounce killer; hero CTA now routes to `/login`, waitlist demoted to footer aside; merged `8be17ab`, deployed 2026-05-30 01:27Z), Track C (blog post #2 — "How to share Claude Code output without copy-pasting"), Track D (welcome / first-publish dashboard panel), Track E1 (doc-deletion UI on `/dashboard` + viewer), Track F (Show HN draft queued at `docs/launch/2026-05-29-show-hn-draft.md`, NOT POSTED). Tracks E2 + E3 (formal privacy + ToS) were no-ops at dispatch time — both shipped 2026-05-04; agents verified live `/privacy` (2,603 words, 10 sections) and `/terms` (2,963 words, 13 sections) and reported back without creating duplicate commits. Live prod confirms Track B: `curl /` returns two `/login` forms in hero/mid + one `/api/waitlist` (deliberate footer affordance). 1247/1247 tests pass at deploy. Only gate before Track F (Show HN post) unlocks: post-B soak-window check (`markland-3sd`, deferred ~3–5 days after the 2026-05-30 01:27Z Track B deploy).
+**Reconciliation checkpoint — roadmap audited against the codebase.** Three-agent
+sweep (source-claim verification, all-plans status audit, beads/gauntlet/launch
+state) run 2026-07-05 against `main` @ `8b197e8`. Every shipped claim in the
+previous checkpoints verified true in source — no drift in the Shipped log. New
+consolidation layer: `docs/plans/README.md` indexes all 56 plans + 8 specs with
+status (49 complete; the only open plan work is MCP Plan 7 [executable now],
+self-service deletion Phases 2–3 [deferred], and the trigger-gated plugin
+marketplace plan). Suite: 1,254 tests collected (+7 since the 2026-05-30
+refresh, from PRs #73–#76). MCP surface: 27 tools, 4 of them Plan 7 deprecation
+shims awaiting removal.
 
-**Real-world finding during the run.** Phase 0 dogfood (Track A) surfaced P0 `markland-9n0` — Litestream WAL `permission denied` crash loop on prod. Plan policy ("if P0/P1 found, STOP") auto-gated Track B's merge until the bug cleared. Root cause: file ownership drift between deploys. Fixed via `chown -R app:app /data/.markland.db-litestream`, persists across subsequent deploys because Dockerfile `USER app`. Closed. Second real-world finding: PR #74 (`2da6933`) demoted `mk_session` from `SameSite=Strict` (set by PR #64's security batch) to `SameSite=Lax` — Strict cookies aren't sent on the 303 hop after cross-site nav, so magic-link email clicks didn't authenticate users on prod. TestClient ignores SameSite entirely so this was invisible in CI. Memory entry `feedback_samesite_test_blindness.md` captures the lesson; `markland-d9c` (P1) tracks post-fix verification.
+**The repo has been dormant ~5 weeks.** Last commits (PRs #75/#76 — e2e
+magic-link mint seam + real-browser gauntlet card) landed 2026-05-30, hours
+after the last roadmap refresh. Beads activity, gauntlet runs, and the launch
+sequence all froze at the same moment. This isn't drift inside the work — it's
+a full stop right after the pre-launch bundle landed.
 
----
+**The launch is parked on one overdue gate.** `markland-3sd` — the post-Track-B
+soak-window check that unlocks the Show HN post — was deferred to 2026-06-05
+and is now a month overdue. Every other prerequisite shipped; the draft sits
+queued at `docs/launch/2026-05-29-show-hn-draft.md`. Upside of the delay: five
+weeks of post-CRO funnel data now exist instead of the originally planned noisy
+3–5-day sample, so the check will be more conclusive when it runs.
 
-## Where we are (2026-05-09)
+**Reconciliation actions taken (2026-07-05):** closed `markland-d9c` (P1
+SameSite verify) — the 2026-05-30 gauntlet run proves it
+(`magic-link-cross-site-click: consistent_pass`); filed `markland-2jn` (P2) to
+rescue stranded PR #72 (open since 2026-05-10, CI green, now CONFLICTING — its
+Atom-autodiscovery `<link>` fix is exactly what the one consistently-failing
+gauntlet card `blog-atom-feed-valid` has flagged since 2026-05-09); filed
+`markland-15e` (P3) for repo hygiene (2 stale locked agent worktrees + ~20
+merged local branches); recorded the dispatcher-observability plan as shipped
+(verified live in `service/email_dispatcher.py` — it had never made the
+Shipped log); retired three Next-lane entries that were already done
+(soak-analytics check, SameSite verify, backup RPO/RTO commitment).
 
-Live at **`https://markland.dev`**. Pre-release security pass essentially
-complete: 18 findings filed by a multi-agent review, all P0/P1/P2
-findings now shipped. **P0 batch shipped**
-(PR #62 — markdown XSS via `javascript:` scheme, JS-context XSS in
-`invite.html`/`settings_agents.html`/`device.html`, magic-link tokens
-scrubbed from logs + Sentry), **P1+P2 batch shipped** (PR #64, 11
-commits — `mk_session` `SameSite=Strict`, agents no longer inherit
-owner-action on owning user's docs, CSRF secret-fail-loud, Dockerfile
-non-root, presence-strip for anonymous viewers, CSP `script-src` drops
-`'unsafe-inline'` via per-request nonce, `Fly-Client-IP` trust over
-`X-Forwarded-For`, content size caps, grant-by-unknown-email folds to
-silent invite, share-token rotation on private revoke, `feature` +
-audit-list defense-in-depth admin gates), **P3 bundle A shipped** (PR
-#67 — `audit.list_recent_paginated` admin gate, share_token rotation on
-visibility-flip public→private, synthetic invite-pending principal_id
-matches real `usr_<16hex>` shape, invite dedup by `(doc_id,
-target_email)`), and the two deferred P2s **shipped** (PR #69 — O(1)
-Bearer resolve via embedded `tok_<hex>` prefix in plaintext with legacy
-fallback; PR #70 — server-side session revocation via `users.session_epoch`,
-bumped on `/api/auth/logout`). One P3 (`markland-brf`) deferred 90d to
-remove the legacy resolve path; runbook ready for the Fly volume non-root
-mount smoke (`markland-lvv`). **MCP
-discovery hardened** (PR #66) — bearer auth advertised so SDK probes
-don't crash on HTML 404. **Copy-token UX polished** (PR #65) — Copy
-button + 'C' shortcut, agent token row stops disappearing. **Formal
-privacy policy + Terms of Service live** — `/privacy` and `/terms`
-promoted from beta-summary stubs to standard-shaped documents (10 + 14
-sections respectively); plain-English voice preserved, structure
-pinned by tests so future edits can't silently re-thin them. Plans:
-`docs/plans/2026-05-04-formal-privacy-policy.md`,
-`docs/plans/2026-05-04-formal-terms-of-service.md`.
-**Install/onboarding Options 2-4 shipped** — `device-start` API now
-returns `verification_uri_complete` (RFC 8628 §3.2 single-link form);
-`/setup` runbook step 2 hands users one clickable URL instead of "type
-the code"; new dashboard "Connect Claude Code" panel routes browser-
-first signups back through the same Phase 1 path with a one-line paste
-into Claude Code, dismissible via × or auto-cleared on first
-authorized device. No parallel install flow, no token-on-screen. Plan:
-`docs/plans/2026-05-04-install-onboarding-options-2-4.md`.
-
-`/blog` launched + first anchor post live (PR #63) — `/blog`,
-`/blog/{slug}`, and `/blog/feed.xml` (Atom 1.0) all serving 200; the
-single-post feed is "[What is agent-native publishing?](https://markland.dev/blog/agent-native-publishing)"
-(1,403 words, 155-char meta description, 150-word definition lead in
-the AI-citation sweet spot, full Article + Person + BreadcrumbList
-JSON-LD). Phase 2 of the SEO strategy — content launch — is genuinely
-underway one day after the strategy was written.
-
-~~**Phase 0 dogfooding partial** — Eric ran steps 1-3 with view-grant
-only; environment + Sentry alerts complete; steps 4-14 remain.~~
-**Phase 0 dogfooding complete [2026-05-29]** — operator-only sweep of steps
-4-14 + audit-derived reconstruction of 2.4 + synthetic 2.5/2.6 with operator's
-own agent token. Found and fixed one P0 mid-run (`markland-9n0`: Litestream
-WAL `permission denied` from UID drift, fixed with `chown`, no deploy). Plan
-audit log updated; evidence at `docs/launch/phase-0-evidence-2026-05-29/`.
-**GO** decision recorded.
-
-**GEO batch G1-G5 shipped** (PR #54, #55, #56) — robots.txt pruned to training-only
-blocks (Perplexity + ChatGPT Search + Claude Web all reachable now),
-`/llms.txt` live, question-shaped FAQ blocks across `/` + `/quickstart` +
-every `/alternatives/{slug}`, 143-word "What is Markland?" answer block
-above the hero, `/explore` dropped from sitemap until it has content.
-**GEO posture decision: made + executed** — Markland is now optimized
-for AI search engines, not blocked from them. **SEO drift baselines
-captured** — 12 marketing URLs snapshotted to
-`~/.cache/claude-seo/drift/baselines.db`; weekly
-`/claude-seo:seo-drift compare` cadence added to the strategy doc.
-**Magic-link single-use enforcement shipped** (PR #59) — closes the
-15-min capture window flagged in the concerns review and on
-`/security`'s post-beta hardening list. **Admin metrics expansion
-shipped** (PR #53) — `markland_admin_metrics` now returns a 19-key
-funnel + totals snapshot. **Seed content live** (PR #60) — 9 demo docs
-(6 admin-published explainers + 3 agent-published from "Markland Bot"),
-bulk-publish script, agent-provisioned at deploy. The agent-to-agent
-positioning now has a *visible* surface on `/explore` instead of being
-abstract. **Admin runbook + helper scripts** (PR #57, #58) productized
-the bag of one-off SQL queries used during cutover. **Fresh strategic
-input:** two strategy docs landed today.
-`docs/specs/2026-05-03-monetization-strategy-design.md` — 4-tier ladder
-(Free / Pro / Team / Enterprise) targeting **$25K MRR within 12
-months**, per-workspace base + per-human-seat expansion, agent-
-operations metered overage as a future lever. Awaiting review before
-plan-writing. `docs/audits/2026-05-03-seo-strategy/SEO-STRATEGY.md` —
-90-day SEO plan: don't build more SEO surface yet (13 URLs is enough),
-ship `/blog` + 4-6 anchor long-form posts, lean on brand mentions over
-backlinks for AI-citation surface, drift-monitor weekly. Explicit
-non-goals enumerated in the new "Non-goals (current)" section below.
-
-One MCP audit plan left — Plan 7 (Phase B deprecation/removal of 4
-shims, window opens 2026-05-31). Code-complete on the v1 build (10
-plans, 864 tests).
+Prior checkpoints (2026-05-30, 2026-05-09) are consolidated into the Shipped
+log below.
 
 ---
 
@@ -146,14 +85,19 @@ Items with a `Plan:` link are ready to pick up. Items without a plan
 link should either have a `Spec:` link, a `[needs brainstorm]` tag, or
 be a small ops/content/beads task that doesn't warrant a full plan.
 
+The full plan + spec status index lives at `docs/plans/README.md`
+(reconciled 2026-07-05) — that file, not the checkbox state inside a
+plan, is the authority on whether a plan shipped.
+
 ## Now
 
 Active or imminent. Items here have a plan or a clear next action.
 
 **Working theory (2026-05-29 soak-window):** the funnel isn't starving — it's leaking. 52 visitors / 14d → 0 signups; 91% bounce on `/` (which is 64% of all pageviews). All 5 organic signups happened in the first 2 weeks post-launch; adoption has flatlined since. The bottleneck is **homepage conversion + content velocity**, not the trust-gate items we'd been queueing. Re-ordered Now/Next accordingly.
 
-- **[Pre-launch F-gate] Post-B soak-window check — last gate before Show HN posts** — beads `markland-3sd` (P2). Re-run `docs/runbooks/metrics-review.md` ~3-5 days after the 2026-05-30 01:27Z Track B deploy. Hypothesis to test: hero CTA flip to `/login` drops bounce on `/` from 91% and unsticks signup velocity (was 0 in the 14d before Track B). If yes, Track F (Show HN post) unlocks. If no, the leak is somewhere else than the hero — re-diagnose before posting. Tracks E2/E3 turned out to be no-ops when their dispatch agents discovered the work had already shipped 2026-05-04 (formal privacy + ToS); the pre-launch bundle is effectively complete pending this gate.
-- **MCP audit Plan 7 — Phase B deprecation/removal** — opens 30 days after the `mcp-audit-axis-5-released` tag (laid 2026-05-01, so window opens **2026-05-31**, ~1 day). Removes 4 deprecation shims: `markland_set_visibility`, `markland_feature`, `markland_set_status`, `markland_clear_status`. Plan: `docs/plans/2026-04-27-mcp-phase-b-deprecation-removal.md`.
+- **[Pre-launch F-gate] Post-B soak-window check — OVERDUE ~30 days; the single item parking the launch** — beads `markland-3sd` (P2, was due 2026-06-05). Run `docs/runbooks/metrics-review.md` now — five weeks of post-Track-B funnel data are available (deploy was 2026-05-30 01:27Z), far better than the originally planned 3–5-day sample. Hypothesis to test: hero CTA flip to `/login` drops bounce on `/` from 91% and unsticks signup velocity (was 0 in the 14d before Track B). If yes, Track F (Show HN post) unlocks. If no, the leak is somewhere else than the hero — re-diagnose before posting.
+- **MCP audit Plan 7 — Phase B deprecation/removal — window open since 2026-05-31, executable now** — removes 4 deprecation shims: `markland_set_visibility`, `markland_feature`, `markland_set_status`, `markland_clear_status` (all four verified still registered in `server.py` on 2026-07-05; MCP surface 27→23). Plan: `docs/plans/2026-04-27-mcp-phase-b-deprecation-removal.md`.
+- **Rescue stranded PR #72 — `/blog` Atom autodiscovery `<link>`** — beads `markland-2jn` (P2). Open since 2026-05-10 with green CI, now CONFLICTING against main. Fixes the only failing gauntlet card (`blog-atom-feed-valid`, consistent_fail in both the 2026-05-09 and 2026-05-30 run sets). Rebase, merge, re-run the card to confirm the two-month-old failure clears.
 - **Monetization strategy review + plan-write** `[spec, plan TBD]` — Spec: `docs/specs/2026-05-03-monetization-strategy-design.md` (4-tier ladder Free/Pro/Team/Enterprise, per-workspace + per-human-seat expansion, agent-operations metered overage as a future lever, $25K MRR / 12 months target). Demoted pending the F-gate soak-window — monetization without a converting funnel optimizes the wrong stage. Next move once funnel is confirmed converting: review spec, decide tier prices + workspace/seat caps, then run `superpowers:writing-plans`.
 
 ## Next
@@ -161,14 +105,11 @@ Active or imminent. Items here have a plan or a clear next action.
 Queued. The big security/analytics/MCP-axis batches all landed; what's
 left is launch-readiness polish.
 
-- **Soak-window analytics check** `[done 2026-05-29]` — beads `markland-fjd`. Full pass run: 6 users (4 real + 2 test), 0 signups in 14d, 1 publish in 14d (admin), 52 visitors / 91% bounce / 60% pageview drop WoW, 1 blog view in 14d. Conclusion: funnel leaks at the homepage; trust-gates aren't the bottleneck right now. Drove the pre-launch clean-up bundle (6 of 8 tracks shipped 2026-05-29 → 2026-05-30). Follow-up soak-window in Now lane as `[Pre-launch F-gate]`.
-- **SameSite=Lax magic-link verify** — beads `markland-d9c` (P1). PR #74 (`2da6933`) demoted `mk_session` to `SameSite=Lax` after Strict broke email-click auth in prod. Verify end-to-end: log out, click a fresh magic link from an email client, confirm session cookie is set and dashboard loads. CI couldn't catch this (TestClient ignores SameSite — see `feedback_samesite_test_blindness.md` memory entry).
 - **Per-route CSRF tokens (or Origin/Referer check) on form-body session-authed routes** — beads `markland-7ly` (P2). Surfaced during the dispatch-round review (`dee1683 review: honest CSRF posture`). Today's posture relies on `SameSite=Lax` to protect mutating form-body routes; explicit per-route CSRF tokens or Origin/Referer checks are the belt-and-suspenders move. No plan yet.
 - **Self-service deletion — Phase 2 + Phase 3 remaining** — Spec: `docs/specs/2026-05-04-self-service-deletion-design.md`. Plan: `docs/plans/2026-05-04-self-service-deletion.md`. **Phase 1 shipped 2026-05-29 as Track E1 of the pre-launch bundle** (PR `80769b5` — doc-delete UI with typed-confirmation modal on `/dashboard` + viewer + shared partial). Phase 2 (account soft-delete + 30-day window with magic-link reverify, frozen-from-the-outside semantics) and Phase 3 (daily cron purge that anonymizes the `users` row to a tombstone) remain deferred. Trigger to ship Phase 2/3: first 25 organic signups, OR an external evaluator flag that "no account delete" is the blocker for adoption.
 - **Sharpen agent-to-agent positioning** `[needs brainstorm]` — third-party eval flagged `markland_grant` to another agent ID as the most interesting differentiator; current homepage treats it as a footnote. Add an above-fold or near-fold use-case block: "agent-to-agent coordination — architect agent publishes plan, QA agent appends test report, you read one doc instead of scraping terminal logs." Touches landing copy + possibly a `/explore`-adjacent example.
 - **Claude Desktop + Claude.ai (Cowork / Custom Connectors) install paths** `[needs brainstorm]` — today `/quickstart` covers Claude Code via `claude mcp add` and mentions other clients only generically ("Setup differs per client"). Two new client surfaces deserve first-class install recipes: (1) **Claude Desktop** — manual edit of `claude_desktop_config.json` adding `https://markland.dev/mcp/` with bearer header, comparable to `~/.claude.json`; (2) **Claude.ai web** — Anthropic's Custom Connectors / Cowork surface for adding remote MCP servers from the chat UI. Design questions: does each surface support our bearer-token-only auth model (no OAuth, no DCR) without UX friction, or does the SDK UX gap from `markland-vtb` reappear in different shapes? Do we need a per-client `/quickstart#claude-desktop` and `/quickstart#claude-web` deep link section, or separate `/integrations/{client}` pages (the SEO strategy doc §3 sketches `/integrations/{claude-code,cursor,codex,claude-desktop}` as a future surface — this could be the trigger to ship that taxonomy)? Verify auth quirks in each surface before choosing scope. After brainstorm: spec → plan → ship.
 - **Visibility-change safety rail** `[needs brainstorm]` — today `markland_publish` accepts `public=true` in one tool call, so a casually-worded prompt can flip a doc public without a human gesture. Rough idea: two-step it (`markland_publish` ignores `public=true`, defaults private; `markland_set_visibility` is the only way to flip) + flash + bold audit-log entry. Needs design pass: backwards-compat for existing tool callers, MCP deprecation path, what the UI flash actually looks like, whether to require interactive confirmation for cross-principal grants. Sourced from 2026-05-03 third-party concerns review.
-- **Backup RPO/RTO commitment** — `/privacy` line 43 says backup rotation cadence is "still being tuned during beta." Pick numbers (Litestream/R2 backup interval, max RPO, documented RTO), commit to them, replace the hedge in `/privacy` with the real values. Pure ops + docs.
 - **Operational maturity baseline** `[needs brainstorm]` — single-developer reality is structural, but mitigations close most of the gap. Three sub-items that may want decomposing into separate plans: public `/status` page (uptime + last incident — host vs build, data source, incident posting workflow), incident-response runbook in `docs/runbooks/` (severity levels, paging policy when there's no on-call), named contact for security/incidents on `/security` (email alias, encrypted contact, response SLA). Sourced from 2026-05-03 third-party concerns review.
 
 ## Later
@@ -223,7 +164,10 @@ date it landed.
 
 ### Hosted infrastructure + ops
 
-- **2026-05-30** — **`mk_session` SameSite=Lax fix** (PR #74, `2da6933`). Demoted from `SameSite=Strict` (set by PR #64's security batch) after prod observation that Strict cookies aren't sent on the 303 hop following a cross-site navigation — so magic-link email clicks were silently failing to authenticate. TestClient ignores SameSite, so CI couldn't catch it. Verification tracked in `markland-d9c`. Memory entry: `feedback_samesite_test_blindness.md`.
+- **2026-05-30** — **E2E magic-link mint seam + real-browser gauntlet card** (PRs #75, #76). Test-only `POST /api/test/mint-magic-link` (`web/e2e_routes.py`, mounted only when `MARKLAND_E2E_SECRET` is set; constant-time header compare; 404-on-everything anti-fingerprinting; `@markland.test` emails only) lets a Chrome-driven gauntlet card mint a live verify URL and prove the cross-site email-click → 303 → `mk_session` flow end-to-end — the exact regression class TestClient is blind to. #76 moved the secret to the gitignored `.gauntlet/context/secrets/` fixture-file pattern. Last gauntlet batch (`batch_20260530T171657Z_r43v`, 2026-05-30 17:16Z): 4/5 pass; the one fail is the known `blog-atom-feed-valid` autodiscovery gap → PR #72 / `markland-2jn`.
+- **2026-05-30** — **Backup RPO/RTO commitment live on `/security`** (`bcb293a`, bead `markland-ixc` closed). Concrete numbers replace the beta hedge: RPO **10 seconds** (Litestream WAL→R2 interval), RTO **under 5 minutes** (restore itself measured 524ms for a 320KB DB), **30-day rolling retention** with 6-hour point-in-time boundaries. `/privacy` retention section states the same 30-day window.
+- **2026-05-30** — **`mk_session` SameSite=Lax fix** (PR #74, `2da6933`). Demoted from `SameSite=Strict` (set by PR #64's security batch) after prod observation that Strict cookies aren't sent on the 303 hop following a cross-site navigation — so magic-link email clicks were silently failing to authenticate. TestClient ignores SameSite, so CI couldn't catch it. Memory entry: `feedback_samesite_test_blindness.md`. **Verified 2026-05-30** by the real-browser gauntlet card (`magic-link-cross-site-click: consistent_pass`); `markland-d9c` closed 2026-07-05.
+- **2026-05-29** — **Soak-window analytics check** (bead `markland-fjd`, closed). Full pass: 6 users (4 real + 2 test), 0 signups in 14d, 1 publish in 14d (admin), 52 visitors / 91% bounce / 60% pageview drop WoW, 1 blog view in 14d. Conclusion: funnel leaks at the homepage; trust-gates aren't the bottleneck. Drove the pre-launch clean-up bundle and the `[Pre-launch F-gate]` follow-up in Now.
 - **2026-05-29** — **Phase 0 dogfooding complete (markland-emu)**. Operator-only sweep of steps 4-14 of `docs/plans/2026-04-28-phase-0-dogfood.md` against prod, plus audit-derived reconstruction of step 2.4 and synthetic 2.5/2.6 with operator's own agent token. Surfaced and fixed one P0 mid-run (`markland-9n0` — Litestream WAL `permission denied` crash loop from file-ownership drift; `chown -R app:app /data/.markland.db-litestream` restored sync, persists across deploys because `Dockerfile USER app`). Surfaced two P3 follow-ups: `markland-2l8` (revoke phase-0 test tokens) and `markland-axc` (plan refers to stale `/auth/start` path, real route is `POST /api/auth/magic-link`). Evidence at `docs/launch/phase-0-evidence-2026-05-29/`. **GO** decision recorded.
 - **2026-05-18** — **Metrics-review runbook + supporting scripts** (`77bccc7`). New `docs/runbooks/metrics-review.md` documents the operator-side soak-window flow: `/admin/metrics` funnel snapshot at 14d/30d, `scripts/admin/list_users.py` for the who's-signed-up question, `scripts/admin/umami_summary.py` for referrer + top-pages data. Companion fix `dc65424` sets a non-default User-Agent on the Umami summary script to dodge Cloudflare 1010 block on the analytics dashboard endpoint. Makes the `markland-fjd` soak-window check (then 3 days overdue) a one-paste operation. Sibling docs landings 2026-05-18: `b5d01c9` (wrap Jinja exprs in `{{ }}` so `/blog` JSON-LD parses — clears the GSC validation flagged in `markland-de2`); `aec90a5` (redesigned `og.png` — tighter M lockup, readable wordmark); `a7b5890` (deflake `test_read_rejects_tampered_token` — `markland-ctx` closed).
 - **2026-05-09** — Gauntlet QA scaffolding (`61c0f42`). AI-driven prod smoke tests in `.gauntlet/cards/`, runner at `~/Developer/gauntlet`, ~$0.04/card on Haiku. Initial 4 cards: `blog-atom-feed-valid`, `legal-pages-reachable`, `mcp-endpoint-401-not-307`, `signin-return-path`. First batch run logged at `.gauntlet/run-sets/batch_20260509T165056Z_edhq`. Complements pytest unit tests with against-prod smoke checks that exercise real-network behavior the test client can't (HTTP/2, SSE response shape, CDN edge state). Reference: `~/.claude/projects/-Users-daveyhiles-Developer-markland/memory/reference_gauntlet_qa.md`.
@@ -261,6 +205,7 @@ date it landed.
 - **2026-05-01** — **MCP audit Plan 5 — axis 4/8 (PR #36)** — granularity + idempotency.
 - **2026-05-01** — **MCP audit Plan 4 — axis 2/7 (PR #33)** — return shapes + pagination.
 - **2026-05-03** — **MCP retrospective Plans A/B/C** — three follow-ups from the audit's own retrospective: Plan A security hardening (PR #45), Plan B error-model completion (PR #46), Plan C hygiene (PR #47).
+- **2026-04-28 (recorded 2026-07-05)** — **EmailDispatcher observability** (plan `docs/plans/2026-04-28-dispatcher-observability.md`). `_classify` transient-vs-permanent error triage driving the retry ladder, `_recipient_hash` (sha256[:12]) so Sentry never sees a raw address, `_safe_sentry_capture` on retry exhaustion and permanent failure. Shipped in the 2026-04-28 era but never recorded in this log; caught and verified in source during the 2026-07-05 reconciliation audit.
 
 ### Build (v1 plans, all 2026-04-19 unless noted)
 
@@ -276,6 +221,7 @@ date it landed.
 
 ### Marketing + UX surface
 
+- **2026-05-30** — **Share form collapsed behind a disclosure button** (PR #73, `fd3f1a9`). The viewer's grant/share form now sits behind a `<details>` disclosure styled to match the Delete button, with a grant-count badge — declutters the doc-viewer chrome for the common read-only case.
 - **2026-05-29** — **Pre-launch clean up shipped.** 8-track bundle landed. **Track A** Phase 0 dogfood finish: operator-only sweep + audit-reconstruction of step 2.4 + synthetic 2.5/2.6 via operator's own agent token; one P0 discovered + fixed mid-run (`markland-9n0` Litestream UID drift, `chown -R app:app /data/.markland.db-litestream` restored WAL replication, durable post-fix because Dockerfile `USER app` since `markland-l2p`); evidence at `docs/launch/phase-0-evidence-2026-05-29/`; GO verdict on all 21 task rows. **Track B** homepage CRO: hero primary CTA flipped from `POST /api/waitlist` + "Pre-launch · we'll email when it's ready" copy to `GET /login` magic-link flow with "Sign in & try it"; mid-page CTA flipped to match; waitlist demoted to a footer aside for users who still want to wait; `/login` prefills the hero-typed email. **Track C** Blog post #2 live: ["How to share Claude Code output without copy-pasting"](https://markland.dev/blog/share-claude-code-output) (686 body words, 149-char meta description). **Track D** dashboard welcome / first-publish panel for new accounts (`user_has_owned_docs` service helper + `_welcome_first_publish.html` partial + `POST /api/me/dismiss-welcome` dismiss endpoint with year-long cookie; mirrors the `_connect_claude_code` pattern). **Track E1** self-service deletion Phase 1: `POST /d/{share_token}/delete` owner-only route + Delete button on `/dashboard` + viewer with typed-confirmation modal; Phase 2/3 stay deferred until first 25 organic signups land. **Tracks E2/E3** (formal privacy + ToS) were already shipped 2026-05-04 — agent dispatch confirmed no work outstanding. **Track F** Show HN draft queued at `docs/launch/2026-05-29-show-hn-draft.md` — NOT POSTED; gating language explicit: post only after a follow-up soak-window check confirms the funnel converts. Full suite: 1247 passing. Plan: `docs/plans/2026-05-29-pre-launch-cleanup.md`.
 - **2026-05-09** — **Install/onboarding Options 2-4 shipped.** Two-phase build landed in 8 commits on `main`. **Phase 1 (CLI-first)** — `device-start` API response gains `verification_uri_complete` (RFC 8628 §3.2 single-link form: `verification_url + ?code=<user_code>`); standards-aware MCP clients pick up the one-click URL automatically. `/setup` runbook step 2 rewritten from "visit /device and enter the code ABCD-EFGH" to "Click here to authorize: /device?code=ABCD-EFGH"; step 1's documented response shape teaches the new field. Existing prefill behavior on `/device?code=…` pinned by an additional regression test that allocates a real code via `device-start`. **Phase 2 (browser-via-shares)** — new `has_authorized_device(conn, user_id)` service helper gates a new dashboard "Connect Claude Code" panel (`src/markland/web/templates/_connect_claude_code.html`); panel renders iff signed-in AND no authorized device AND no `mk_dismiss_connect=1` cookie. Dismiss button POSTs to new `POST /api/me/dismiss-connect-claude-code` (CSRF-protected, session-required, sets year-long cookie, returns 204). Successful `/device/confirm` redirect now sets the same cookie so the panel auto-dismisses on first device authorization. Footnote in the panel routes non-Claude-Code MCP clients to `/quickstart#other-clients`. Plan: `docs/plans/2026-05-04-install-onboarding-options-2-4.md`. Spec: `docs/specs/2026-05-04-install-onboarding-options-2-4-design.md`. Full suite: 1214 passing.
 - **2026-05-04** — **Formal Terms of Service live.** `/terms` promoted from a "working terms summary for the public beta" to a full standard-shaped ToS: introduction & acceptance, definitions (Markland, You, Service, Account, Agent, Content, Public/Private Document), your account (16+ eligibility, agent-token responsibility), acceptable use (10 explicit prohibitions + reporting path), your content (ownership retained, license to operate, public-content disclosure), our service (beta status, availability, changes, pricing), termination (by you, by us, survival, discontinuation with 30-day notice), disclaimers (as-is/as-available), limitation of liability ($100 floor or 12 months paid), indemnification (incl. agent-action coverage), governing law (Delaware, no class actions), general (entire agreement, severability, no waiver, assignment, force majeure, notices), changes (14-day material-change notice), `legal@markland.dev` contact alias. Plan: `docs/plans/2026-05-04-formal-terms-of-service.md`.
