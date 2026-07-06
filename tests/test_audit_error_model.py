@@ -1,5 +1,7 @@
 """Layer C — axis 3: error-model contract."""
 
+import json
+import pathlib
 import pytest
 from markland._mcp_errors import tool_error, ERROR_CODES
 
@@ -135,3 +137,21 @@ def test_admin_metrics_invalid_window_uses_reason_kwarg(tmp_path):
     assert "reason" in r.error_data, (
         f"invalid_argument data uses non-canonical key: {r.error_data!r}"
     )
+
+
+def test_every_error_snapshot_uses_closed_code_set():
+    """Walk every snapshot file; every kind: error scenario carries one of
+    the seven canonical codes."""
+    base = pathlib.Path("tests/fixtures/mcp_baseline")
+    allowed = {
+        "unauthenticated", "forbidden", "not_found", "conflict",
+        "invalid_argument", "rate_limited", "internal_error",
+    }
+    for snapshot_file in base.glob("*.json"):
+        data = json.loads(snapshot_file.read_text())
+        for scenario, payload in data.items():
+            if payload.get("kind") == "error":
+                assert payload["code"] in allowed, (
+                    f"{snapshot_file.name}::{scenario} uses unknown code "
+                    f"{payload['code']!r}"
+                )
