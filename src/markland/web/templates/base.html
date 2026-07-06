@@ -7,6 +7,7 @@
     {% set _seo_page_title = self.title() %}
     {% include "_seo_meta.html" %}
     {% block extra_jsonld %}{% endblock %}
+    {% block extra_head %}{% endblock %}
     <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/figtree-var.woff2" crossorigin>
     <style>
         @font-face {
