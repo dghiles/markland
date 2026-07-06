@@ -177,11 +177,12 @@ histogram and total count.
 
 ## Featuring a document on the landing page
 
-`markland_feature` promotes a public doc to the "featured" slot rendered on
-`/` (landing page).
+`markland_doc_meta` with the `featured` flag promotes a public doc to the
+"featured" slot rendered on `/` (landing page). (The old `markland_feature`
+shim was removed 2026-07-06 by MCP audit Plan 7.)
 
 ```
-markland_feature(doc_id="<doc_id>", featured=true)
+markland_doc_meta(doc_id="<doc_id>", featured=true)
 ```
 
 Set `featured=false` to demote. The doc must already be public

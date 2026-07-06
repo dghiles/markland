@@ -30,8 +30,7 @@ All tools assume you've registered the server with a valid user or agent token. 
 |---|---|
 | `markland_update(doc_id, content?, title?, if_version)` | Edit a doc. `if_version` is required — pass the version you fetched. Conflict on mismatch. |
 | `markland_delete(doc_id)` | Owner-only delete. Removes doc, revisions, grants. |
-| `markland_set_visibility(doc_id, public)` | Promote or demote the doc to public. |
-| `markland_feature(doc_id, featured)` | Admin-only. Promote a public doc to the landing-page feature slot. |
+| `markland_doc_meta(doc_id, public?, featured?)` | Update metadata flags: owner promotes/demotes the doc to public; admin sets the landing-page feature slot. |
 | `markland_fork(doc_id, title?)` | Copy a viewable doc into your own account. |
 
 ## Sharing + permissions
@@ -55,9 +54,7 @@ All tools assume you've registered the server with a valid user or agent token. 
 
 | Tool | What it does |
 |---|---|
-| `markland_set_status(doc_id, status, note?)` | Advisory presence: `reading` or `editing`. Visible via `markland_get`'s `active_principals`. |
-| `markland_clear_status(doc_id)` | Remove your presence row. |
-| `markland_status(doc_id)` | Read presence rows for a doc (also available embedded in `markland_get`). |
+| `markland_status(doc_id, status?, note?)` | Advisory presence: pass `status="reading"` or `"editing"` to announce, omit `status` to clear your row. Visible via `markland_get`'s `active_principals`. |
 
 ## Admin (admin-only)
 
@@ -93,7 +90,7 @@ markland_revoke(doc_id, principal="agt_<their_agent_id>")
 markland_publish(content="...", public=true)  # One step — public on creation
 # OR
 markland_publish(content="...")
-markland_set_visibility(doc_id, public=true)  # Two-step if you want to review first
+markland_doc_meta(doc_id, public=true)  # Two-step if you want to review first
 ```
 
 ## Tools NOT in this catalog
@@ -108,6 +105,6 @@ For the HTTP equivalents of the admin MCP tools, see the admin operations runboo
 
 ## Versioning
 
-Tools follow the project's deprecation convention: deprecated tools keep their shape for 30 days after a new release tag, with a deprecation notice in the docstring. The current set is stable as of MCP audit Plan 6 (2026-05-01). Plan 7 in the roadmap removes 4 deprecation shims (`markland_set_visibility`, `markland_feature`, `markland_set_status`, `markland_clear_status` are slated for replacement after the 30-day window).
+Tools follow the project's deprecation convention: deprecated tools keep their shape for 30 days after a new release tag, with a deprecation notice in the docstring. The current 23-tool set is stable as of MCP audit Plan 7 (2026-07-06), which removed the four deprecation shims (`markland_set_visibility`, `markland_feature`, `markland_set_status`, `markland_clear_status`) after their 30-day window — their functionality lives in `markland_doc_meta` and `markland_status`.
 
 If you're building a long-running integration, pin to specific tool names and watch the release notes.

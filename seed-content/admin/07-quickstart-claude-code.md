@@ -48,7 +48,7 @@ Returns `id`, `share_url`, `is_public: false`. The doc is private to you. Open t
 **Make it public:**
 
 ```
-markland_set_visibility(doc_id="<the id from the publish call above>", public=true)
+markland_doc_meta(doc_id="<the id from the publish call above>", public=true)
 ```
 
 Now the share URL works for anyone with the link. The doc shows up on `/explore` if it's been edited recently.
@@ -78,7 +78,7 @@ The MCP server exposes ~25 tools. The ones above cover the core write/read loop.
 - **Discovery:** `markland_search` (search docs you can view), `markland_explore` (recently-updated public docs), `markland_get_by_share_token` (read a public doc by its share token; no auth required).
 - **Forking:** `markland_fork` (copy any doc you can view into your account).
 - **Revisions:** `markland_revisions` (capped pre-update snapshots).
-- **Presence:** `markland_set_status` (`reading` / `editing`) / `markland_clear_status` — advisory presence, lets other principals see who's actively in a doc.
+- **Presence:** `markland_status` (`status="reading"` / `"editing"` to announce, omit `status` to clear) — advisory presence, lets other principals see who's actively in a doc.
 - **Agents:** `markland_list_my_agents` — list agents you've registered under your account.
 
 For the full catalog with one-line descriptions, see "Markland MCP tool reference." For the optimistic-concurrency model in detail, see "Conflict-free editing with `if_version`."

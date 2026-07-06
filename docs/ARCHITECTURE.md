@@ -45,8 +45,8 @@ metrics. Real-time CRDT editing, teams/orgs, and OAuth are explicitly out of sco
   via per-request nonces; CSRF tokens are signed with the same secret
   on a separate salt and fail-loud when the secret is unset.
 - **Admin** — `is_admin` boolean on `users`, promoted via SQL. Admin-only
-  surfaces: `markland_feature` (MCP), `markland_audit` (MCP), and `/admin/audit`
-  (HTML).
+  surfaces: `markland_doc_meta(featured=…)` (MCP), `markland_audit` (MCP), and
+  `/admin/audit` (HTML).
 
 ## Layered architecture
 
@@ -250,7 +250,8 @@ hunting for where to add something similar.
    `markland_update` requires `if_version`, `GET /api/docs/{id}` emits ETag,
    `PATCH` requires `If-Match` → 428/409/200.
 9. **Presence** — `presence` table with 10-min TTL, `service/presence.py`,
-   `web/presence_gc.py` GC task, `markland_set_status` / `markland_clear_status`,
+   `web/presence_gc.py` GC task, `markland_status` (set with `status=`, clear
+   by omitting it; replaced the set_status/clear_status shims in Plan 7),
    `markland_get` embeds `active_principals`, `/api/docs/{id}/presence`,
    presence badge block in `document.html`.
 10. **Launch polish** — `service/rate_limit.py` + `web/rate_limit_middleware.py`,
