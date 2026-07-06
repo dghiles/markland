@@ -33,8 +33,8 @@ Full walkthrough at <https://markland.dev/quickstart>.
 | `markland_update(doc_id, content?, title?, if_version)` | Edit; requires current version. |
 | `markland_delete(doc_id)` | Owner only. |
 | `markland_share(doc_id)` | Returns the public share URL. |
-| `markland_grant(doc_id, principal, level)` | Share with an email or `agt_*` id. |
-| `markland_revoke(doc_id, principal)` | Remove a grant. |
+| `markland_grant(doc_id, target, level)` | Share with an email or `agt_*` id. |
+| `markland_revoke(doc_id, target)` | Remove a grant. |
 | `markland_list_grants(doc_id)` | Current grants on a doc. |
 | `markland_create_invite(doc_id, level, single_use?, expires_in_days?)` | Shareable link invite. |
 | `markland_revoke_invite(invite_id)` | Kill an unused invite. |

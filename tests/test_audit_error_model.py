@@ -142,12 +142,14 @@ def test_admin_metrics_invalid_window_uses_reason_kwarg(tmp_path):
 def test_every_error_snapshot_uses_closed_code_set():
     """Walk every snapshot file; every kind: error scenario carries one of
     the seven canonical codes."""
-    base = pathlib.Path("tests/fixtures/mcp_baseline")
+    base = pathlib.Path(__file__).parent / "fixtures" / "mcp_baseline"
     allowed = {
         "unauthenticated", "forbidden", "not_found", "conflict",
         "invalid_argument", "rate_limited", "internal_error",
     }
-    for snapshot_file in base.glob("*.json"):
+    snapshot_files = list(base.glob("*.json"))
+    assert len(snapshot_files) > 0, f"no snapshot files found under {base}"
+    for snapshot_file in snapshot_files:
         data = json.loads(snapshot_file.read_text())
         for scenario, payload in data.items():
             if payload.get("kind") == "error":
