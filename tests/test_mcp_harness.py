@@ -195,7 +195,7 @@ def test_email_capture_on_grant(mcp):
     alice.call(
         "markland_grant",
         doc_id=pub["id"],
-        principal="bob@example.com",
+        target="bob@example.com",
         level="view",
     )
 

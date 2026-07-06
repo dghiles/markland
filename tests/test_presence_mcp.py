@@ -1,4 +1,4 @@
-"""Integration: set_status / clear_status MCP tools round-trip through the DB."""
+"""Integration: markland_status set/clear round-trips through the DB."""
 
 from __future__ import annotations
 
@@ -65,7 +65,7 @@ def _call(mcp, name: str, principal: Principal, **kwargs):
 def test_set_status_returns_doc_id_status_expires_at(conn):
     mcp = build_mcp(conn, base_url="http://localhost:8950")
     alice = _principal("usr_alice", "Alice")
-    result = _call(mcp, "markland_set_status", alice,
+    result = _call(mcp, "markland_status", alice,
                    doc_id="doc_1", status="editing", note="intro")
     assert result["doc_id"] == "doc_1"
     assert result["status"] == "editing"
@@ -76,20 +76,18 @@ def test_set_status_rejects_invalid_status(conn):
     mcp = build_mcp(conn, base_url="http://localhost:8950")
     alice = _principal("usr_alice")
     with pytest.raises(ToolError) as exc_info:
-        _call(mcp, "markland_set_status", alice,
+        _call(mcp, "markland_status", alice,
               doc_id="doc_1", status="done", note=None)
     assert exc_info.value.data["code"] == "invalid_argument"
 
 
 def test_clear_status_removes_row(conn):
-    # Plan-C.5: clear_status shim returns the legacy {ok: true} shape
-    # for back-compat. The row removal is verified directly via SQL.
     mcp = build_mcp(conn, base_url="http://localhost:8950")
     alice = _principal("usr_alice")
-    _call(mcp, "markland_set_status", alice,
+    _call(mcp, "markland_status", alice,
           doc_id="doc_1", status="reading", note=None)
-    out = _call(mcp, "markland_clear_status", alice, doc_id="doc_1")
-    assert out == {"ok": True}
+    out = _call(mcp, "markland_status", alice, doc_id="doc_1", status=None)
+    assert out == {"doc_id": "doc_1", "cleared": True}
     assert conn.execute("SELECT COUNT(*) FROM presence").fetchone()[0] == 0
 
 
@@ -104,7 +102,7 @@ def test_set_status_requires_view_access(conn):
     conn.commit()
     chuck = _principal("usr_chuck", "Chuck")
     with pytest.raises(ToolError) as exc_info:
-        _call(mcp, "markland_set_status", chuck,
+        _call(mcp, "markland_status", chuck,
               doc_id="doc_1", status="editing", note=None)
     assert exc_info.value.data["code"] in ("forbidden", "not_found")
 
@@ -114,9 +112,9 @@ def test_get_shows_two_active_principals_then_one_after_clear(conn):
     alice = _principal("usr_alice", "Alice")
     bob = _principal("usr_bob", "Bob")
 
-    _call(mcp, "markland_set_status", alice,
+    _call(mcp, "markland_status", alice,
           doc_id="doc_1", status="editing", note="intro")
-    _call(mcp, "markland_set_status", bob,
+    _call(mcp, "markland_status", bob,
           doc_id="doc_1", status="reading", note=None)
 
     result = _call(mcp, "markland_get", alice, doc_id="doc_1")
@@ -129,7 +127,7 @@ def test_get_shows_two_active_principals_then_one_after_clear(conn):
     assert by_id["usr_bob"]["status"] == "reading"
     assert by_id["usr_bob"]["display_name"] == "Bob"
 
-    _call(mcp, "markland_clear_status", alice, doc_id="doc_1")
+    _call(mcp, "markland_status", alice, doc_id="doc_1", status=None)
     result2 = _call(mcp, "markland_get", alice, doc_id="doc_1")
     ids = {p["principal_id"] for p in result2["active_principals"]}
     assert ids == {"usr_bob"}

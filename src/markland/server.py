@@ -331,25 +331,15 @@ def build_mcp(
             raise tool_error("forbidden")
         return doc_envelope(body)
 
-    def _grant(
-        ctx,
-        doc_id: str,
-        target: str | None = None,
-        level: str = "view",
-        *,
-        principal: str | None = None,  # Deprecated alias for `target`.
-    ):
+    def _grant(ctx, doc_id: str, target: str, level: str = "view"):
         p = _require_principal(ctx)
-        chosen_target = target if target is not None else principal
-        if chosen_target is None:
-            raise tool_error("invalid_argument", reason="target is required")
         try:
             return grants_svc.grant(
                 db_conn,
                 base_url=base_url,
                 principal=p,
                 doc_id=doc_id,
-                target=chosen_target,
+                target=target,
                 level=level,
                 email_client=email_client,
             )
@@ -885,48 +875,6 @@ def build_mcp(
         return _delete(ctx, doc_id)
 
     @mcp.tool()
-    def markland_set_visibility(ctx: Context, doc_id: str, public: bool) -> dict:
-        """Deprecated. Use markland_doc_meta(doc_id, public=...) instead.
-
-        Removed in the release scheduled 30 days after this one.
-
-        Args:
-            doc_id: The document to update.
-            public: True for public, False for unlisted.
-
-        Returns:
-            doc_envelope.
-
-        Raises:
-            not_found: doc does not exist or caller cannot see it.
-            forbidden: caller is not the owner.
-
-        Idempotency: Idempotent.
-        """
-        return _doc_meta(ctx, doc_id, public=public, featured=None)
-
-    @mcp.tool()
-    def markland_feature(ctx: Context, doc_id: str, featured: bool = True) -> dict:
-        """Deprecated. Use markland_doc_meta(doc_id, featured=...) instead.
-
-        Removed in the release scheduled 30 days after this one.
-
-        Args:
-            doc_id: The document to update.
-            featured: True to pin, False to unpin.
-
-        Returns:
-            doc_envelope.
-
-        Raises:
-            not_found: doc does not exist or caller cannot see it.
-            forbidden: caller is not an admin.
-
-        Idempotency: Idempotent.
-        """
-        return _doc_meta(ctx, doc_id, public=None, featured=featured)
-
-    @mcp.tool()
     def markland_doc_meta(
         ctx: Context,
         doc_id: str,
@@ -955,50 +903,30 @@ def build_mcp(
 
     @mcp.tool()
     def markland_grant(
-        ctx: Context,
-        doc_id: str,
-        target: str | None = None,
-        level: str = "view",
-        *,
-        principal: str | None = None,  # Deprecated alias for `target`.
+        ctx: Context, doc_id: str, target: str, level: str = "view",
     ) -> dict:
         """Grant view or edit access to a user or agent. Owner only.
 
-        `target` accepts an email address (resolves to a user, creating
-        a placeholder row if needed) or an `agt_…` id (agent grant). A
-        best-effort notification email is sent for user grants when an
-        EmailClient was wired into `build_mcp`.
-
         Args:
-            doc_id: Document id.
-            target: Email address or `agt_…` agent id. Replaces the
-                `principal` keyword (deprecated; removed in the release
-                scheduled 30 days after this one).
-            level: `"view"` or `"edit"`. Defaults to `"view"`.
+            doc_id: The document to share.
+            target: An email address (creates the user if missing) or an `agt_…` id.
+            level: `view` or `edit`.
 
         Returns:
-            Grant row dict `{doc_id, principal_id, principal_type, level,
-            granted_by, granted_at}`.
+            grant_envelope: {doc_id, principal_id, level, created_at, owner_id}.
 
         Raises:
-            not_found: Document does not exist.
-            forbidden: Caller is not the owner.
-            invalid_argument: `target_not_found`, `invalid_level`, or
-                `agent_grants_not_supported`.
+            not_found: doc does not exist or caller cannot see it.
+            forbidden: caller is not the owner.
+            invalid_argument: target not found, agent grants not supported, or
+                              level not in {view, edit}.
 
-        Idempotency: Idempotent (upsert) — re-granting the same target is a
-            no-op; re-granting at a different level updates the row.
+        Idempotency: Idempotent (upsert).
         """
-        return _grant(ctx, doc_id, target, level, principal=principal)
+        return _grant(ctx, doc_id, target, level)
 
     @mcp.tool()
-    def markland_revoke(
-        ctx: Context,
-        doc_id: str,
-        target: str | None = None,
-        *,
-        principal: str | None = None,  # Deprecated alias for `target`.
-    ) -> dict:
+    def markland_revoke(ctx: Context, doc_id: str, target: str) -> dict:
         """Revoke an existing grant. Owner only.
 
         `target` accepts the same forms as `markland_grant`: an email
@@ -1008,8 +936,7 @@ def build_mcp(
         Args:
             doc_id: Document id.
             target: Email, `usr_…`, or `agt_…` identifier of the grantee
-                to remove. Replaces the `principal` keyword (deprecated;
-                removed in the release scheduled 30 days after this one).
+                to remove.
 
         Returns:
             `{revoked: bool, doc_id, target}`. `revoked` is `False`
@@ -1022,10 +949,7 @@ def build_mcp(
         Idempotency: Idempotent — calling on a non-existent target/grant
             is a no-op success.
         """
-        chosen_target = target if target is not None else principal
-        if chosen_target is None:
-            raise tool_error("invalid_argument", reason="target is required")
-        return _revoke(ctx, doc_id, chosen_target)
+        return _revoke(ctx, doc_id, target)
 
     @mcp.tool()
     def markland_list_grants(
@@ -1211,46 +1135,6 @@ def build_mcp(
         """
         return _status(ctx, doc_id, status=status, note=note)
 
-    def _set_status_shim(ctx, doc_id, status, note=None):
-        # JSON-RPC clients can pass any JSON value through the type hint;
-        # the shim's docstring promises invalid_argument when status isn't
-        # in {reading, editing}, so reject None explicitly rather than
-        # silently delegating to the clear path in _status.
-        if status is None:
-            raise tool_error(
-                "invalid_argument",
-                reason="status_must_be_reading_or_editing",
-            )
-        return _status(ctx, doc_id, status=status, note=note)
-
-    @mcp.tool()
-    def markland_set_status(
-        ctx: Context,
-        doc_id: str,
-        status: str,
-        note: str | None = None,
-    ) -> dict:
-        """Deprecated. Use markland_status(doc_id, status=...) instead.
-
-        Removed in the release scheduled 30 days after this one.
-
-        Args:
-            doc_id: The document.
-            status: "reading" or "editing".
-            note: Optional free-text note.
-
-        Returns:
-            {doc_id, status, expires_at}.
-
-        Raises:
-            not_found: doc does not exist or caller cannot see it.
-            forbidden: caller does not have view access.
-            invalid_argument: status not in {reading, editing}.
-
-        Idempotency: Idempotent.
-        """
-        return _set_status_shim(ctx, doc_id, status=status, note=note)
-
     def _audit(
         ctx,
         doc_id: str | None = None,
@@ -1359,28 +1243,6 @@ def build_mcp(
         """
         return _admin_metrics(ctx, window_seconds=window_seconds)
 
-    def _clear_status_shim(ctx, doc_id):
-        _status(ctx, doc_id, status=None)
-        # Preserve the pre-deprecation {ok: true} shape so existing
-        # callers don't break before the 30-day removal deadline.
-        return {"ok": True}
-
-    @mcp.tool()
-    def markland_clear_status(ctx: Context, doc_id: str) -> dict:
-        """Deprecated. Use markland_status(doc_id, status=None) instead.
-
-        Removed in the release scheduled 30 days after this one.
-
-        Args:
-            doc_id: The document whose presence row should be removed.
-
-        Returns:
-            {ok: true} — the pre-deprecation shape, preserved for back-compat.
-
-        Idempotency: Idempotent — safe to call even if no presence row exists.
-        """
-        return _clear_status_shim(ctx, doc_id)
-
     handlers.update(
         markland_whoami=_whoami,
         markland_publish=_publish,
@@ -1394,24 +1256,14 @@ def build_mcp(
         markland_share=_share,
         markland_update=_update,
         markland_delete=_delete,
-        markland_set_visibility=lambda ctx, doc_id, public: _doc_meta(
-            ctx, doc_id, public=public, featured=None
-        ),
-        markland_feature=lambda ctx, doc_id, featured=True: _doc_meta(
-            ctx, doc_id, public=None, featured=featured
-        ),
         markland_doc_meta=_doc_meta,
         markland_grant=_grant,
-        markland_revoke=lambda ctx, doc_id, target=None, *, principal=None: _revoke(
-            ctx, doc_id, target if target is not None else principal
-        ),
+        markland_revoke=_revoke,
         markland_list_grants=_list_grants,
         markland_list_my_agents=_list_my_agents,
         markland_create_invite=_create_invite,
         markland_list_invites=_list_invites,
         markland_revoke_invite=_revoke_invite,
-        markland_set_status=_set_status_shim,
-        markland_clear_status=_clear_status_shim,
         markland_status=_status,
         markland_audit=_audit,
         markland_admin_metrics=_admin_metrics,

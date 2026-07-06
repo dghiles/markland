@@ -1,5 +1,7 @@
 """Layer C — axis 3: error-model contract."""
 
+import json
+import pathlib
 import pytest
 from markland._mcp_errors import tool_error, ERROR_CODES
 
@@ -60,7 +62,7 @@ def test_feature_non_admin_is_forbidden(tmp_path):
     h = MCPHarness.create(tmp_path, mode="direct")
     alice = h.as_user(email="alice@example.com")
     pub = alice.call("markland_publish", content="# t")
-    r = alice.call_raw("markland_feature", doc_id=pub["id"], featured=True)
+    r = alice.call_raw("markland_doc_meta", doc_id=pub["id"], featured=True)
     r.assert_error("forbidden")
 
 
@@ -135,3 +137,23 @@ def test_admin_metrics_invalid_window_uses_reason_kwarg(tmp_path):
     assert "reason" in r.error_data, (
         f"invalid_argument data uses non-canonical key: {r.error_data!r}"
     )
+
+
+def test_every_error_snapshot_uses_closed_code_set():
+    """Walk every snapshot file; every kind: error scenario carries one of
+    the seven canonical codes."""
+    base = pathlib.Path(__file__).parent / "fixtures" / "mcp_baseline"
+    allowed = {
+        "unauthenticated", "forbidden", "not_found", "conflict",
+        "invalid_argument", "rate_limited", "internal_error",
+    }
+    snapshot_files = list(base.glob("*.json"))
+    assert len(snapshot_files) > 0, f"no snapshot files found under {base}"
+    for snapshot_file in snapshot_files:
+        data = json.loads(snapshot_file.read_text())
+        for scenario, payload in data.items():
+            if payload.get("kind") == "error":
+                assert payload["code"] in allowed, (
+                    f"{snapshot_file.name}::{scenario} uses unknown code "
+                    f"{payload['code']!r}"
+                )

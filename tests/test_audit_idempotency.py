@@ -56,11 +56,6 @@ IDEMPOTENT_TOOLS = {
     "markland_revoke",
     "markland_status",
     "markland_revoke_invite",
-    # Deprecated shims still idempotent because they delegate.
-    "markland_set_visibility",
-    "markland_feature",
-    "markland_set_status",
-    "markland_clear_status",
 }
 
 NOT_IDEMPOTENT_TOOLS = {

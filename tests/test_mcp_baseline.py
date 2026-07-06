@@ -80,7 +80,7 @@ def test_baseline_markland_list_with_grant(mcp):
     alice = mcp.as_user(email="alice@example.com")
     bob = mcp.as_user(email="bob@example.com")
     pub = alice.call("markland_publish", content="# Shared with Bob")
-    alice.call("markland_grant", doc_id=pub["id"], principal="bob@example.com", level="view")
+    alice.call("markland_grant", doc_id=pub["id"], target="bob@example.com", level="view")
     r = bob.call_raw("markland_list")
     mcp.snapshot("markland_list", "with_grant", _envelope_of_response(r))
 
@@ -223,53 +223,6 @@ def test_baseline_markland_delete_non_owner_forbidden_hidden(mcp):
 
 
 # ---------------------------------------------------------------------------
-# Task 21: markland_set_visibility
-# ---------------------------------------------------------------------------
-
-def test_baseline_markland_set_visibility_make_public(mcp):
-    alice = mcp.as_user(email="alice@example.com")
-    pub = alice.call("markland_publish", content="# Private doc", public=False)
-    r = alice.call_raw("markland_set_visibility", doc_id=pub["id"], public=True)
-    mcp.snapshot("markland_set_visibility", "make_public", _envelope_of_response(r))
-
-
-def test_baseline_markland_set_visibility_make_private(mcp):
-    alice = mcp.as_user(email="alice@example.com")
-    pub = alice.call("markland_publish", content="# Public doc", public=True)
-    r = alice.call_raw("markland_set_visibility", doc_id=pub["id"], public=False)
-    mcp.snapshot("markland_set_visibility", "make_private", _envelope_of_response(r))
-
-
-def test_baseline_markland_set_visibility_non_owner_forbidden(mcp):
-    alice = mcp.as_user(email="alice@example.com")
-    bob = mcp.as_user(email="bob@example.com")
-    pub = alice.call("markland_publish", content="# Alice doc")
-    # Per spec §12.5: deny-as-NotFound for non-owners on hidden docs.
-    r = bob.call_raw("markland_set_visibility", doc_id=pub["id"], public=True)
-    mcp.snapshot("markland_set_visibility", "non_owner_forbidden", _envelope_of_response(r))
-
-
-# ---------------------------------------------------------------------------
-# Task 22: markland_feature
-# ---------------------------------------------------------------------------
-
-def test_baseline_markland_feature_admin_feature(mcp):
-    alice = mcp.as_user(email="alice@example.com")
-    admin = mcp.as_admin()
-    pub = alice.call("markland_publish", content="# Featured doc", public=True)
-    r = admin.call_raw("markland_feature", doc_id=pub["id"], featured=True)
-    mcp.snapshot("markland_feature", "admin_feature", _envelope_of_response(r))
-
-
-def test_baseline_markland_feature_non_admin_forbidden(mcp):
-    alice = mcp.as_user(email="alice@example.com")
-    pub = alice.call("markland_publish", content="# Not featured", public=True)
-    # alice is a regular user (not admin) — server returns {"error": "forbidden"}
-    r = alice.call_raw("markland_feature", doc_id=pub["id"], featured=True)
-    mcp.snapshot("markland_feature", "non_admin_forbidden", _envelope_of_response(r))
-
-
-# ---------------------------------------------------------------------------
 # Task 23: markland_grant
 # ---------------------------------------------------------------------------
 
@@ -277,7 +230,7 @@ def test_baseline_markland_grant_email_target(mcp):
     alice = mcp.as_user(email="alice@example.com")
     bob = mcp.as_user(email="bob@example.com")  # seed bob
     pub = alice.call("markland_publish", content="# Grant test")
-    r = alice.call_raw("markland_grant", doc_id=pub["id"], principal="bob@example.com", level="view")
+    r = alice.call_raw("markland_grant", doc_id=pub["id"], target="bob@example.com", level="view")
     mcp.snapshot("markland_grant", "email_target", _envelope_of_response(r))
 
 
@@ -285,14 +238,14 @@ def test_baseline_markland_grant_agent_target(mcp):
     alice = mcp.as_user(email="alice@example.com")
     agent = mcp.as_agent(owner_email="alice@example.com")
     pub = alice.call("markland_publish", content="# Agent grant test")
-    r = alice.call_raw("markland_grant", doc_id=pub["id"], principal=agent.principal_id, level="edit")
+    r = alice.call_raw("markland_grant", doc_id=pub["id"], target=agent.principal_id, level="edit")
     mcp.snapshot("markland_grant", "agent_target", _envelope_of_response(r))
 
 
 def test_baseline_markland_grant_invalid_email(mcp):
     alice = mcp.as_user(email="alice@example.com")
     pub = alice.call("markland_publish", content="# Invalid grant test")
-    r = alice.call_raw("markland_grant", doc_id=pub["id"], principal="not-a-real-email", level="view")
+    r = alice.call_raw("markland_grant", doc_id=pub["id"], target="not-a-real-email", level="view")
     mcp.snapshot("markland_grant", "invalid_email", _envelope_of_response(r))
 
 
@@ -302,7 +255,7 @@ def test_baseline_markland_grant_non_owner_forbidden(mcp):
     carol = mcp.as_user(email="carol@example.com")
     pub = alice.call("markland_publish", content="# Alice doc")
     # Bob tries to grant on Alice's doc — per §12.5 deny-as-NotFound
-    r = bob.call_raw("markland_grant", doc_id=pub["id"], principal="carol@example.com", level="view")
+    r = bob.call_raw("markland_grant", doc_id=pub["id"], target="carol@example.com", level="view")
     mcp.snapshot("markland_grant", "non_owner_forbidden", _envelope_of_response(r))
 
 
@@ -314,15 +267,15 @@ def test_baseline_markland_revoke_existing_grant(mcp):
     alice = mcp.as_user(email="alice@example.com")
     bob = mcp.as_user(email="bob@example.com")
     pub = alice.call("markland_publish", content="# Revoke test")
-    alice.call("markland_grant", doc_id=pub["id"], principal="bob@example.com", level="view")
-    r = alice.call_raw("markland_revoke", doc_id=pub["id"], principal="bob@example.com")
+    alice.call("markland_grant", doc_id=pub["id"], target="bob@example.com", level="view")
+    r = alice.call_raw("markland_revoke", doc_id=pub["id"], target="bob@example.com")
     mcp.snapshot("markland_revoke", "existing_grant", _envelope_of_response(r))
 
 
 def test_baseline_markland_revoke_unknown_target_invalid_argument(mcp):
     alice = mcp.as_user(email="alice@example.com")
     pub = alice.call("markland_publish", content="# Revoke no-grant test")
-    r = alice.call_raw("markland_revoke", doc_id=pub["id"], principal="nobody@example.com")
+    r = alice.call_raw("markland_revoke", doc_id=pub["id"], target="nobody@example.com")
     mcp.snapshot("markland_revoke", "unknown_target_invalid_argument", _envelope_of_response(r))
 
 
@@ -331,9 +284,9 @@ def test_baseline_markland_revoke_non_owner_forbidden(mcp):
     bob = mcp.as_user(email="bob@example.com")
     carol = mcp.as_user(email="carol@example.com")
     pub = alice.call("markland_publish", content="# Alice doc for revoke")
-    alice.call("markland_grant", doc_id=pub["id"], principal="carol@example.com", level="view")
+    alice.call("markland_grant", doc_id=pub["id"], target="carol@example.com", level="view")
     # Bob tries to revoke on Alice's doc — per §12.5 deny-as-NotFound
-    r = bob.call_raw("markland_revoke", doc_id=pub["id"], principal="carol@example.com")
+    r = bob.call_raw("markland_revoke", doc_id=pub["id"], target="carol@example.com")
     mcp.snapshot("markland_revoke", "non_owner_forbidden", _envelope_of_response(r))
 
 
@@ -345,7 +298,7 @@ def test_baseline_markland_list_grants_with_grants(mcp):
     alice = mcp.as_user(email="alice@example.com")
     bob = mcp.as_user(email="bob@example.com")
     pub = alice.call("markland_publish", content="# List grants test")
-    alice.call("markland_grant", doc_id=pub["id"], principal="bob@example.com", level="view")
+    alice.call("markland_grant", doc_id=pub["id"], target="bob@example.com", level="view")
     r = alice.call_raw("markland_list_grants", doc_id=pub["id"])
     mcp.snapshot("markland_list_grants", "with_grants", _envelope_of_response(r))
 
@@ -479,60 +432,6 @@ def test_baseline_markland_list_my_agents_as_agent_self(mcp):
 
 
 # ---------------------------------------------------------------------------
-# Task 30: markland_set_status
-# ---------------------------------------------------------------------------
-
-def test_baseline_markland_set_status_reading(mcp):
-    alice = mcp.as_user(email="alice@example.com")
-    pub = alice.call("markland_publish", content="# t")
-    r = alice.call_raw("markland_set_status", doc_id=pub["id"], status="reading")
-    mcp.snapshot("markland_set_status", "reading", _envelope_of_response(r))
-
-
-def test_baseline_markland_set_status_editing_with_note(mcp):
-    alice = mcp.as_user(email="alice@example.com")
-    pub = alice.call("markland_publish", content="# t")
-    r = alice.call_raw(
-        "markland_set_status", doc_id=pub["id"], status="editing", note="wip",
-    )
-    mcp.snapshot("markland_set_status", "editing_with_note", _envelope_of_response(r))
-
-
-def test_baseline_markland_set_status_bad_status_invalid_argument(mcp):
-    alice = mcp.as_user(email="alice@example.com")
-    pub = alice.call("markland_publish", content="# t")
-    r = alice.call_raw("markland_set_status", doc_id=pub["id"], status="grilling")
-    mcp.snapshot("markland_set_status", "bad_status_invalid_argument", _envelope_of_response(r))
-
-
-def test_baseline_markland_set_status_forbidden_hidden(mcp):
-    alice = mcp.as_user(email="alice@example.com")
-    bob = mcp.as_user(email="bob@example.com")
-    pub = alice.call("markland_publish", content="# private")
-    r = bob.call_raw("markland_set_status", doc_id=pub["id"], status="reading")
-    mcp.snapshot("markland_set_status", "forbidden_hidden", _envelope_of_response(r))
-
-
-# ---------------------------------------------------------------------------
-# Task 31: markland_clear_status
-# ---------------------------------------------------------------------------
-
-def test_baseline_markland_clear_status_existing(mcp):
-    alice = mcp.as_user(email="alice@example.com")
-    pub = alice.call("markland_publish", content="# t")
-    alice.call("markland_set_status", doc_id=pub["id"], status="reading")
-    r = alice.call_raw("markland_clear_status", doc_id=pub["id"])
-    mcp.snapshot("markland_clear_status", "existing", _envelope_of_response(r))
-
-
-def test_baseline_markland_clear_status_idempotent_no_existing(mcp):
-    alice = mcp.as_user(email="alice@example.com")
-    pub = alice.call("markland_publish", content="# t")
-    r = alice.call_raw("markland_clear_status", doc_id=pub["id"])
-    mcp.snapshot("markland_clear_status", "idempotent_no_existing", _envelope_of_response(r))
-
-
-# ---------------------------------------------------------------------------
 # Task 32: markland_audit
 # ---------------------------------------------------------------------------
 
@@ -649,7 +548,7 @@ def test_http_sample_grant_email(mcp_http):
     pub = alice.call("markland_publish", content="# share")
     r = alice.call_raw(
         "markland_grant", doc_id=pub["id"],
-        principal="bob@example.com", level="view",
+        target="bob@example.com", level="view",
     )
     mcp_http.snapshot("markland_grant", "http_email_target", _envelope_of_response(r))
 

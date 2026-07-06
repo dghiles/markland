@@ -64,7 +64,7 @@ def test_two_user_share_flow(tmp_path):
 
     # 3. Alice grants view
     grant_out = h["markland_grant"](
-        _Ctx(alice), doc_id=doc_id, principal="b@x", level="view"
+        _Ctx(alice), doc_id=doc_id, target="b@x", level="view"
     )
     assert grant_out["level"] == "view"
     email.send.assert_called_once()
@@ -80,7 +80,7 @@ def test_two_user_share_flow(tmp_path):
 
     # 5. Alice upgrades Bob to edit
     h["markland_grant"](
-        _Ctx(alice), doc_id=doc_id, principal="b@x", level="edit"
+        _Ctx(alice), doc_id=doc_id, target="b@x", level="edit"
     )
     updated = h["markland_update"](
         _Ctx(bob), doc_id=doc_id, if_version=1, content="# Draft\nv2"
@@ -92,7 +92,7 @@ def test_two_user_share_flow(tmp_path):
     assert final["content"] == "# Draft\nv2"
 
     # 7. Alice revokes -- Bob is locked out
-    h["markland_revoke"](_Ctx(alice), doc_id=doc_id, principal="usr_bob")
+    h["markland_revoke"](_Ctx(alice), doc_id=doc_id, target="usr_bob")
     with pytest.raises(ToolError) as exc_info:
         h["markland_get"](_Ctx(bob), doc_id=doc_id)
     assert exc_info.value.data["code"] == "not_found"

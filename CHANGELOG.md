@@ -27,6 +27,13 @@ needed for the spec §14 launch gate (`tests/test_launch_e2e.py`) to pass.
 - Append-only audit log + admin UI.
 - Activation funnel metrics (JSON stdout).
 
+### Removed
+- Four deprecated MCP shim tools: `markland_set_visibility`,
+  `markland_feature`, `markland_set_status`, `markland_clear_status`. Use
+  `markland_doc_meta` and `markland_status` instead.
+- The `principal=` kwarg alias on `markland_grant` and `markland_revoke`,
+  after the 30-day deprecation window. Use `target=` instead.
+
 ### Known follow-ups
 
 See [`docs/FOLLOW-UPS.md`](docs/FOLLOW-UPS.md) for the consolidated list of

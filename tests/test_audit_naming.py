@@ -2,6 +2,7 @@
 
 import pytest
 from markland.server import build_mcp
+from tests._mcp_harness import MCPCallError, MCPHarness
 
 
 @pytest.fixture
@@ -15,10 +16,6 @@ def test_grant_uses_target_param(mcp):
     tool = mcp._tool_manager.get_tool("markland_grant")
     sig_params = list(tool.parameters.get("properties", {}).keys())
     assert "target" in sig_params, sig_params
-    # `principal` is also accepted as a deprecated alias. FastMCP's pydantic
-    # schema generator treats keyword-only params identically to positional
-    # ones, so `principal` still appears in `properties`. Clients should
-    # prefer `target`; the alias is removed in Phase B (plan 7).
 
 
 def test_boolean_inputs_drop_is_prefix(mcp):
@@ -33,3 +30,46 @@ def test_boolean_inputs_drop_is_prefix(mcp):
             assert pname not in forbidden_input_names, (
                 f"{name} uses {pname} as input; per §8.1 use bare name."
             )
+
+
+def test_deprecated_shims_removed_in_phase_b(mcp):
+    """Phase B: the four folded predecessors no longer exist."""
+    assert "markland_set_visibility" not in mcp.markland_handlers
+    assert "markland_feature" not in mcp.markland_handlers
+    assert "markland_set_status" not in mcp.markland_handlers
+    assert "markland_clear_status" not in mcp.markland_handlers
+
+
+def test_grant_no_longer_accepts_principal_kwarg(tmp_path):
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    h.as_user(email="bob@example.com")
+    pub = alice.call("markland_publish", content="# t")
+
+    # `target` works (canonical).
+    alice.call("markland_grant", doc_id=pub["id"],
+               target="bob@example.com", level="view")
+
+    # `principal` no longer works — unknown kwarg raises TypeError, which the
+    # direct-mode harness wraps as MCPCallError (see _normalize_direct).
+    with pytest.raises(MCPCallError, match="principal"):
+        alice.call("markland_grant", doc_id=pub["id"],
+                   principal="bob@example.com", level="view")
+
+
+def test_revoke_no_longer_accepts_principal_kwarg(tmp_path):
+    h = MCPHarness.create(tmp_path, mode="direct")
+    alice = h.as_user(email="alice@example.com")
+    h.as_user(email="bob@example.com")
+    pub = alice.call("markland_publish", content="# t")
+    alice.call("markland_grant", doc_id=pub["id"],
+               target="bob@example.com", level="view")
+
+    # `target` works (canonical).
+    alice.call("markland_revoke", doc_id=pub["id"], target="bob@example.com")
+
+    # `principal` no longer works — unknown kwarg raises TypeError, which the
+    # direct-mode harness wraps as MCPCallError (see _normalize_direct).
+    with pytest.raises(MCPCallError, match="principal"):
+        alice.call("markland_revoke", doc_id=pub["id"],
+                   principal="bob@example.com")
