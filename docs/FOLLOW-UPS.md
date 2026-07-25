@@ -121,6 +121,12 @@ post-launch sprint should pick up.
   principal_id, created_at)` table written alongside stdout, or parse `flyctl
   logs` from the tool. Cheapest path is the table; one `CREATE TABLE` + one
   `INSERT` per emit.
+  Concrete cost of this gap (2026-07-24 usage check): a friend's MCP token
+  was observed resolving 11 weeks after install, but with no persisted read
+  events the only signal is `tokens.last_used_at` — an engaged daily reader
+  and an idle auto-connecting install are indistinguishable. If sharing-led
+  distribution becomes the strategy (`markland-2ef`), this table is the
+  first prerequisite.
 - **~~Token-create reveal disappears before user can copy~~** — Fixed
   2026-05-04 (PR #65, bead `markland-31a` closed): Copy button + 'C'
   keyboard shortcut, and the token row no longer disappears after first

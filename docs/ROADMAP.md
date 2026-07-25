@@ -24,7 +24,7 @@ Current selection: **"Shared notes for you and your agents."** — collaboration
 
 ---
 
-## Where we are (2026-07-05)
+## Where we are (2026-07-25)
 
 **Reconciliation checkpoint — roadmap audited against the codebase.** Three-agent
 sweep (source-claim verification, all-plans status audit, beads/gauntlet/launch
@@ -43,12 +43,14 @@ after the last roadmap refresh. Beads activity, gauntlet runs, and the launch
 sequence all froze at the same moment. This isn't drift inside the work — it's
 a full stop right after the pre-launch bundle landed.
 
-**The launch is parked on one overdue gate.** `markland-3sd` — the post-Track-B
-soak-window check that unlocks the Show HN post — was deferred to 2026-06-05
-and is now a month overdue. Every other prerequisite shipped; the draft sits
-queued at `docs/launch/2026-05-29-show-hn-draft.md`. Upside of the delay: five
-weeks of post-CRO funnel data now exist instead of the originally planned noisy
-3–5-day sample, so the check will be more conclusive when it runs.
+**The gate ran — and failed (2026-07-06).** The soak-window check closed
+`markland-3sd` with a negative verdict: 0 signups in the 30 days post-Track-B.
+Show HN stays unposted; `markland-2ef` (homepage-wedge re-brainstorm, informed
+by the 2026-07-24 usage findings in the working theory below) is the item
+parking the launch. Also landed 2026-07-06: MCP Plan 7 Phase B executed
+(PR #77, surface 27→23, audit arc closed), PR #72 rescued and its failing
+gauntlet card cleared, and the mechanical bead sweep (branches pruned, phase-0
+test tokens revoked on prod, seed docs republished).
 
 **Reconciliation actions taken (2026-07-05):** closed `markland-d9c` (P1
 SameSite verify) — the 2026-05-30 gauntlet run proves it
@@ -93,10 +95,9 @@ plan, is the authority on whether a plan shipped.
 
 Active or imminent. Items here have a plan or a clear next action.
 
-**Working theory (2026-05-29 soak-window):** the funnel isn't starving — it's leaking. 52 visitors / 14d → 0 signups; 91% bounce on `/` (which is 64% of all pageviews). All 5 organic signups happened in the first 2 weeks post-launch; adoption has flatlined since. The bottleneck is **homepage conversion + content velocity**, not the trust-gate items we'd been queueing. Re-ordered Now/Next accordingly.
+**Working theory (revised 2026-07-24 usage check):** the funnel has **never converted a cold visitor** — the "5 organic signups" from the 2026-05-29 theory were all personal-network arrivals (two invited friends, the Phase-0 collaborator, one via that circle), and the Track B CRO flip produced zero stranger conversions in 30+ days. What *does* work is the sharing loop: invite → grant → friend's-agent-reads. One friend's MCP token was still resolving 11 weeks post-install (last used 2026-07-24, read-only), with zero web sign-ins by anyone since May 31 — usage is entirely MCP-side. The bottleneck question for `markland-2ef` is therefore not "fix the hero" but "is distribution sharing-led rather than landing-page-led?" Caveat: reads persist no events (see FOLLOW-UPS `first_mcp_call`), so reader engagement vs idle install is currently indistinguishable.
 
 - **[Pre-launch F-gate] Soak-window check RAN 2026-07-06 — funnel did NOT convert; Track F stays gated** — beads `markland-3sd` closed with a negative verdict (0 signups in the 30 days post-Track-B; the hero CTA flip alone didn't fix the leak). Per the decision tree, do NOT post Show HN; re-diagnose first. Follow-up: `markland-2ef` (P2) — re-brainstorm the homepage wedge.
-- **Confirm gauntlet card `blog-atom-feed-valid` clears** — beads `markland-2jn` (P2, nearly done). PR #72 (Atom autodiscovery `<link>`) merged 2026-07-06 as `1de667e`. Remaining: re-run the gauntlet card against prod post-deploy to confirm the two-month-old consistent_fail clears, then close the bead.
 - **Monetization strategy review + plan-write** `[spec, plan TBD]` — Spec: `docs/specs/2026-05-03-monetization-strategy-design.md` (4-tier ladder Free/Pro/Team/Enterprise, per-workspace + per-human-seat expansion, agent-operations metered overage as a future lever, $25K MRR / 12 months target). Demoted pending the F-gate soak-window — monetization without a converting funnel optimizes the wrong stage. Next move once funnel is confirmed converting: review spec, decide tier prices + workspace/seat caps, then run `superpowers:writing-plans`.
 
 ## Next

@@ -11,7 +11,10 @@ Three data sources, in order of usefulness:
 2. **`scripts/admin/list_users.py`** — who's actually signed up. The "is
    there anyone I don't know personally?" question.
 3. **`scripts/admin/umami_summary.py`** — referrers + top pages. Where any
-   unexpected arrival came from.
+   unexpected arrival came from. **Currently broken:** Umami Cloud paywalls
+   REST API access, so the script 401s regardless of key (bead
+   `markland-38y`, parked 2026-07-24). Workaround: log into the
+   cloud.umami.is dashboard and read the same numbers manually.
 
 All three require an admin token. Mint one per
 [`admin-operations.md`](admin-operations.md#minting-a-test-admin-token) and
