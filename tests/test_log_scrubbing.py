@@ -227,3 +227,82 @@ def test_scrub_event_returns_event_so_sentry_still_sends():
     """Returning ``None`` from before_send drops the event. Confirm we don't."""
     event = {"request": {"url": "/verify?token=abc"}}
     assert scrub_sentry_event(event) is event
+
+
+# ---------------------------------------------------------------------------
+# scrub_sentry_event — MCP client-disconnect noise
+# ---------------------------------------------------------------------------
+
+
+def _disconnect_event():
+    """Shape Sentry's LoggingIntegration builds for the transport-side log."""
+    return {
+        "level": "error",
+        "logger": "mcp.server.streamable_http",
+        "logentry": {
+            "message": "Error handling POST request",
+            "formatted": "Error handling POST request",
+            "params": None,
+        },
+        "exception": {
+            "values": [
+                {
+                    "module": "starlette.requests",
+                    "type": "ClientDisconnect",
+                    "value": "",
+                }
+            ]
+        },
+    }
+
+
+def _stream_echo_event(payload: str = ""):
+    """Shape for the low-level server's re-log of the same exception."""
+    text = f"Received exception from stream: {payload}"
+    return {
+        "level": "error",
+        "logger": "mcp.server.lowlevel.server",
+        "logentry": {"message": text, "formatted": text, "params": None},
+    }
+
+
+def test_scrub_event_drops_mcp_client_disconnect():
+    assert scrub_sentry_event(_disconnect_event()) is None
+
+
+def test_scrub_event_drops_paired_stream_exception_echo():
+    assert scrub_sentry_event(_stream_echo_event()) is None
+
+
+def test_scrub_event_keeps_stream_exception_with_real_payload():
+    """A non-empty payload is a genuine server-side error — must still report."""
+    event = _stream_echo_event("KeyError: 'doc_id'")
+    assert scrub_sentry_event(event) is event
+
+
+def test_scrub_event_keeps_client_disconnect_from_other_loggers():
+    """Only the MCP transport misclassifies disconnects; don't blanket-filter."""
+    event = _disconnect_event()
+    event["logger"] = "markland.web.save_routes"
+    assert scrub_sentry_event(event) is event
+
+
+def test_scrub_event_keeps_other_mcp_transport_errors():
+    event = _disconnect_event()
+    event["exception"]["values"][0] = {
+        "module": "builtins",
+        "type": "ValueError",
+        "value": "no read stream writer available",
+    }
+    assert scrub_sentry_event(event) is event
+
+
+def test_scrub_event_disconnect_filter_tolerates_missing_keys():
+    assert scrub_sentry_event({"logger": "mcp.server.streamable_http"}) is not None
+    assert scrub_sentry_event({"logger": "mcp.server.lowlevel.server"}) is not None
+    assert (
+        scrub_sentry_event(
+            {"logger": "mcp.server.streamable_http", "exception": {"values": "bad"}}
+        )
+        is not None
+    )

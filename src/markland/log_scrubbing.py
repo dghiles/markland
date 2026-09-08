@@ -119,6 +119,54 @@ def build_uvicorn_log_config() -> dict[str, Any]:
     }
 
 
+# ---------------------------------------------------------------------------
+# MCP client-disconnect noise
+# ---------------------------------------------------------------------------
+#
+# The MCP SDK's streamable-HTTP transport wraps its whole POST handler in a
+# blanket `except Exception` (mcp/server/streamable_http.py). A client that
+# hangs up mid-body therefore surfaces as a server fault: `request.body()`
+# raises `starlette.requests.ClientDisconnect`, which is logged at ERROR and
+# then pushed back into the read stream, where the low-level server logs it a
+# second time. One disconnect produces two Sentry events plus a 500 written to
+# a socket nobody is listening on.
+#
+# Disconnects are entirely client-controlled and not actionable, and at volume
+# they bury genuine 5xx in the alert. Drop exactly these two signatures --
+# nothing broader, so a real transport error still reports.
+_MCP_TRANSPORT_LOGGER = "mcp.server.streamable_http"
+_MCP_DISCONNECT_EXC = ("starlette.requests", "ClientDisconnect")
+_MCP_LOWLEVEL_LOGGER = "mcp.server.lowlevel.server"
+_MCP_STREAM_ECHO = "Received exception from stream:"
+
+
+def _is_mcp_disconnect_noise(event: dict[str, Any]) -> bool:
+    """True for the two ERROR records a single MCP client disconnect emits."""
+    logger_name = event.get("logger")
+
+    if logger_name == _MCP_TRANSPORT_LOGGER:
+        exception = event.get("exception")
+        values = exception.get("values") if isinstance(exception, dict) else None
+        if not isinstance(values, list):
+            return False
+        return any(
+            isinstance(v, dict)
+            and (v.get("module"), v.get("type")) == _MCP_DISCONNECT_EXC
+            for v in values
+        )
+
+    if logger_name == _MCP_LOWLEVEL_LOGGER:
+        logentry = event.get("logentry")
+        if not isinstance(logentry, dict):
+            return False
+        text = logentry.get("formatted") or logentry.get("message")
+        # `str(ClientDisconnect())` is empty, so the echo renders with nothing
+        # after the colon. Any real exception carries a message and is kept.
+        return isinstance(text, str) and text.strip() == _MCP_STREAM_ECHO
+
+    return False
+
+
 def scrub_sentry_event(
     event: dict[str, Any] | None, hint: dict[str, Any] | None = None
 ) -> dict[str, Any] | None:
@@ -130,11 +178,16 @@ def scrub_sentry_event(
     in the Sentry SDK and we'd rather ship a partially-redacted event than
     no event at all (we still strip the worst offenders below).
 
-    Returning ``None`` would drop the event; we always return the (mutated)
-    event so error reporting still works.
+    Returning ``None`` drops the event. We do that for one case only -- the
+    MCP client-disconnect records described above, which are misclassified
+    client behaviour rather than server errors. Everything else returns the
+    (mutated) event so error reporting still works.
     """
     if not isinstance(event, dict):
         return event
+
+    if _is_mcp_disconnect_noise(event):
+        return None
 
     # ---- Request payload ----
     request = event.get("request")
