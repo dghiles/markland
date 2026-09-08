@@ -313,7 +313,7 @@ def test_per_test_isolation(tmp_path):
 
 
 def test_http_mode_preserves_tool_error_code_for_known_error(tmp_path, monkeypatch):
-    """Plan-B.3: pin the FastMCP wire-format assumption. If FastMCP ever
+    """Plan-B.3: pin the MCPServer wire-format assumption. If MCPServer ever
     changes how it serializes ToolError messages, this test fails loudly
     instead of every HTTP-mode error silently becoming internal_error."""
     h = MCPHarness.create(tmp_path, mode="http", monkeypatch=monkeypatch)
@@ -324,10 +324,10 @@ def test_http_mode_preserves_tool_error_code_for_known_error(tmp_path, monkeypat
         r = alice.call_raw("markland_get", doc_id="nonexistent00000")
         r.assert_error("not_found")
         # error_data is empty for not_found per spec §7, but the key fact
-        # is that error_code resolved correctly from the FastMCP wire format
+        # is that error_code resolved correctly from the MCPServer wire format
         # rather than degrading to internal_error.
         assert r.error_code == "not_found", (
-            f"FastMCP wire format may have changed — error_code is "
+            f"MCPServer wire format may have changed — error_code is "
             f"{r.error_code!r} but should be 'not_found'. Inspect "
             f"_decode_tool_error_text in tests/_mcp_harness.py."
         )

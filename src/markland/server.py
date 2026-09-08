@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 
 from markland.config import get_config
 from markland.db import init_db
@@ -48,7 +48,7 @@ def _whoami_for_principal(principal: Principal) -> dict:
 def _principal_from_ctx(ctx) -> Principal | None:
     """Ctx surfaces the Principal.
 
-    Tests pass a stand-in Context with `.principal`; in production FastMCP
+    Tests pass a stand-in Context with `.principal`; in production MCPServer
     request path sets `ctx.request_context.request.state.principal`.
     """
     if ctx is None:
@@ -79,13 +79,13 @@ def build_mcp(
     *,
     base_url: str,
     email_client: EmailClient | None = None,
-) -> FastMCP:
-    """Build a FastMCP with all Markland tools. Same factory serves stdio + HTTP.
+) -> MCPServer:
+    """Build a MCPServer with all Markland tools. Same factory serves stdio + HTTP.
 
     `email_client` is optional — when None, `markland_grant` skips the
     best-effort email send silently.
     """
-    mcp = FastMCP("markland")
+    mcp = MCPServer("markland")
     handlers: dict = {}
 
     def _publish(ctx, content: str, title: str | None = None, public: bool = False):
@@ -579,7 +579,7 @@ def build_mcp(
         `principal_id="anonymous"` row instead of an error.
 
         Args:
-            ctx: FastMCP request context. The principal is resolved from
+            ctx: MCPServer request context. The principal is resolved from
                 `ctx.request_context.request.state.principal` (set by
                 PrincipalMiddleware) or `ctx.principal` in tests.
 
@@ -633,7 +633,7 @@ def build_mcp(
         included — use `markland_search` for discovery.
 
         Args:
-            ctx: FastMCP request context (principal resolved from state).
+            ctx: MCPServer request context (principal resolved from state).
             limit: Max documents per page (1-200, default 50).
             cursor: Opaque token from a previous response's `next_cursor`.
                 Pass to fetch the next page; omit for the first page.
@@ -1088,7 +1088,7 @@ def build_mcp(
         return an empty list). Agent callers always get next_cursor=None.
 
         Args:
-            ctx: FastMCP request context (principal resolved from state).
+            ctx: MCPServer request context (principal resolved from state).
             limit: Max agents per page (1-200, default 50). Ignored for
                 agent callers.
             cursor: Opaque token from a previous response's `next_cursor`.
