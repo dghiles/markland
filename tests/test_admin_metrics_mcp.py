@@ -63,7 +63,7 @@ def test_admin_metrics_tool_returns_summary(ctx):
 
 
 def test_admin_metrics_tool_rejects_non_admin(ctx):
-    from mcp.server.fastmcp.exceptions import ToolError
+    from mcp.server.mcpserver.exceptions import ToolError
 
     from markland.server import build_mcp
 
@@ -82,7 +82,7 @@ def test_admin_metrics_tool_default_window(ctx):
 
 
 def test_admin_metrics_tool_invalid_window_seconds(ctx):
-    from mcp.server.fastmcp.exceptions import ToolError
+    from mcp.server.mcpserver.exceptions import ToolError
 
     from markland.server import build_mcp
 

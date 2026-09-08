@@ -6,7 +6,7 @@ import sqlite3
 from types import SimpleNamespace
 
 import pytest
-from mcp.server.fastmcp.exceptions import ToolError
+from mcp.server.mcpserver.exceptions import ToolError
 
 from markland.db import init_db
 from markland.server import build_mcp

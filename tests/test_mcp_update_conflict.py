@@ -110,7 +110,7 @@ def test_mcp_tool_translates_conflict_to_tool_error(tmp_path):
 
     # Second call with stale if_version → handler raises ToolError directly
     # (the helper itself raises after axis-3; the wrapper just propagates).
-    from mcp.server.fastmcp.exceptions import ToolError
+    from mcp.server.mcpserver.exceptions import ToolError
 
     with pytest.raises(ToolError) as ei:
         mcp.markland_handlers["markland_update"](

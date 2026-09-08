@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from mcp.server.fastmcp.exceptions import ToolError
+from mcp.server.mcpserver.exceptions import ToolError
 
 ERROR_CODES: frozenset[str] = frozenset({
     "unauthenticated",
@@ -25,7 +25,7 @@ def tool_error(code: str, **data) -> ToolError:
     - `err.data` — a Python attribute readable by direct-mode callers (the
       harness reads this for `mode="direct"`).
     - The `ToolError`'s message is a JSON dump of the same payload, so when
-      FastMCP serializes the error onto the wire (which only carries the
+      MCPServer serializes the error onto the wire (which only carries the
       message string and an `isError: true` flag — `err.data` is lost),
       HTTP clients can recover the structured shape by parsing the text.
 

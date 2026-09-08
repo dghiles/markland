@@ -3,7 +3,7 @@
 from unittest.mock import MagicMock
 
 import pytest
-from mcp.server.fastmcp.exceptions import ToolError
+from mcp.server.mcpserver.exceptions import ToolError
 
 from markland.db import init_db
 from markland.server import build_mcp
@@ -33,7 +33,7 @@ def _seed_users(conn, **email_by_uid: str) -> None:
 
 
 class _Ctx:
-    """Stand-in for FastMCP's Context carrying a Principal."""
+    """Stand-in for MCPServer's Context carrying a Principal."""
 
     def __init__(self, principal: Principal):
         self.principal = principal

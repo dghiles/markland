@@ -197,14 +197,22 @@ def create_app(
     if mount_mcp:
         from markland.server import build_mcp
 
+        from mcp.server.transport_security import TransportSecuritySettings
+
         mcp_instance = build_mcp(db_conn, base_url=base_url, email_client=email_client)
-        # FastMCP's streamable_http_app serves at `/mcp` by default — re-root it
-        # so our mount at `/mcp` doesn't produce `/mcp/mcp`.
-        mcp_instance.settings.streamable_http_path = "/"
-        # Disable MCP's built-in DNS-rebinding protection — our own middleware
-        # gates `/mcp`, and Fly.io's proxy sets arbitrary host headers.
-        mcp_instance.settings.transport_security.enable_dns_rebinding_protection = False
-        mcp_app = mcp_instance.streamable_http_app()
+        # mcp 2.x takes these as streamable_http_app() kwargs; they are no
+        # longer mutable on .settings.
+        mcp_app = mcp_instance.streamable_http_app(
+            # MCPServer's streamable_http_app serves at `/mcp` by default —
+            # re-root it so our mount at `/mcp` doesn't produce `/mcp/mcp`.
+            streamable_http_path="/",
+            # Disable MCP's built-in DNS-rebinding protection — our own
+            # middleware gates `/mcp`, and Fly.io's proxy sets arbitrary host
+            # headers.
+            transport_security=TransportSecuritySettings(
+                enable_dns_rebinding_protection=False
+            ),
+        )
 
     # Unified lifespan: start/stop the email dispatcher alongside the MCP
     # sub-app's session manager, plus the presence GC task. TestClient entered
@@ -923,9 +931,9 @@ def create_app(
         from starlette.routing import Route as _StarletteRoute
 
         class _McpNoSlashASGI:
-            """Delegates /mcp (bare path) to the FastMCP sub-app, rewriting
-            scope path to '/' so the sub-app's streamable_http_path='/' (set
-            on mcp_instance.settings, ~line 203) matches."""
+            """Delegates /mcp (bare path) to the MCPServer sub-app, rewriting
+            scope path to '/' so the sub-app's streamable_http_path='/'
+            (passed to streamable_http_app() above) matches."""
 
             def __init__(self, sub_app):
                 self._sub_app = sub_app
@@ -936,7 +944,7 @@ def create_app(
                 scope["raw_path"] = b"/"
                 await self._sub_app(scope, receive, send)
 
-        # FastMCP uses POST (JSON-RPC), GET (SSE event stream), DELETE
+        # MCPServer uses POST (JSON-RPC), GET (SSE event stream), DELETE
         # (session end). Mirror what the sub-app accepts.
         app.router.routes.append(
             _StarletteRoute(

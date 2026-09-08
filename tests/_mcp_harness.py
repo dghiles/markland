@@ -78,7 +78,7 @@ class MCPHarness:
     mode: Mode
     db: sqlite3.Connection
     base_url: str
-    _mcp: Any  # FastMCP instance
+    _mcp: Any  # MCPServer instance
     _tmp_path: Path
     _user_cache: dict[str, Caller] = field(default_factory=dict)
     _agent_cache: dict[str, Caller] = field(default_factory=dict)
@@ -332,7 +332,7 @@ class MCPHarnessError(Exception):
 
 def _normalize_direct(value: Any, exc: BaseException | None) -> "Response":
     if exc is not None:
-        from mcp.server.fastmcp.exceptions import ToolError
+        from mcp.server.mcpserver.exceptions import ToolError
 
         if isinstance(exc, ToolError):
             data = getattr(exc, "data", None) or {}
@@ -352,7 +352,7 @@ def _normalize_direct(value: Any, exc: BaseException | None) -> "Response":
 
 
 class _Ctx:
-    """Minimal stand-in for FastMCP's Context carrying a Principal."""
+    """Minimal stand-in for MCPServer's Context carrying a Principal."""
 
     def __init__(self, principal: Any):
         self.principal = principal
@@ -447,7 +447,7 @@ def _http_call(
     text = contents[0]["text"] if contents and contents[0].get("type") == "text" else None
 
     if result.get("isError"):
-        # FastMCP wraps ToolError messages as "Error executing tool <name>: <msg>".
+        # MCPServer wraps ToolError messages as "Error executing tool <name>: <msg>".
         # tool_error() puts JSON in <msg>, so strip the prefix and parse.
         decoded = _decode_tool_error_text(text)
         if decoded is not None and "code" in decoded:
@@ -471,9 +471,9 @@ def _http_call(
 
 
 def _decode_tool_error_text(text):
-    """Pull the JSON payload out of a FastMCP-wrapped ToolError message.
+    """Pull the JSON payload out of a MCPServer-wrapped ToolError message.
 
-    FastMCP serializes a raised ToolError as
+    MCPServer serializes a raised ToolError as
         "Error executing tool <tool_name>: <message>"
     where <message> is whatever the ToolError was constructed with. Our
     `tool_error()` factory uses a JSON dump as that message, so we just need
@@ -486,7 +486,7 @@ def _decode_tool_error_text(text):
         return json.loads(text)
     except json.JSONDecodeError:
         pass
-    # Then try stripping the FastMCP prefix.
+    # Then try stripping the MCPServer prefix.
     marker = ": "
     idx = text.find(marker)
     if idx == -1:
@@ -537,7 +537,7 @@ def _http_initialize(harness: "MCPHarness", caller: "Caller") -> None:
 
 
 def _parse_jsonrpc(resp) -> dict:
-    """FastMCP can return either application/json or text/event-stream.
+    """MCPServer can return either application/json or text/event-stream.
     Handle both."""
     ct = resp.headers.get("content-type", "")
     if ct.startswith("text/event-stream"):

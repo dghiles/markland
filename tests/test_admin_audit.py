@@ -90,7 +90,7 @@ def test_markland_audit_tool_admin_allowed(ctx):
 
 
 def test_markland_audit_tool_non_admin_raises(ctx):
-    from mcp.server.fastmcp.exceptions import ToolError
+    from mcp.server.mcpserver.exceptions import ToolError
 
     from markland.server import build_mcp
 
