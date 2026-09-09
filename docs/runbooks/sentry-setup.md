@@ -22,6 +22,18 @@ the three alerts that matter at Phase 0 scale.
 5. Action: email the operator (daveyhiles@gmail.com); if Slack is wired, post to `#markland-alerts`.
 6. Threshold: "more than 5 events in 5 minutes".
 
+**Note on MCP client disconnects.** `markland.log_scrubbing.scrub_sentry_event`
+(wired as `before_send` in `run_app.py`) drops two signatures this alert would
+otherwise fire on: `ClientDisconnect` from `mcp.server.streamable_http`, and
+`Received exception from stream:` with an empty payload from
+`mcp.server.lowlevel.server`. Both are the same client-controlled event — a peer
+hanging up mid-POST — which the MCP SDK's blanket `except Exception` reports as
+a server fault, twice per disconnect. They are not actionable and at volume they
+bury real 5xx. A *non-empty* `Received exception from stream:` payload is a
+genuine error and still reports. mcp 2.2.0 fixed this upstream (it emits no
+ERROR record for a disconnect), so the filter is now defence-in-depth against an
+SDK downgrade. Background: `markland-g1b`, `markland-xo2`.
+
 ## Alert 2 - ConflictError rate
 
 **Goal:** detect unusual optimistic-concurrency contention - a signal of a

@@ -21,12 +21,12 @@ metrics. Real-time CRDT editing, teams/orgs, and OAuth are explicitly out of sco
 ## Request paths
 
 - **MCP (local stdio)** — `src/markland/server.py::build_mcp` can run standalone
-  via the FastMCP CLI for local development. Still useful while Claude Code is
+  via the `mcp` CLI for local development. Still useful while Claude Code is
   offline.
 - **MCP (hosted, streamable-http)** — the same `build_mcp` result is mounted at
   `/mcp` inside the FastAPI app by `src/markland/web/app.py::create_app`. Requests
   hit `PrincipalMiddleware` first (bearer → `request.state.principal`), then
-  `RateLimitMiddleware`, then FastMCP's session manager.
+  `RateLimitMiddleware`, then MCPServer's session manager.
 - **Web viewer** — `/d/<share_token>` renders a document in `document.html` with
   the presence badge block. `/explore`, `/dashboard`, `/settings/*`, `/admin/*`
   round out the HTML surface.
@@ -184,7 +184,7 @@ All lifecycle-managed by the single unified FastAPI `lifespan` inside
 - **Presence GC** (`web/presence_gc.py`) — 60-second tick calling
   `presence.gc_expired`; exceptions swallowed so a bad DB call never kills the
   loop. Off by default; `run_app.py` flips it on for hosted deploys.
-- **FastMCP session manager** — the mounted MCP sub-app has its own task group;
+- **MCPServer session manager** — the mounted MCP sub-app has its own task group;
   `create_app` chains its `lifespan_context` inside the unified lifespan so
   `TestClient(app)` with-blocks drive start/stop.
 

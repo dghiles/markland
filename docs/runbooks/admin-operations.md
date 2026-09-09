@@ -332,7 +332,7 @@ If a future MCP client probes a NEW path that returns HTML, add it to
 net is `tests/test_well_known_integration.py::test_every_observed_probe_path_returns_json`.
 Filed history: markland-2yj (PR #66), markland-6o6 (PR #68).
 
-**`/mcp` URL must end in trailing slash.** FastMCP serves at `/mcp/`; a bare
+**`/mcp` URL must end in trailing slash.** MCPServer serves at `/mcp/`; a bare
 `/mcp` produces a 307 redirect on every request, adding 5–8s of latency to
 client startup. The Quickstart doc and `device_routes.py` both use the
 trailing-slash form. Filed: markland-dfj (proper server-side fix to handle

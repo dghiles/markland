@@ -34,6 +34,22 @@ needed for the spec §14 launch gate (`tests/test_launch_e2e.py`) to pass.
 - The `principal=` kwarg alias on `markland_grant` and `markland_revoke`,
   after the 30-day deprecation window. Use `target=` instead.
 
+### Changed
+- MCP SDK upgraded 1.27.0 → 2.2.0 (2026-09-08). The server now answers
+  `server/discover` and negotiates protocol `2026-07-28`, the sessionless
+  single-exchange era that Claude Code ≥2.1.263 probes with; legacy
+  `initialize` clients at `2025-11-25` are unaffected. Internally `FastMCP`
+  is now `MCPServer` (`mcp.server.mcpserver`), `ToolError` moved to
+  `mcp.server.mcpserver.exceptions`, and `streamable_http_path` /
+  `transport_security` are `streamable_http_app()` kwargs rather than mutable
+  `.settings`. `serverInfo.version` is now empty where 1.27.0 reported the
+  SDK's own version (`markland-93a`).
+- Sentry `before_send` drops MCP client-disconnect noise (2026-09-08). The
+  SDK's streamable-HTTP transport wraps its POST handler in a blanket
+  `except Exception`, so a client hanging up mid-body was reported as a server
+  fault — twice per disconnect. Filtered to exactly that signature; genuine
+  transport errors still report.
+
 ### Known follow-ups
 
 See [`docs/FOLLOW-UPS.md`](docs/FOLLOW-UPS.md) for the consolidated list of
