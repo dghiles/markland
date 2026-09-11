@@ -260,3 +260,62 @@ def test_add_waitlist_email_accepts_null_source(db):
         "SELECT source FROM waitlist WHERE email = ?", ("lovelace@example.com",)
     ).fetchone()[0]
     assert source is None
+
+
+def test_delete_waitlist_by_domain_removes_matching_rows(db):
+    from markland.db import add_waitlist_email, delete_waitlist_by_domain
+
+    add_waitlist_email(db, "aaaa@spam.invalid", source="footer")
+    add_waitlist_email(db, "bbbb@spam.invalid", source="footer")
+    add_waitlist_email(db, "real@example.com", source="hero")
+
+    deleted = delete_waitlist_by_domain(db, "spam.invalid")
+    assert deleted == ["aaaa@spam.invalid", "bbbb@spam.invalid"]
+
+    remaining = [
+        row[0] for row in db.execute("SELECT email FROM waitlist").fetchall()
+    ]
+    assert remaining == ["real@example.com"]
+
+
+def test_delete_waitlist_by_domain_is_idempotent(db):
+    from markland.db import add_waitlist_email, delete_waitlist_by_domain
+
+    add_waitlist_email(db, "aaaa@spam.invalid", source="footer")
+
+    assert delete_waitlist_by_domain(db, "spam.invalid") == ["aaaa@spam.invalid"]
+    assert delete_waitlist_by_domain(db, "spam.invalid") == []
+
+
+def test_delete_waitlist_by_domain_is_case_insensitive(db):
+    from markland.db import add_waitlist_email, delete_waitlist_by_domain
+
+    add_waitlist_email(db, "aaaa@SPAM.invalid", source="footer")
+
+    assert delete_waitlist_by_domain(db, "spam.INVALID") == ["aaaa@SPAM.invalid"]
+
+
+def test_delete_waitlist_by_domain_only_matches_the_domain_part(db):
+    """The domain must sit after the `@` — not in the local part or a subdomain."""
+    from markland.db import add_waitlist_email, delete_waitlist_by_domain
+
+    # Domain text hiding in the local part.
+    add_waitlist_email(db, "spam.invalid@example.com", source="hero")
+    # A different domain that merely ends with the target.
+    add_waitlist_email(db, "aaaa@mail.spam.invalid", source="footer")
+    # A different domain that merely starts with the target.
+    add_waitlist_email(db, "bbbb@spam.invalid.co", source="footer")
+
+    assert delete_waitlist_by_domain(db, "spam.invalid") == []
+    assert db.execute("SELECT COUNT(*) FROM waitlist").fetchone()[0] == 3
+
+
+def test_delete_waitlist_by_domain_does_not_treat_wildcards_as_patterns(db):
+    """A `%` or `_` in the argument is literal, not a LIKE wildcard."""
+    from markland.db import add_waitlist_email, delete_waitlist_by_domain
+
+    add_waitlist_email(db, "aaaa@spam.invalid", source="footer")
+
+    assert delete_waitlist_by_domain(db, "%") == []
+    assert delete_waitlist_by_domain(db, "spam_invalid") == []
+    assert db.execute("SELECT COUNT(*) FROM waitlist").fetchone()[0] == 1
