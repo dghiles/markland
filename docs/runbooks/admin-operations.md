@@ -34,6 +34,7 @@ Available scripts:
 | `list_users.py [--since N] [--limit N]` | List all users with footprint counts (newest first). |
 | `list_admin_tokens.py` | List metadata of admin-bound tokens (no plaintexts; revocation cleanup). |
 | `umami_summary.py [--days N]` | Pull Umami stats/referrers/top pages from prod env. |
+| `purge_waitlist.py <domain> [--dry-run]` | Delete waitlist rows for one email domain (spam cleanup). |
 
 For periodic reviews of activity (funnel, who's signed up, where traffic
 came from), see [`metrics-review.md`](metrics-review.md).
@@ -174,6 +175,27 @@ histogram and total count.
 
 `limit` defaults to 50, capped at 500. Response shape: `{total, by_day:
 [{day, count}, ...], recent: [{email, source, created_at}, ...]}`.
+
+### Purging spam signups
+
+The waitlist form is unauthenticated, so it collects bot bursts — a run of
+random local parts on one throwaway domain, usually via `footer`, landing
+within seconds of each other. Left in place they inflate `waitlist_total`
+and make the funnel look healthier than it is.
+
+Identify the domain from the `recent` list above, then **always dry-run
+first** — the delete has no undo:
+
+```bash
+flyctl ssh console -a markland -C \
+    "/app/.venv/bin/python scripts/admin/purge_waitlist.py <domain> --dry-run"
+```
+
+Check the printed rows are all spam, then drop the flag to commit. Matching
+is on the domain after the `@` only, so a subdomain (`mail.<domain>`) is a
+different domain and survives; re-running is a no-op.
+
+Confirm with `./scripts/admin/curl-admin "/admin/waitlist?limit=50" | jq`.
 
 ## Featuring a document on the landing page
 

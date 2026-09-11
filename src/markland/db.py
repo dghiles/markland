@@ -614,6 +614,29 @@ def add_waitlist_email(
     return cur.rowcount > 0
 
 
+def delete_waitlist_by_domain(conn: sqlite3.Connection, domain: str) -> list[str]:
+    """Delete every waitlist row whose email domain is exactly `domain`.
+
+    Returns the deleted emails, sorted. Idempotent — a second call returns [].
+
+    Matching splits on the first `@` and compares case-insensitively, so the
+    domain can't be smuggled in via the local part and `%`/`_` stay literal
+    rather than acting as LIKE wildcards. Subdomains are a different domain
+    and are left alone.
+    """
+    predicate = "lower(substr(email, instr(email, '@') + 1)) = lower(?)"
+    emails = sorted(
+        row[0]
+        for row in conn.execute(
+            f"SELECT email FROM waitlist WHERE {predicate}", (domain,)
+        ).fetchall()
+    )
+    if emails:
+        conn.execute(f"DELETE FROM waitlist WHERE {predicate}", (domain,))
+        conn.commit()
+    return emails
+
+
 # --- Grants CRUD --------------------------------------------------------
 
 
