@@ -21,6 +21,15 @@ post-launch sprint should pick up.
   Note the posture has since narrowed: `/api/me/dismiss-*` and
   `/device/confirm` do carry explicit CSRF tokens; the save routes and
   `/settings/agents/*` still rely on SameSite=Lax alone.
+- **Unauthenticated waitlist form has no spam defence** — the landing footer
+  form accepts any email with no honeypot, per-IP limit, or challenge. One
+  burst on 2026-07-09 wrote 5 rows from `@immenseignite.info` (purged
+  2026-09-10 via `scripts/admin/purge_waitlist.py`). Low harm — it inflates
+  `waitlist_total` rather than exposing anything — but it is an
+  unauthenticated write path into a persisted table. Note the footer form has
+  produced 5 spam signups and 0 real ones (both genuine entries came via
+  `hero`), so deleting it is a live option alongside defending it. Tracked as
+  bead `markland-wac` (P3, filed 2026-09-10).
 
 ## Correctness / tech debt
 

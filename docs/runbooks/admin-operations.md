@@ -19,6 +19,14 @@ venv-resolved Python:
 flyctl ssh console -a markland -C "/app/.venv/bin/python scripts/admin/<name>.py [args]"
 ```
 
+If `flyctl` reports `no access token available`, your shell doesn't have the
+token exported — `flyctl auth login` won't help, it needs an interactive TTY.
+Export it from the config file first:
+
+```bash
+export FLY_API_TOKEN=$(grep -A1 'access_token' ~/.fly/config.yml | head -1 | sed 's/.*access_token: *//')
+```
+
 The Fly base image does NOT include the `sqlite3` CLI binary, and system
 Python doesn't have project deps installed — always use
 `/app/.venv/bin/python` with the named scripts below. They import the real

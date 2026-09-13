@@ -35,6 +35,12 @@ revoke it (`/settings/tokens`) when you're done.
   `invites_created`, `documents_*`.
 - Cumulative totals: `users_total`, `documents_total`,
   `documents_public_total`, `waitlist_total`, `grants_total`, `invites_total`.
+
+  Two of these overstate. `waitlist_total` counts bot signups until you purge
+  them (7 → 2 on 2026-09-10; see
+  [`admin-operations.md`](admin-operations.md#purging-spam-signups)), and
+  `users_total` counts test accounts — 5 of the 10 rows on 2026-09-10 were
+  `@markland.test` or `daveyhiles+…` smoke users.
 - Soft gauge: `first_mcp_call` (currently always `null` — known gap, no
   `mcp_call` event in the audit log yet; see commit `bcc0fc0`).
 
@@ -67,6 +73,19 @@ flyctl ssh console -a markland -C \
 
 **What to look at:** any email you don't recognise. If everyone's an account
 you minted, friend you invited, or known tester, no stranger has signed up.
+
+Three traps in this list, all hit on 2026-09-10:
+
+- **Test accounts inflate the count.** `smoke-*@markland.test` and
+  `daveyhiles+*@gmail.com` rows are yours. Subtract them before quoting
+  `users_total`.
+- **One person can hold two addresses.** `matt@propolis.tech` (waitlist) and
+  `mattp.white95@gmail.com` (account) are the same person either side of a job
+  change — don't read the older address as an unconverted lead.
+- **Agent tokens don't appear here.** `list_users.py` joins on `users`, so a
+  `mk_agt_` token (e.g. `agt_ae4d9f99b0c7aa8e`, "Markland Bot") never shows a
+  row. A `last_used` you can't account for is a real user, not your own bot —
+  confirm with `markland_whoami` before assuming.
 
 ## 3. Where traffic came from
 
