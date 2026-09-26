@@ -48,10 +48,10 @@ def build_router(
 
     def _principal(request: Request) -> Principal:
         principal = getattr(request.state, "principal", None)
-        # PrincipalMiddleware only runs for /mcp paths, so cookie-auth'd
-        # browser sessions never get request.state.principal set. The
-        # in-app Share dialog posts here with `credentials: include` —
-        # fall back to the session cookie like the /d/{slug} page does.
+        # PrincipalMiddleware only runs for /mcp and /admin/ paths, so
+        # cookie-auth'd browser sessions never get request.state.principal
+        # set. The in-app Share dialog posts here with `credentials: include`
+        # — fall back to the session cookie like the /d/{slug} page does.
         if principal is None and session_secret:
             from markland.web.session_principal import session_principal as _sp
 
