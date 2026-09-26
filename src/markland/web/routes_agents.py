@@ -143,12 +143,17 @@ def build_agents_router(
         ).fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail="not_found")
-        db_conn.execute(
-            "UPDATE tokens SET revoked_at = ? WHERE id = ?",
-            (datetime.now(timezone.utc).isoformat(), token_id),
-        )
-        db_conn.commit()
-        auth_svc.invalidate_token_cache()
+        with auth_svc.token_cache_evicted_on_error():
+            cursor = db_conn.execute(
+                "UPDATE tokens SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL",
+                (datetime.now(timezone.utc).isoformat(), token_id),
+            )
+            db_conn.commit()
+        # Only a real revoke evicts, matching revoke_token/revoke_agent: an
+        # owner re-deleting an already-revoked token must not flush every
+        # cached resolution back onto the scan path. The response stays 204.
+        if cursor.rowcount > 0:
+            auth_svc.invalidate_token_cache()
         return None
 
     # --- HTML page routes under /settings/agents ---
