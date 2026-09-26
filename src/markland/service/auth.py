@@ -27,9 +27,14 @@ MUST continue to the legacy scan rather than return None. See the
 
 from __future__ import annotations
 
+import hashlib
 import re
 import secrets
 import sqlite3
+import threading
+import time
+from collections import OrderedDict
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Literal
@@ -182,6 +187,109 @@ def verify_token(plaintext: str, hashed: str) -> bool:
         return False
 
 
+# --- Resolved-token cache ----------------------------------------------------
+#
+# Every authenticated request resolves its bearer token, and every resolve
+# costs Argon2id verifies (~0.1 CPU-s each): one for a new-shape token, one
+# per non-revoked row for a legacy-shape token. On 2026-09-26 a post-deploy
+# reconnect burst paid that on every request until the Fly shared-cpu burst
+# balance ran out. So successful resolutions are cached in-process:
+#
+# - A hit costs no SQL and no Argon2. It also skips the ``last_used_at``
+#   write, so that column is touched at most once per TTL per token.
+# - Key: SHA-256 of the plaintext. The plaintext is never stored.
+# - Expiry is fixed at insertion (hits do not extend it), so a result is
+#   served from cache for at most TOKEN_CACHE_TTL_S after it was resolved.
+# - Only successes are cached. An unknown or revoked token pays the full
+#   resolve on every request.
+# - Every in-process write that revokes or changes a token, user or agent
+#   MUST call invalidate_token_cache(). Current callers: revoke_token (below),
+#   service.agents.revoke_agent, and the agent-token DELETE route in
+#   web/routes_agents.py. There is no in-process user deletion or is_admin
+#   change today; add a call if one appears.
+# - Out-of-process writes (scripts/admin/* run over `flyctl ssh console`,
+#   e.g. make_admin.py flipping is_admin, or a raw SQL revoke) cannot reach
+#   this process's cache. They take effect within TOKEN_CACHE_TTL_S.
+
+TOKEN_CACHE_TTL_S = 60.0
+_TOKEN_CACHE_MAX_ENTRIES = 1024
+
+
+class _ResolvedTokenCache:
+    """Thread-safe map of sha256(plaintext) -> Principal, TTL- and LRU-bounded.
+
+    Sync MCP tools run in the threadpool while middleware runs on the event
+    loop, so every access takes the lock.
+
+    ``generation`` increments on each clear(). A resolver reads it BEFORE its
+    DB reads and hands it back to put(); a put from a resolve that straddled
+    an invalidation is dropped, so a token revoked mid-resolve cannot be
+    re-cached as valid.
+    """
+
+    def __init__(
+        self,
+        *,
+        ttl_s: float,
+        max_entries: int,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._ttl_s = ttl_s
+        self._max_entries = max_entries
+        self._clock = clock
+        self._lock = threading.Lock()
+        self._entries: OrderedDict[bytes, tuple[float, Principal]] = OrderedDict()
+        self._generation = 0
+
+    @property
+    def generation(self) -> int:
+        with self._lock:
+            return self._generation
+
+    def get(self, key: bytes) -> Principal | None:
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is None:
+                return None
+            expires_at, principal = entry
+            if self._clock() >= expires_at:
+                del self._entries[key]
+                return None
+            self._entries.move_to_end(key)
+            return principal
+
+    def put(self, key: bytes, principal: Principal, *, generation: int) -> None:
+        with self._lock:
+            if generation != self._generation:
+                return
+            self._entries[key] = (self._clock() + self._ttl_s, principal)
+            self._entries.move_to_end(key)
+            while len(self._entries) > self._max_entries:
+                self._entries.popitem(last=False)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._entries.clear()
+            self._generation += 1
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._entries)
+
+
+_token_cache = _ResolvedTokenCache(
+    ttl_s=TOKEN_CACHE_TTL_S, max_entries=_TOKEN_CACHE_MAX_ENTRIES
+)
+
+
+def invalidate_token_cache() -> None:
+    """Drop every cached token resolution in this process.
+
+    Call after any write that revokes or changes a token, user or agent.
+    """
+    _token_cache.clear()
+
+
 def create_user_token(
     conn: sqlite3.Connection,
     *,
@@ -290,10 +398,30 @@ def resolve_token(conn: sqlite3.Connection, plaintext: str) -> Principal | None:
 
         See ``test_resolve_token_falls_through_to_legacy_on_pk_miss``
         for the regression guard.
+
+    Caching: a successful result is cached for ``TOKEN_CACHE_TTL_S``; a
+    repeat within the TTL skips both paths above (no SQL, no Argon2, no
+    ``last_used_at`` write). ``None`` is never cached. See the
+    "Resolved-token cache" section for invalidation rules.
     """
     if not plaintext:
         return None
 
+    key = hashlib.sha256(plaintext.encode("utf-8")).digest()
+    cached = _token_cache.get(key)
+    if cached is not None:
+        return cached
+    generation = _token_cache.generation
+    principal = _resolve_uncached(conn, plaintext)
+    if principal is not None:
+        _token_cache.put(key, principal, generation=generation)
+    return principal
+
+
+def _resolve_uncached(
+    conn: sqlite3.Connection, plaintext: str
+) -> Principal | None:
+    """Fast path, then legacy fall-through. See :func:`resolve_token`."""
     parsed = _parse_token_plaintext(plaintext)
     if parsed is not None:
         result = _resolve_by_token_id(conn, parsed, plaintext)
@@ -453,7 +581,12 @@ def revoke_token(
         (_now(), token_id, user_id),
     )
     conn.commit()
-    return cursor.rowcount > 0
+    revoked = cursor.rowcount > 0
+    # Only a real revoke evicts: a no-op (wrong owner, already revoked) must
+    # not let any signed-in user flush every token back onto the scan path.
+    if revoked:
+        invalidate_token_cache()
+    return revoked
 
 
 def list_tokens(conn: sqlite3.Connection, *, user_id: str) -> list[TokenRecord]:

@@ -148,6 +148,7 @@ def build_agents_router(
             (datetime.now(timezone.utc).isoformat(), token_id),
         )
         db_conn.commit()
+        auth_svc.invalidate_token_cache()
         return None
 
     # --- HTML page routes under /settings/agents ---

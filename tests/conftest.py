@@ -4,7 +4,16 @@ from __future__ import annotations
 
 import pytest
 
+from markland.service.auth import invalidate_token_cache
 from tests._mcp_harness import MCPHarness
+
+
+@pytest.fixture(autouse=True)
+def _fresh_token_cache():
+    """The resolved-token cache is process-global; start every test empty."""
+    invalidate_token_cache()
+    yield
+    invalidate_token_cache()
 
 
 def pytest_addoption(parser):
