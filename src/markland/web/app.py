@@ -196,9 +196,9 @@ def create_app(
     mcp_app = None
     if mount_mcp:
         from markland.server import build_mcp
+        from markland.web.mcp_disconnect import AbsorbClientDisconnect
 
         from mcp.server.transport_security import TransportSecuritySettings
-        from starlette.requests import ClientDisconnect
 
         mcp_instance = build_mcp(db_conn, base_url=base_url, email_client=email_client)
         # mcp 2.x takes these as streamable_http_app() kwargs; they are no
@@ -215,17 +215,12 @@ def create_app(
             ),
         )
 
-        # A client that hangs up before its body is read (Claude Code abandoning
-        # its connect-time burst on exit) raises ClientDisconnect from mcp 2.x's
-        # modern-protocol entry, which reads the body outside the SDK's own
-        # exception boundary. Absorb it inside the sub-app: Sentry captures at
-        # every nested Starlette app, so a catch any further out still pages
-        # (markland-7rq). Nobody reads the 499 ("client closed request"), but
-        # the BaseHTTPMiddleware layers above raise if no response comes back.
-        async def _client_closed_request(request, exc):
-            return Response(status_code=499)
-
-        mcp_app.add_exception_handler(ClientDisconnect, _client_closed_request)
+        # A client that hangs up (Claude Code abandoning its connect-time burst
+        # on exit) makes mcp 2.x either raise ClientDisconnect or return with no
+        # response at all. Answer it with a 499 inside the sub-app: Sentry
+        # captures at every nested Starlette app, so a catch any further out
+        # still pages (markland-7rq). See markland.web.mcp_disconnect.
+        mcp_app.add_middleware(AbsorbClientDisconnect)
 
     # Unified lifespan: start/stop the email dispatcher alongside the MCP
     # sub-app's session manager, plus the presence GC task. TestClient entered
