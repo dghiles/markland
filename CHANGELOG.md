@@ -49,6 +49,14 @@ needed for the spec §14 launch gate (`tests/test_launch_e2e.py`) to pass.
   `except Exception`, so a client hanging up mid-body was reported as a server
   fault — twice per disconnect. Filtered to exactly that signature; genuine
   transport errors still report.
+- MCP client disconnects on the modern-protocol path are absorbed inside the
+  `/mcp` sub-app (2026-09-26). mcp 2.2.0 sends `MCP-Protocol-Version:
+  2026-07-28` requests through `handle_modern_request`, which reads the body
+  with no exception handling, so a hang-up escaped as an *unhandled*
+  `ClientDisconnect` (`mechanism=starlette`) that the logger-keyed
+  `before_send` filter could not match. `AbsorbClientDisconnect`
+  (`markland.web.mcp_disconnect`) now answers such requests with a 499 and an
+  INFO log line.
 
 ### Known follow-ups
 

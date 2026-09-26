@@ -30,9 +30,21 @@ otherwise fire on: `ClientDisconnect` from `mcp.server.streamable_http`, and
 hanging up mid-POST — which the MCP SDK's blanket `except Exception` reports as
 a server fault, twice per disconnect. They are not actionable and at volume they
 bury real 5xx. A *non-empty* `Received exception from stream:` payload is a
-genuine error and still reports. mcp 2.2.0 fixed this upstream (it emits no
-ERROR record for a disconnect), so the filter is now defence-in-depth against an
-SDK downgrade. Background: `markland-g1b`, `markland-xo2`.
+genuine error and still reports. This filter is still load-bearing on mcp
+2.2.0: legacy-era requests (`initialize` handshake versions) still log the
+ERROR record on a disconnect.
+
+Modern-era requests (`MCP-Protocol-Version: 2026-07-28`) take a different SDK
+path (`handle_modern_request`) that lets `ClientDisconnect` escape *unhandled*
+(`mechanism=starlette`, `handled=no`, no `logger`), which this filter cannot
+match. Those are absorbed before Sentry sees them by `AbsorbClientDisconnect`
+(`markland.web.mcp_disconnect`), registered as middleware on the MCP sub-app;
+they show up as `499` in access logs and an INFO line from
+`markland.mcp_disconnect`. If a `ClientDisconnect` issue on `/mcp` reappears,
+check that the middleware is still registered *on the sub-app* (outside it is
+too late: Sentry patches `Starlette.__call__`) and that the SDK has not added
+a new unguarded body read. Background: `markland-g1b`, `markland-xo2`;
+regression test `tests/test_mcp_client_disconnect.py`.
 
 ## Alert 2 - ConflictError rate
 

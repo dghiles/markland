@@ -213,6 +213,12 @@ def create_app(
                 enable_dns_rebinding_protection=False
             ),
         )
+        # Must sit INSIDE the sub-app: Sentry patches Starlette.__call__, so
+        # the sub-app captures an escaping ClientDisconnect itself before any
+        # outer wrapper could catch it. See markland.web.mcp_disconnect.
+        from markland.web.mcp_disconnect import AbsorbClientDisconnect
+
+        mcp_app.add_middleware(AbsorbClientDisconnect)
 
     # Unified lifespan: start/stop the email dispatcher alongside the MCP
     # sub-app's session manager, plus the presence GC task. TestClient entered
