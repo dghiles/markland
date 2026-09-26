@@ -8,6 +8,10 @@ Run via:
 
 Prints "updated N row(s)". Idempotent — running on an already-admin account
 is a no-op (rowcount returns 1 either way; SQLite UPDATE matches by WHERE).
+
+The running server caches resolved tokens for up to 60s
+(markland.service.auth.TOKEN_CACHE_TTL_S) and this process cannot evict that
+cache, so the new flag reaches the user's bearer-token requests within ~60s.
 """
 
 from __future__ import annotations

@@ -4,10 +4,11 @@ Replaces the Plan-1 `AdminBearerMiddleware`. On a request whose path matches
 ANY of `protected_prefixes`:
   1. If `request.state.principal` is already set (e.g. by a test injection
      middleware), pass through.
-  2. Extract `Authorization: Bearer <token>`.
-  3. Call `service.auth.resolve_token`.
-  4. On success, attach the `Principal` to `request.state.principal`.
-  5. On any failure (no header, malformed header, unknown/revoked token) return 401.
+  2. Resolve `Authorization: Bearer <token>` via `resolve_request_bearer`,
+     which reuses RateLimitMiddleware's verdict for this request (valid or
+     invalid) instead of paying for a second resolve.
+  3. On success, attach the `Principal` to `request.state.principal`.
+  4. On any failure (no header, malformed header, unknown/revoked token) return 401.
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from markland.service.auth import resolve_token
+from markland.web._request_bearer import resolve_request_bearer
 
 
 class PrincipalMiddleware(BaseHTTPMiddleware):
@@ -42,12 +43,7 @@ class PrincipalMiddleware(BaseHTTPMiddleware):
         if getattr(request.state, "principal", None) is not None:
             return await call_next(request)
 
-        header = request.headers.get("authorization", "")
-        if not header.lower().startswith("bearer "):
-            return self._unauthenticated(request)
-
-        plaintext = header[7:].strip()
-        principal = resolve_token(self._conn, plaintext)
+        principal = resolve_request_bearer(request, self._conn)
         if principal is None:
             return self._unauthenticated(request)
 

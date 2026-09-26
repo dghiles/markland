@@ -1,7 +1,9 @@
 """Starlette middleware that rate-limits every request using service/rate_limit.
 
-Ordering: MUST be installed AFTER PrincipalMiddleware so `request.state.principal`
-is already populated. In create_app we add PrincipalMiddleware first, then this.
+Ordering: create_app adds PrincipalMiddleware first, then this, so this runs
+OUTSIDE (before) PrincipalMiddleware. It resolves the bearer itself, and the
+verdict is memoized per request (see `_request_bearer`) so PrincipalMiddleware
+reuses it rather than resolving the token a second time.
 
 Tier selection:
   - user token  -> 60/min   (key: principal_id)
@@ -67,24 +69,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return trusted_client_ip(request)
 
     def _resolve_principal_lazy(self, request: Request):
-        """Fallback principal resolution for non-/mcp paths.
+        """Best-effort principal resolution for rate-limit tiering.
 
-        PrincipalMiddleware only runs for /mcp; on other endpoints we still want
-        to identify the caller for rate-limit tiering. Do a best-effort token
-        resolve if a Bearer header is present.
+        Runs on every path with a Bearer header. The result (including an
+        invalid verdict) is memoized on the request, so PrincipalMiddleware
+        does not resolve the same token again on /mcp and /admin/.
         """
         principal = getattr(request.state, "principal", None)
         if principal is not None:
             return principal
         if self._conn is None:
             return None
-        auth = request.headers.get("authorization", "")
-        if not auth.lower().startswith("bearer "):
-            return None
-        from markland.service.auth import resolve_token
+        from markland.web._request_bearer import resolve_request_bearer
 
         try:
-            principal = resolve_token(self._conn, auth[7:].strip())
+            principal = resolve_request_bearer(request, self._conn)
         except Exception:
             principal = None
         if principal is not None:
