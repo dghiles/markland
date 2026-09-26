@@ -34,8 +34,7 @@ import sqlite3
 import threading
 import time
 from collections import OrderedDict
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Literal
@@ -205,13 +204,15 @@ def verify_token(plaintext: str, hashed: str) -> bool:
 # - Only successes are cached. An unknown or revoked token pays the full
 #   resolve on every request.
 # - Every in-process write that revokes or changes a token, user or agent
-#   MUST call invalidate_token_cache() — on the error path too: wrap the
-#   write and its commit in token_cache_evicted_on_error(), because commit()
-#   on the shared connection can raise after the UPDATE ran and a later
-#   commit from any thread then persists it. Current callers: revoke_token (below),
+#   MUST evict the affected principal with evict_cached_principal(), in a
+#   ``finally`` around the write: unconditionally, never gated on rowcount or
+#   on commit() succeeding, since neither is trustworthy under concurrency.
+#   Eviction is scoped to that principal, so a caller revoking their own
+#   tokens (or re-revoking one) cannot flush anyone else's cached resolution
+#   back onto the Argon2 scan. Current callers: revoke_token (below),
 #   service.agents.revoke_agent, and the agent-token DELETE route in
 #   web/routes_agents.py. There is no in-process user deletion or is_admin
-#   change today; add a call if one appears.
+#   change today; add an eviction if one appears.
 # - Out-of-process writes (scripts/admin/* run over `flyctl ssh console`,
 #   e.g. make_admin.py flipping is_admin, or a raw SQL revoke) cannot reach
 #   this process's cache. They take effect within TOKEN_CACHE_TTL_S.
@@ -226,10 +227,12 @@ class _ResolvedTokenCache:
     Sync MCP tools run in the threadpool while middleware runs on the event
     loop, so every access takes the lock.
 
-    ``generation`` increments on each clear(). A resolver reads it BEFORE its
-    DB reads and hands it back to put(); a put from a resolve that straddled
-    an invalidation is dropped, so a token revoked mid-resolve cannot be
-    re-cached as valid.
+    Every eviction and clear() advances a sequence number. A resolver
+    snapshots it with begin() BEFORE its DB reads and hands it back to put().
+    The put is dropped if its principal was evicted, or the cache cleared,
+    after that snapshot, so a token revoked mid-resolve cannot be re-cached as
+    valid. Evicting one principal never drops another principal's put, so
+    revoke calls cannot keep other users' legacy scans from ever caching.
     """
 
     def __init__(
@@ -244,17 +247,21 @@ class _ResolvedTokenCache:
         self._clock = clock
         self._lock = threading.Lock()
         self._entries: OrderedDict[bytes, tuple[float, Principal]] = OrderedDict()
-        self._generation = 0
+        self._seq = 0
+        self._cleared_at = 0
+        # principal_id -> seq of its latest eviction. Bounded by the number of
+        # principals ever evicted, which is small (users and agents).
+        self._evicted_at: dict[str, int] = {}
 
     @property
     def generation(self) -> int:
         with self._lock:
-            return self._generation
+            return self._seq
 
     def begin(self) -> tuple[int, float]:
         """Snapshot (generation, now) before a resolve's DB reads; pass both to put()."""
         with self._lock:
-            return self._generation, self._clock()
+            return self._seq, self._clock()
 
     def get(self, key: bytes) -> Principal | None:
         with self._lock:
@@ -277,7 +284,9 @@ class _ResolvedTokenCache:
         read_at: float | None = None,
     ) -> None:
         with self._lock:
-            if generation != self._generation:
+            if self._cleared_at > generation:
+                return
+            if self._evicted_at.get(principal.principal_id, -1) > generation:
                 return
             started = self._clock() if read_at is None else read_at
             self._entries[key] = (started + self._ttl_s, principal)
@@ -285,10 +294,19 @@ class _ResolvedTokenCache:
             while len(self._entries) > self._max_entries:
                 self._entries.popitem(last=False)
 
+    def evict_principal(self, principal_id: str) -> None:
+        with self._lock:
+            self._seq += 1
+            self._evicted_at[principal_id] = self._seq
+            stale = [k for k, (_, p) in self._entries.items() if p.principal_id == principal_id]
+            for key in stale:
+                del self._entries[key]
+
     def clear(self) -> None:
         with self._lock:
             self._entries.clear()
-            self._generation += 1
+            self._seq += 1
+            self._cleared_at = self._seq
 
     def __len__(self) -> int:
         with self._lock:
@@ -308,20 +326,14 @@ def invalidate_token_cache() -> None:
     _token_cache.clear()
 
 
-@contextmanager
-def token_cache_evicted_on_error() -> Iterator[None]:
-    """Evict the resolved-token cache if the wrapped revoke write raises.
+def evict_cached_principal(principal_id: str) -> None:
+    """Drop every cached resolution for one principal (a user or an agent).
 
-    On the shared connection, commit() can raise after the UPDATE already ran;
-    the pending write is then persisted by the next commit from any thread.
-    Without this, the DB would say "revoked" while the cache kept serving the
-    principal until its TTL, and the caller's retry (a no-op) would not evict.
+    Call in a ``finally`` around any write that revokes or changes that
+    principal's tokens — whether or not it reported a change, since rowcount
+    and commit() are not trustworthy under concurrency.
     """
-    try:
-        yield
-    except BaseException:
-        invalidate_token_cache()
-        raise
+    _token_cache.evict_principal(principal_id)
 
 
 def create_user_token(
@@ -606,7 +618,7 @@ def revoke_token(
     user_id: str,
 ) -> bool:
     """Revoke `token_id` iff it belongs to `user_id`. Returns True on success."""
-    with token_cache_evicted_on_error():
+    try:
         cursor = conn.execute(
             """
             UPDATE tokens
@@ -616,12 +628,10 @@ def revoke_token(
             (_now(), token_id, user_id),
         )
         conn.commit()
-    revoked = cursor.rowcount > 0
-    # Only a real revoke evicts: a no-op (wrong owner, already revoked) must
-    # not let any signed-in user flush every token back onto the scan path.
-    if revoked:
-        invalidate_token_cache()
-    return revoked
+    finally:
+        # Unconditional and scoped to the caller: see "Resolved-token cache".
+        evict_cached_principal(user_id)
+    return cursor.rowcount > 0
 
 
 def list_tokens(conn: sqlite3.Connection, *, user_id: str) -> list[TokenRecord]:
