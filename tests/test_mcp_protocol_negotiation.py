@@ -107,3 +107,102 @@ async def test_http_client_negotiates_discover_through_the_mount(live_server):
     async with Client(BearerTransport(), mode="legacy") as client:
         assert client.session.initialize_result is not None
         assert len((await client.list_tools()).tools) > 0
+
+
+# --- Client aborts on the modern path (markland-7rq) ------------------------
+#
+# Claude Code fires a burst of POSTs as it connects and abandons them if the
+# process exits first. By the time the handler reads the body, uvicorn has
+# already seen the socket close, so the first `receive()` returns
+# `http.disconnect` and Starlette raises ClientDisconnect. mcp 2.x's modern
+# entry does that read outside its own exception boundary, so the exception
+# used to escape the whole app — a 500 to a dead socket, a uvicorn traceback,
+# and two Sentry events per request (MARKLAND-9).
+
+
+@pytest.fixture
+def aborting_app(tmp_path):
+    os.environ.setdefault("MARKLAND_SESSION_SECRET", "x" * 32)
+    conn = init_db(str(tmp_path / "t.db"))
+    user = create_user(conn, email="abort@example.com", display_name="Abort")
+    _, token = create_user_token(conn, user_id=user.id, label="abort")
+    app = create_app(
+        conn,
+        mount_mcp=True,
+        base_url="http://testserver",
+        session_secret="x" * 32,
+        enable_presence_gc=False,
+    )
+    return app, token
+
+
+def _aborted_modern_request(path: str, token: str):
+    """An authenticated 2026-07-28 POST whose client is gone before the body is read."""
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "POST",
+        "scheme": "http",
+        "path": path,
+        "raw_path": path.encode(),
+        "root_path": "",
+        "query_string": b"",
+        "server": ("testserver", 80),
+        "client": ("127.0.0.1", 5555),
+        "state": {},
+        "headers": [
+            (b"host", b"testserver"),
+            (b"authorization", f"Bearer {token}".encode()),
+            (b"content-type", b"application/json"),
+            (b"accept", b"application/json, text/event-stream"),
+            (b"mcp-protocol-version", MODERN_VERSION.encode()),
+            (b"content-length", b"431"),
+        ],
+    }
+    sent: list[dict] = []
+
+    async def receive():
+        return {"type": "http.disconnect"}
+
+    async def send(message):
+        sent.append(message)
+
+    return scope, receive, send, sent
+
+
+def _mcp_sub_app(app):
+    from starlette.routing import Mount
+
+    return next(r.app for r in app.routes if isinstance(r, Mount) and r.path == "/mcp")
+
+
+def test_client_abort_does_not_escape_the_mcp_sub_app(aborting_app):
+    """The sub-app itself must absorb the abort, not anything wrapped around it.
+
+    Sentry's Starlette integration wraps every Starlette instance, nested ones
+    included, and captures on the way out of each. A catch placed outside the
+    MCP sub-app — around the mount, say — would still let Sentry page.
+    """
+    from starlette.testclient import TestClient
+
+    app, token = aborting_app
+    scope, receive, send, _ = _aborted_modern_request("/", token)
+
+    with TestClient(app) as client:  # runs the lifespan that starts the MCP task group
+        client.portal.call(_mcp_sub_app(app), scope, receive, send)
+
+
+@pytest.mark.parametrize("path", ["/mcp", "/mcp/"])
+def test_client_abort_is_not_a_server_error(aborting_app, path):
+    """Through the full middleware stack, on both the bare route and the mount."""
+    from starlette.testclient import TestClient
+
+    app, token = aborting_app
+    scope, receive, send, sent = _aborted_modern_request(path, token)
+
+    with TestClient(app) as client:
+        client.portal.call(app, scope, receive, send)
+
+    status = next(m["status"] for m in sent if m["type"] == "http.response.start")
+    assert status < 500, f"client abort answered as a server fault ({status})"
