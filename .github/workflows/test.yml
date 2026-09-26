@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Also callable, so deploy.yml can gate the deploy on this exact suite.
+  workflow_call:
 
 jobs:
   test:
