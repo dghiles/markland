@@ -1,10 +1,165 @@
 """SQLite database operations for document + grant storage."""
 
+import itertools
 import sqlite3
+import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 from markland.models import Document, Grant
+
+
+class _FetchedCursor:
+    """What SerializedConnection.execute() returns: the statement's rows,
+    fetched while the connection lock was held, plus the cursor attributes
+    callers read (description, rowcount, lastrowid)."""
+
+    arraysize = 1
+
+    def __init__(self, cursor: sqlite3.Cursor) -> None:
+        self.description = cursor.description
+        self._rows = iter(cursor.fetchall())
+        self.rowcount = cursor.rowcount
+        self.lastrowid = cursor.lastrowid
+
+    def fetchone(self):
+        return next(self._rows, None)
+
+    def fetchmany(self, size: int | None = None) -> list:
+        return list(
+            itertools.islice(self._rows, self.arraysize if size is None else size)
+        )
+
+    def fetchall(self) -> list:
+        return list(self._rows)
+
+    def __iter__(self):
+        return self._rows
+
+    def close(self) -> None:
+        pass
+
+
+class SerializedConnection(sqlite3.Connection):
+    """A connection that is safe to share between the event-loop thread and
+    threadpool threads (the app keeps exactly one).
+
+    Every call runs under a per-connection lock, and execute() fetches all
+    rows before releasing it, so statements never interleave. While a thread
+    has a transaction open (the implicit BEGIN before its first write, or an
+    explicit BEGIN) it keeps the lock between calls until commit/rollback, so
+    no other thread can write into, commit or roll back that transaction.
+    Callers must not await between a write and its commit.
+
+    Waiting on another thread's transaction gives up after `lock_timeout`
+    seconds with the error SQLite raises for a busy database. A transaction
+    left open by a thread that has since exited is rolled back by the next
+    thread that needs the connection. A statement that fails after opening a
+    transaction itself rolls that (otherwise empty) transaction back, so
+    swallowing its error cannot leave the lock held.
+    """
+
+    lock_timeout = 5.0  # seconds; same as sqlite3.connect()'s busy timeout
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._state = threading.Condition()
+        self._owner: threading.Thread | None = None
+        self._depth = 0
+
+    def _in_transaction(self) -> bool:
+        try:
+            return super().in_transaction
+        except sqlite3.ProgrammingError:  # closed
+            return False
+
+    def _rollback_quietly(self) -> None:
+        try:
+            super().rollback()
+        except sqlite3.Error:
+            pass
+
+    def _acquire(self) -> None:
+        me = threading.current_thread()
+        with self._state:
+            if self._owner is not me:
+                deadline = time.monotonic() + self.lock_timeout
+                while self._owner is not None:
+                    if not self._owner.is_alive():
+                        self._rollback_quietly()
+                        break
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise sqlite3.OperationalError("database is locked")
+                    self._state.wait(min(remaining, 0.1))
+                self._owner = me
+                self._depth = 0
+            self._depth += 1
+
+    def _release(self) -> None:
+        with self._state:
+            self._depth -= 1
+            if self._depth == 0 and not self._in_transaction():
+                self._owner = None
+                self._state.notify()
+
+    def _run(self, method, *args) -> _FetchedCursor:
+        self._acquire()
+        try:
+            opened_here = not self._in_transaction()
+            try:
+                return _FetchedCursor(method(*args))
+            except BaseException:
+                if opened_here and self._in_transaction():
+                    self._rollback_quietly()
+                raise
+        finally:
+            self._release()
+
+    def execute(self, sql, parameters=(), /):
+        return self._run(super().execute, sql, parameters)
+
+    def executemany(self, sql, parameters, /):
+        return self._run(super().executemany, sql, parameters)
+
+    def executescript(self, sql_script, /):
+        return self._run(super().executescript, sql_script)
+
+    def commit(self) -> None:
+        self._acquire()
+        try:
+            super().commit()
+        finally:
+            self._release()
+
+    def rollback(self) -> None:
+        self._acquire()
+        try:
+            super().rollback()
+        finally:
+            self._release()
+
+    def close(self) -> None:
+        self._acquire()
+        try:
+            super().close()
+        finally:
+            self._release()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        # sqlite3's own __exit__ commits/rolls back without going through the
+        # overrides above.
+        if exc_type is None:
+            self.commit()
+        else:
+            self.rollback()
+        return False
+
+    def cursor(self, *args, **kwargs):
+        raise NotImplementedError(
+            "cursors bypass the connection lock; use conn.execute()"
+        )
 
 
 def _column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
@@ -21,7 +176,9 @@ def _add_column_if_missing(
 
 
 def init_db(db_path: Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(str(db_path), check_same_thread=False)
+    conn = sqlite3.connect(
+        str(db_path), check_same_thread=False, factory=SerializedConnection
+    )
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.execute("""
