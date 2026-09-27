@@ -14,9 +14,16 @@ in this repo."
 
 | Change type | Path | Deploy gesture |
 |---|---|---|
-| Code (`src/`, `tests/`, `pyproject.toml`, `fly.toml`, hooks, templates) | **Worktree → branch → PR → squash-merge** | PR merge auto-deploys via CI |
+| Code (`src/`, `tests/`, `pyproject.toml`, `fly.toml`, hooks, templates) | **Worktree → branch → PR → squash-merge** | PR merge auto-deploys via CI, after the test job passes |
 | Blog posts (`src/markland/web/content/blog/*.md`) | **Worktree → branch → PR → squash-merge** | PR merge auto-deploys (the SEO-contract tests are the review gate) |
-| Docs-only (`docs/`, `seed-content/`, `.beads/issues.jsonl`, top-level `README.md`) | **Commit on `main` + `git push origin main`** | Push auto-deploys |
+| Docs-only (`docs/`, `.beads/issues.jsonl`, top-level `README.md`, `CLAUDE.md`, `AGENTS.md`) | **Commit on `main` + `git push origin main`** | Push does **not** deploy (`paths-ignore` in `deploy.yml`) |
+| Seed content (`seed-content/`) | **Commit on `main` + `git push origin main`** | Push **deploys**: it is baked into the image |
+
+Every deploy resets Fly's shared-cpu burst balance to ~50 CPU-s and makes every
+MCP client reconnect at once. That caused the 2026-09-26 outage. Deploy at quiet
+times and follow `docs/runbooks/admin-operations.md` § "Deploy hygiene on Fly
+shared-cpu". Changes under `.github/` don't deploy; exercise a workflow change
+with "Run workflow" (workflow_dispatch) at a quiet moment.
 
 **Code never goes through `main` directly.** The merge IS the deploy
 gesture. No `flyctl deploy` from a Claude Code session under normal

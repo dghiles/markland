@@ -143,10 +143,39 @@ post-launch sprint should pick up.
 
 ## Reliability (from the 2026-09-26 outage)
 
-Source: `docs/incidents/2026-09-26-v236-outage.md`. The code fixes already in
-flight are on the fix-forward branches (`fix/auth-cost`,
-`fix/pin-base-image`, `fix/abort-hardening`, `fix/deploy-hardening`,
-`fix/sqlite-threadsafe`). The items below are what those branches leave open.
+Source: `docs/incidents/2026-09-26-v236-outage.md`. The fix-forward shipped in
+#90 (release v238, 2026-09-27): the resolved-token cache, one resolve per
+request, a pinned base image, abandoned-request handling and deploy hardening.
+The items below are what it leaves open.
+
+- **Redesign the shared `sqlite3` connection fix.** One connection is used from
+  the event loop and from threadpool threads without a lock, so under
+  concurrency it throws `InterfaceError` or "cannot start a transaction within a
+  transaction" and can hand one request another query's rows. This happens on
+  every version, including v235. #87's lock was reverted (#93) because the event
+  loop blocked on it: threadpool workers never exit, so a worker holding an open
+  transaction made the loop wait out the 5 s lock timeout, giving 10 s `/health`
+  stalls. Any redesign must never block the loop thread. Options:
+  - per-thread connections (WAL allows concurrent readers)
+  - a single DB thread that the loop awaits
+  - a guarantee that every write path commits before returning
+  Branch `fix/sqlite-threadsafe` has #87's tests and harness.
+- **Make failed auth cheap.** A bearer that doesn't resolve (unknown, revoked,
+  or a new-shape token that falls through) still pays the full Argon2 scan,
+  ~1 CPU-s. Failures aren't cached, and the bearer resolves before the
+  rate-limit check, so a 429 doesn't cap the cost. About 45 failed-auth requests
+  in the minute after a deploy would drain the ~50 s balance. The likeliest
+  source is a forgotten client retrying a revoked token after the legacy
+  rotation below.
+- **Argon2 still runs on the event loop on a cache miss.** Don't move resolves
+  to a threadpool until the sqlite redesign lands. With concurrent resolves on
+  the shared connection, the cache would keep corrupted principals (another
+  user's id, a false `is_admin`) for up to 60 s. The HMAC lookup below removes
+  most of this cost anyway.
+- **Give the post-deploy observer a metrics token.** Its first run
+  (2026-09-27) couldn't read Fly's Prometheus API: the deploy token got HTTP
+  403. Add an org-scoped read-only token as a repo secret so the observer
+  samples CPU balance and throttle.
 
 - **Rotate legacy tokens, then remove the legacy O(N) path.** Tokens issued
   before `markland-9dm` have no embedded `token_id`, so `_resolve_legacy` in
@@ -168,9 +197,10 @@ flight are on the fix-forward branches (`fix/auth-cost`,
   into the rotation above. The server key is a new Fly secret; decide how it
   rotates before adopting.
 - **VM headroom decision.** `shared-cpu-1x` gives 6.25% of a core plus a
-  burst bank that every deploy resets to ~50 s. Once `fix/auth-cost` lands,
-  measure per-request CPU again and decide whether to stay, move to
-  `shared-cpu-2x`, or pay for `performance-1x` (no burst quota). Remember
+  burst bank that every deploy resets to ~50 s. With the cache shipped, a
+  cached request costs 0.003–0.008 CPU-s, and a prod-sized reconnect burst costs
+  ~5.7 CPU-s in the calibrated repro. Staying is defensible; the options are
+  `shared-cpu-2x` or `performance-1x` (no burst quota). Remember
   `fly.toml`'s `[[vm]]` block overrides `flyctl scale vm` on the next deploy,
   so the decision has to land in `fly.toml`.
 - **Alert on CPU balance and throttle.** The Sentry uptime monitor caught the
