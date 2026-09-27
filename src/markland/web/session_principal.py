@@ -1,9 +1,9 @@
-"""Resolve `mk_session` cookies to `Principal`/`User` for non-/mcp browser routes.
+"""Resolve `mk_session` cookies to `Principal`/`User` for browser routes.
 
-Background: `PrincipalMiddleware` only runs for `/mcp` paths; the rate-limit
-middleware fallback only resolves Bearer tokens. Cookie-auth'd browser
-sessions never get `request.state.principal` populated. These helpers close
-that gap so handlers like `/explore?view=mine` can recognize signed-in
+Background: `PrincipalMiddleware` only runs for `/mcp` and `/admin/` paths;
+the rate-limit middleware fallback only resolves Bearer tokens. Cookie-auth'd
+browser sessions never get `request.state.principal` populated. These helpers
+close that gap so handlers like `/explore?view=mine` can recognize signed-in
 browser users.
 
 Two helpers, one resolver. Use `session_user` when you need fields that live

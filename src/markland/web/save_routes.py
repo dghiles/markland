@@ -28,8 +28,9 @@ def _current_user_id(
     conn: sqlite3.Connection | None = None,
 ) -> str | None:
     """Return the authenticated user_id from the mk_session cookie, or None."""
-    # First try request.state.principal (set by PrincipalMiddleware for /mcp routes
-    # or by test_principal_by_token injection in tests).
+    # First try request.state.principal (set from a Bearer token by
+    # RateLimitMiddleware on every path, or by test_principal_by_token
+    # injection in tests).
     principal = getattr(request.state, "principal", None)
     if principal is not None:
         if getattr(principal, "principal_type", None) == "user":

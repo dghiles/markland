@@ -51,9 +51,10 @@ def build_router(
 
     @r.get("/dashboard", response_class=HTMLResponse)
     def dashboard(request: Request):
-        # Prefer an already-resolved principal (PrincipalMiddleware on /mcp, or
-        # test_principal_by_token injection). Fall back to the mk_session cookie
-        # so plain web-session visitors can view /dashboard too.
+        # Prefer an already-resolved principal (a Bearer token resolved by
+        # RateLimitMiddleware, or test_principal_by_token injection). Fall back
+        # to the mk_session cookie so plain web-session visitors can view
+        # /dashboard too.
         principal: Principal | None = getattr(request.state, "principal", None)
         user_id: str | None = None
         if principal is not None and principal.principal_type == "user":
