@@ -16,13 +16,51 @@ name: Deploy to Fly
 on:
   push:
     branches: [main]
+    # Pushes that only touch these paths do not deploy. A deploy is not free
+    # here: every machine update resets Fly's shared-cpu burst balance and
+    # makes every MCP client reconnect at once (see the observe step below).
+    # The image is built only from the Dockerfile's COPY lines: pyproject.toml,
+    # uv.lock, src/** (including src/markland/web/content/blog), scripts/**,
+    # seed-content/** and litestream.yml. Those, plus Dockerfile, .dockerignore
+    # and fly.toml, must never be listed here. A push that touches any path
+    # not listed still deploys.
+    paths-ignore:
+      - "docs/**"
+      - "tests/**" # excluded by .dockerignore; test.yml still runs on the push
+      - ".beads/**"
+      - ".gauntlet/**"
+      - "tasks/**"
+      - "README.md"
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - "CHANGELOG.md"
+      - "SECURITY.md"
+      - "LICENSE"
+      - ".env.example"
+      - ".gitignore"
+      - ".gitattributes"
+      # .github/** (workflows and CI scripts) is not in the image either, so a
+      # workflow-only change does not deploy: redeploying the same image just
+      # to exercise a workflow would still cost a burst-balance reset and a
+      # reconnect storm. After changing this file, run it deliberately with
+      # "Run workflow" (workflow_dispatch) at a quiet moment.
+      - ".github/**"
   workflow_dispatch:
 
 jobs:
+  test:
+    # Deploys wait for the full suite. test.yml also keeps its own push/PR
+    # triggers, so a push to main runs the suite twice; that is the price of
+    # a deploy that cannot outrun a red build.
+    uses: ./.github/workflows/test.yml
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
+    # One deploy at a time. The observe step runs inside this job, so a queued
+    # deploy also waits out the observation window instead of stacking a
+    # second balance reset and reconnect storm on top of the first.
     concurrency: deploy-main
-    needs: [] # Intentionally independent; tests run in parallel.
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@v1
@@ -30,3 +68,33 @@ jobs:
         run: flyctl deploy --remote-only --strategy immediate
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      # Observe only. There is deliberately NO automatic rollback: any Fly
+      # machine update, a rollback included, resets the shared-cpu burst
+      # balance to ~50 CPU-s and forces every MCP client to reconnect at once.
+      # On 2026-09-26 that reconnect burst drained the balance in ~60s and Fly
+      # throttled the VM to its 6.25% baseline for ~15 minutes, so a rollback
+      # fired into a post-deploy reconnect burst can itself cause (or extend)
+      # the outage. Recovery is an operator decision: scale the VM class up
+      # first, then decide about the code.
+      #
+      # The script polls /health with single requests (no retries) every 10s
+      # for ~5 minutes and samples fly_instance_cpu_balance and
+      # rate(fly_instance_cpu_throttle[1m]) for app="markland" from Fly's
+      # Prometheus API. It prints a summary (also to the job summary) and fails
+      # the job, pointing at docs/runbooks/post-deploy-cpu-throttle.md, only
+      # after 3 consecutive health failures (failures before the first passing
+      # check are not counted for the first 60s, since --strategy immediate
+      # may return before the app is up). The expected post-deploy balance
+      # dip, throttling and metrics-API errors only raise warnings. Metrics need
+      # an org or read-only Fly token; with an app-scoped deploy token they are
+      # skipped with a warning and the health checks still run.
+      - name: Observe production (health + Fly CPU balance)
+        run: bash .github/scripts/post-deploy-observe.sh
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          HEALTH_URL: https://markland.dev/health
+          FLY_APP: markland
+          CHECKS: "30"
+          INTERVAL_SECONDS: "10"
+          FAIL_AFTER: "3"

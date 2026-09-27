@@ -5,6 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 from markland.models import Agent
+from markland.service.auth import evict_cached_principal
 
 
 def _row_to_agent(row) -> Agent:
@@ -177,11 +178,16 @@ def revoke_agent(
     if row[0] != "user" or row[1] != owner_user_id:
         raise PermissionError("not_agent_owner")
 
-    conn.execute(
-        "UPDATE agents SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL",
-        (Agent.now(), agent_id),
-    )
-    conn.commit()
+    try:
+        conn.execute(
+            "UPDATE agents SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL",
+            (Agent.now(), agent_id),
+        )
+        conn.commit()
+    finally:
+        # The agent's tokens stop resolving; drop its cached resolutions
+        # unconditionally (see "Resolved-token cache" in service/auth.py).
+        evict_cached_principal(agent_id)
 
 
 __all__ = [

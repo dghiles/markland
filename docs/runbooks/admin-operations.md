@@ -319,6 +319,112 @@ For the structured access log (every request):
 flyctl logs -a markland | grep -v 'GET /health'
 ```
 
+## Deploy hygiene on Fly shared-cpu
+
+Prod is one `shared-cpu-1x` machine, and on 2026-09-26 an ordinary deploy took
+it down for ~16 minutes. Full record:
+[`docs/incidents/2026-09-26-v236-outage.md`](../incidents/2026-09-26-v236-outage.md).
+The rules below come from that incident.
+
+### How the CPU budget works
+
+- A shared vCPU gets a **baseline of 6.25%** of a core. It can run above that
+  only by spending a **burst balance**, which caps at 500 CPU-seconds and refills
+  at roughly 0.057 s per second while the app idles.
+- **A machine update resets the balance to ~50 s** (observed; Fly's docs say
+  5 s), however much was banked before. A deploy is a machine update: a CI
+  deploy on push to `main`, `flyctl deploy`, `flyctl machine update`, and a
+  rollback are all the same event to Fly.
+- **A restart does not reset it.** An empty balance stays empty through
+  `flyctl machine restart`.
+- An update also drops every connection, so every MCP client reconnects and
+  re-authenticates at once. With legacy-shape tokens each of those requests
+  costs about 1 CPU-s of Argon2, and a few dozen of them spend 50 s in about
+  a minute. After that Fly holds the VM at 6.25%, where one such request takes
+  16 s or more.
+
+### Before you deploy
+
+1. **Deploy at a quiet time.** Check that no one is mid-session. The Fly
+   dashboard's traffic graph or `flyctl logs -a markland` is enough.
+2. **Disconnect your own MCP clients first.** Quit Claude Code sessions (and
+   anything else) that have Markland configured, and pause the bot if it's
+   running. On 2026-09-26 most of the reconnect burst came from the operator's
+   own sessions.
+3. **Batch changes.** Every deploy spends the bank, so ten small deploys are ten
+   resets. Until `paths-ignore` lands in `deploy.yml`, that includes docs-only
+   pushes to `main`.
+
+### Reading `fly_instance_cpu_balance` and `fly_instance_cpu_throttle`
+
+Both metrics are on Fly's managed Grafana (`fly-metrics.net`, app `markland`) or
+the Prometheus API. Querying the API reads Fly's metrics store and sends no
+traffic to the app:
+
+```bash
+curl -sS -G https://api.fly.io/prometheus/personal/api/v1/query \
+  -H "Authorization: FlyV1 $(flyctl auth token 2>/dev/null | tail -1)" \
+  --data-urlencode 'query=fly_instance_cpu_balance{app="markland"}'
+```
+
+| Query | Unit | Healthy | Trouble |
+|---|---|---|---|
+| `fly_instance_cpu_balance{app="markland"}` | hundredths of a CPU-second (50000 = 500 s cap) | climbing toward 50000; ~5000 right after a deploy | falling fast after a deploy; `0.5` = empty |
+| `rate(fly_instance_cpu_throttle{app="markland"}[1m])` | % of the vCPU throttled | 0 | ~93 = pinned at the 6.25% baseline |
+| `rate(fly_instance_cpu{app="markland",mode="steal"}[1m])` | % of the vCPU | < 1 | tracks the throttle when throttled |
+| `fly_instance_uptime_seconds{app="markland"}` | seconds | monotonic | drops to 0 on every restart or update (use it to see whether a reset happened) |
+
+After a deploy, watch the balance for the first two minutes. A dip from ~5000
+that levels off and starts climbing is fine. A slide toward zero means the
+reconnect wave is costing more than the balance holds.
+
+### If prod is slow after a deploy
+
+Check the throttle first. If it reads near 93, the VM is out of burst balance,
+and nothing inside the app will fix that.
+
+1. **Never restart to fix slowness.** A restart keeps the empty balance and
+   drops every connection, so the next reconnect wave hits a VM already
+   capped at 6.25%. On 2026-09-26 the restart at 16:36 changed nothing.
+2. **Scale the VM class first.** A performance vCPU has no burst quota, so it
+   can absorb the reconnect wave that the scale itself triggers:
+   ```bash
+   flyctl scale vm performance-1x -a markland
+   ```
+   This costs more. Scale back to `shared-cpu-1x` at a quiet time once the
+   underlying cost is fixed. Scaling back is another machine update, so the
+   same hygiene applies. **Watch out:** `fly.toml`'s `[[vm]]` block
+   (`cpu_kind = 'shared'`) is applied on the next `flyctl deploy`, so the next
+   CI deploy quietly moves the machine back to shared-cpu and resets the
+   balance. Change `fly.toml` in the same breath (through a PR), or hold
+   deploys until you scale back on purpose.
+3. **Roll back only once reconnect traffic has subsided.** Wait for the edge
+   TCP-connect and concurrency graphs to fall back to baseline. A rollback is a
+   machine update like any other: it grants ~50 s and invites the same
+   reconnect burst. The 2026-09-26 rollback worked because clients had given up
+   by 16:44, not because the old image was cheaper (it wasn't).
+4. **Or wait.** At idle the balance refills at ~0.057 s/s, so it takes about
+   15 quiet minutes to bank the 50 s one reconnect wave needs. The catch is
+   that traffic keeps arriving.
+
+### Post-deploy verification
+
+Send **one light probe, with a timeout of at least 60 s and no retries**:
+
+```bash
+curl -sS --max-time 90 -o /dev/null -w '%{http_code} %{time_total}s\n' https://markland.dev/health
+```
+
+If you need to prove MCP works, make a single call with a new-shape token
+(`mk_usr_<16 hex>_…`, which takes the O(1) path), never a loop. Then check the
+throttle metric a couple of minutes later instead of probing again.
+
+Short timeouts make it worse. A client that gives up at httpx's 5 s default
+leaves the server finishing work nobody will read, and every retry queues
+more. On a throttled VM a single authenticated request can take 16 s or more.
+A green CI deploy under `--strategy immediate` only means flyctl accepted the
+release. It says nothing about the machine being healthy.
+
 ## Common questions
 
 **"How many people are using this?"** → `markland_admin_metrics()` -
@@ -422,6 +528,7 @@ page). Version increments on each republish.
 - `docs/runbooks/first-deploy.md` - bringing the instance up
 - `docs/runbooks/phase-0-checklist.md` - launch-gate checklist
 - `docs/runbooks/sentry-setup.md` - error monitoring
+- `docs/incidents/2026-09-26-v236-outage.md` - the deploy that exhausted the CPU burst balance (source of "Deploy hygiene on Fly shared-cpu")
 - `docs/FOLLOW-UPS.md` - `first_mcp_call` event-table follow-up
 - `docs/plans/2026-05-03-mcp-auth-discovery.md` - markland-2yj: original WWW-Authenticate + JSON well-known fix
 - `docs/plans/2026-05-04-mcp-oauth-probe-coverage.md` - markland-6o6: extended probe-path coverage

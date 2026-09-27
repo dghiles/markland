@@ -143,11 +143,17 @@ def build_agents_router(
         ).fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail="not_found")
-        db_conn.execute(
-            "UPDATE tokens SET revoked_at = ? WHERE id = ?",
-            (datetime.now(timezone.utc).isoformat(), token_id),
-        )
-        db_conn.commit()
+        try:
+            # `AND revoked_at IS NULL` keeps the original revocation time on a
+            # repeat DELETE, which still answers 204.
+            db_conn.execute(
+                "UPDATE tokens SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL",
+                (datetime.now(timezone.utc).isoformat(), token_id),
+            )
+            db_conn.commit()
+        finally:
+            # Unconditional, scoped to this agent (see service/auth.py).
+            auth_svc.evict_cached_principal(agent_id)
         return None
 
     # --- HTML page routes under /settings/agents ---

@@ -40,6 +40,13 @@ post-launch sprint should pick up.
   Either swap add-order so `PrincipalMiddleware` runs first for real and drop
   the lazy resolve, or document the current arrangement as intentional in
   `docs/ARCHITECTURE.md`.
+  **2026-09-26:** this arrangement has a runtime cost as well. A successful
+  resolve runs once, because `PrincipalMiddleware` honours the principal the
+  lazy resolve stored on `request.state`. A *failed* resolve (a revoked, stale
+  or mistyped bearer, which ends in a 401) runs `resolve_token` in both
+  middlewares, and with a legacy-shape bearer that means two full Argon2 scans.
+  Both run synchronously on the event loop. In scope for `fix/auth-cost`; see
+  `docs/incidents/2026-09-26-v236-outage.md`.
 - **Duplicate `_InlineDispatcher` shim** — defined in both
   `src/markland/web/app.py:80` and `src/markland/service/grants.py:264`. Extract
   a single factory (e.g. `service/email_dispatcher.py::inline_dispatcher(client)`)
@@ -102,6 +109,9 @@ post-launch sprint should pick up.
   workflow into the deploy job's `needs:` so a failing pytest blocks
   auto-deploy. Manual `workflow_dispatch` runs can keep the existing path or
   add a `if: github.event_name == 'workflow_dispatch'` bypass.
+  **In flight:** `fix/deploy-hardening` (2026-09-26 fix-forward, not yet
+  merged). On 2026-09-26 the Test job finished green two minutes *after*
+  the deploy it could not gate.
 - **Add `paths-ignore` to `.github/workflows/deploy.yml`** — every push to
   `main` triggers a deploy, including docs-only commits. The deploy itself
   is harmless (machine rolls in place with byte-equivalent image) but
@@ -109,6 +119,11 @@ post-launch sprint should pick up.
   Add `paths-ignore: ['docs/**', '*.md', '.github/**']` to the `push:`
   trigger so docs-only changes skip the deploy. Test workflow should
   still run (test.yml has its own trigger).
+  **2026-09-26:** not harmless after all. Every machine update resets the
+  shared-cpu burst balance from up to 500 s to ~50 s and forces every MCP
+  client to reconnect, and that is how v236 went down. **In flight:**
+  `fix/deploy-hardening`. Until it merges, docs changes go through
+  `fix/outage-fix-forward` rather than straight to `main`.
 - **Revisit `--strategy immediate` once Fly's launch-group lookup bug is
   fixed** — we use `--strategy immediate` to work around the orphan-machine
   bug (default `rolling` strategy hits a flyctl lookup path that creates
@@ -120,6 +135,67 @@ post-launch sprint should pick up.
   get back automatic stop-on-unhealthy semantics. Detection: orphan in
   `flyctl machine list -a markland` returns → revert and reopen
   `docs/plans/2026-04-29-fix-fly-deploy-launch-group.md`.
+  **2026-09-26:** the caveat played out. The Deploy job went green at
+  16:28:22, before the v236 machine had served a request, and prod was
+  throttled a minute later. `fix/deploy-hardening` handles the caveat, and
+  `docs/runbooks/admin-operations.md` § "Deploy hygiene on Fly shared-cpu"
+  covers post-deploy verification.
+
+## Reliability (from the 2026-09-26 outage)
+
+Source: `docs/incidents/2026-09-26-v236-outage.md`. The code fixes already in
+flight are on the fix-forward branches (`fix/auth-cost`,
+`fix/pin-base-image`, `fix/abort-hardening`, `fix/deploy-hardening`,
+`fix/sqlite-threadsafe`). The items below are what those branches leave open.
+
+- **Rotate legacy tokens, then remove the legacy O(N) path.** Tokens issued
+  before `markland-9dm` have no embedded `token_id`, so `_resolve_legacy` in
+  `src/markland/service/auth.py` Argon2-verifies every non-revoked row until
+  one matches. That cost ~1 CPU-s per request in prod on 2026-09-26. The
+  operator's Claude Code MCP token and the bot token are both legacy shape. Mint
+  new-shape replacements, revoke the old ones, and confirm with a count of
+  non-revoked legacy rows (plaintext shape can't be recovered from the hash, so
+  use `created_at` before the `markland-9dm` deploy, PR #69 on 2026-05-04, as
+  the proxy). Then delete `_resolve_legacy` and the fall-through. Keep the
+  fall-through's regression test until the path is gone.
+- **Replace Argon2 with an indexed HMAC/SHA-256 lookup for API tokens.** Bearer
+  tokens are 256-bit random secrets, not passwords. A slow KDF adds nothing
+  against guessing at that entropy, and it costs a large CPU slice per request
+  on a 6.25%-baseline VM. Store `HMAC-SHA256(server_key, plaintext)` in an
+  indexed column, look it up directly, and compare in constant time. That
+  makes every resolve O(1) and cheap, with or without an embedded `token_id`.
+  Migrate lazily: compute the digest on the next successful resolve, or fold it
+  into the rotation above. The server key is a new Fly secret; decide how it
+  rotates before adopting.
+- **VM headroom decision.** `shared-cpu-1x` gives 6.25% of a core plus a
+  burst bank that every deploy resets to ~50 s. Once `fix/auth-cost` lands,
+  measure per-request CPU again and decide whether to stay, move to
+  `shared-cpu-2x`, or pay for `performance-1x` (no burst quota). Remember
+  `fly.toml`'s `[[vm]]` block overrides `flyctl scale vm` on the next deploy,
+  so the decision has to land in `fly.toml`.
+- **Alert on CPU balance and throttle.** The Sentry uptime monitor caught the
+  symptom a minute in. Nothing warned while the balance fell from 49 s to 0.
+  Add a Grafana alert (`fly-metrics.net`) on
+  `rate(fly_instance_cpu_throttle{app="markland"}[1m]) > 50` for 2 minutes,
+  and consider a warning on `fly_instance_cpu_balance < 1000` (10 s) outside
+  the first minutes after a deploy. Document it alongside the Sentry alerts
+  in `docs/runbooks/sentry-setup.md`.
+- **Explain the 330 edge-generated 301s at 16:30.** In the minute ending
+  16:30 on 2026-09-26, Fly's edge returned 330 × 301 against 16 × 200. The
+  app's own response metrics show no 301s, so they did not come from
+  `FlyDevRedirectMiddleware`. The leading hypothesis is `force_https = true` in
+  `fly.toml` redirecting plain-HTTP requests, but nothing has confirmed where
+  that many HTTP requests came from in one minute. Check the edge logs for the
+  host, scheme and client, and rule out a client configured with
+  `http://markland.dev` that retries on every redirect.
+- **SQLite thread safety.** One shared `sqlite3` connection is used from the
+  event-loop thread and from threadpool threads (sync MCP tools) with no
+  serialisation. With two concurrent clients the investigation saw
+  `InterfaceError`, "cannot start a transaction within a transaction" and
+  wrong-shaped rows, on both old and new code. It did not cause the outage.
+  **In flight:** `fix/sqlite-threadsafe`. Once it lands, extend the
+  "Concurrent-update threading test" entry under Test coverage to cover the
+  shared-connection path.
 
 ## Metrics
 
