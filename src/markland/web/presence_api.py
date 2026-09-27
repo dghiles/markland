@@ -2,8 +2,8 @@
 
 All three endpoints require an authenticated principal. The principal is
 resolved from:
-  - `request.state.principal` (set by PrincipalMiddleware for /mcp and /admin/
-    callers or the test injector), OR
+  - `request.state.principal` (set from a Bearer token by RateLimitMiddleware
+    on every path, or by the test injector), OR
   - the `mk_session` cookie (for the hosted web path).
 """
 
