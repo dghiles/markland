@@ -15,9 +15,16 @@ def _column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
 def _add_column_if_missing(
     conn: sqlite3.Connection, table: str, column: str, col_def: str
 ) -> None:
-    if not _column_exists(conn, table, column):
+    if _column_exists(conn, table, column):
+        return
+    try:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_def}")
-        conn.commit()
+    except sqlite3.OperationalError as exc:
+        # Admin scripts run init_db over `flyctl ssh console`; one that adds
+        # the column between our check and our ALTER is not an error.
+        if "duplicate column name" not in str(exc):
+            raise
+    conn.commit()
 
 
 def init_db(db_path: Path) -> sqlite3.Connection:
@@ -120,6 +127,15 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_token_hash ON tokens(token_hash)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_tokens_principal ON tokens(principal_id)")
+    # markland-tex (2026-09-27): indexed SHA-256 lookup digest, see
+    # service/auth.py:token_digest. Nullable forever: legacy rows, and rows
+    # an older release mints during a rollback, get it on their first
+    # successful resolve. Uniqueness lives in the index because SQLite
+    # rejects ADD COLUMN ... UNIQUE; NULLs are distinct in it.
+    _add_column_if_missing(conn, "tokens", "token_digest", "TEXT")
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_tokens_digest ON tokens(token_digest)"
+    )
     conn.execute("""
         CREATE TABLE IF NOT EXISTS waitlist (
             email      TEXT PRIMARY KEY,
