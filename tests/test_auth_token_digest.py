@@ -414,3 +414,96 @@ def test_backfill_is_folded_into_the_one_touch_write(conn):
     assert len(updates) == 1, updates
     assert "last_used_at" in updates[0] and "token_digest" in updates[0]
     assert _digest_of(conn, token_id) == token_digest(plaintext)
+
+
+# --- (c) is bounded by LEGACY_TOKEN_CUTOFF: failed auth is cheap ------------------
+
+
+def test_legacy_cutoff_is_not_before_the_markland_9dm_deploy():
+    """Legacy-shape tokens were minted until #69 (488711b) was live. Its
+    deploy run ran 15:37:42-15:38:29Z on 2026-05-04, and the old image
+    served legacy mints until the machine update completed. The 16:00
+    floor adds margin for boot and clock skew. A cutoff earlier than that
+    would silently lock out a legacy token; later is safe."""
+    assert auth.LEGACY_TOKEN_CUTOFF >= "2026-05-04T16:00:00+00:00"
+
+
+def test_legacy_token_minted_just_before_the_floor_still_resolves(conn):
+    """Pins the cutoff's behavior, not just the constant: the last possible
+    legacy token must still be found by (c) and backfilled."""
+    u = create_user(conn, email="a@x", display_name="A")
+    legacy = "mk_usr_" + secrets.token_urlsafe(32)
+    _insert_as_previous_release(
+        conn, token_id="tok_lastlegacy", plaintext=legacy,
+        principal_type="user", principal_id=u.id,
+        created_at="2026-05-04T15:59:59.999999+00:00",
+    )
+    assert resolve_token(conn, legacy).principal_id == u.id
+    assert _digest_of(conn, "tok_lastlegacy") == token_digest(legacy)
+
+
+def _insert_dormant_new_shape(conn, user_id: str) -> str:
+    """A new-shape token not presented since the digest release."""
+    token_id, plaintext = auth._mint_user_token_plaintext_with_id()
+    _insert_as_previous_release(
+        conn, token_id=token_id, plaintext=plaintext,
+        principal_type="user", principal_id=user_id, created_at=POST_CUTOFF,
+    )
+    return token_id
+
+
+def test_unknown_bearer_verifies_only_pre_cutoff_digestless_rows(conn, argon2_verifies):
+    u = create_user(conn, email="a@x", display_name="A")
+    create_user_token(conn, user_id=u.id, label="minted")  # has a digest
+    for _ in range(3):
+        _insert_dormant_new_shape(conn, u.id)
+    _insert_as_previous_release(
+        conn, token_id="tok_legacy", plaintext="mk_usr_" + secrets.token_urlsafe(32),
+        principal_type="user", principal_id=u.id, created_at=PRE_CUTOFF,
+    )
+
+    assert resolve_token(conn, "mk_usr_" + secrets.token_urlsafe(32)) is None
+    assert argon2_verifies.call_count == 1  # tok_legacy only
+    assert _digest_of(conn, "tok_legacy") is None  # a failed verify never writes a digest
+
+
+def test_failed_auth_costs_no_argon2_once_pre_cutoff_rows_are_backfilled(
+    conn, argon2_verifies
+):
+    u = create_user(conn, email="a@x", display_name="A")
+    legacy = "mk_usr_" + secrets.token_urlsafe(32)
+    _insert_as_previous_release(
+        conn, token_id="tok_legacy", plaintext=legacy,
+        principal_type="user", principal_id=u.id, created_at=PRE_CUTOFF,
+    )
+    assert resolve_token(conn, legacy) is not None  # backfills tok_legacy
+    _insert_dormant_new_shape(conn, u.id)
+    token_id, _ = create_user_token(conn, user_id=u.id, label="t")
+    argon2_verifies.reset_mock()
+
+    bogus = [
+        "mk_usr_" + secrets.token_urlsafe(32),                   # unknown legacy-shape
+        "mk_agt_" + secrets.token_urlsafe(32),
+        "mk_usr_deadbeefdeadbeef_" + secrets.token_urlsafe(32),  # unknown token_id
+        f"mk_usr_{token_id.removeprefix('tok_')}_wrong",         # known id, wrong secret
+    ]
+    for plaintext in bogus:
+        assert resolve_token(conn, plaintext) is None
+    assert argon2_verifies.call_count == 0
+
+
+def test_type_mismatch_on_a_digestless_row_skips_argon2(conn, argon2_verifies):
+    u = create_user(conn, email="a@x", display_name="A")
+    agent = create_agent(conn, u.id, "scribe")
+    token_id, agent_plaintext = auth._mint_agent_token_plaintext_with_id()
+    _insert_as_previous_release(
+        conn, token_id=token_id, plaintext=agent_plaintext,
+        principal_type="agent", principal_id=agent.id, created_at=POST_CUTOFF,
+    )
+    secret = _parse_token_plaintext(agent_plaintext).secret_part
+    forged = f"mk_usr_{token_id.removeprefix('tok_')}_{secret}"
+
+    assert resolve_token(conn, forged) is None
+    assert argon2_verifies.call_count == 0  # type check first; (c) skips post-cutoff
+    assert _digest_of(conn, token_id) is None
+    assert resolve_token(conn, agent_plaintext) is not None  # the real token still works

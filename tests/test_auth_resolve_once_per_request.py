@@ -308,3 +308,37 @@ def test_admin_promotion_out_of_process_lands_within_ttl(env, clock):
 
     clock.advance(auth.TOKEN_CACHE_TTL_S + 1)
     assert client.get("/admin/metrics", headers=_bearer(token)).status_code == 200
+
+
+# --- failed auth is cheap (markland-ts6) ------------------------------------------
+
+
+def test_failed_auth_over_http_costs_no_argon2_without_pre_cutoff_rows(
+    env, argon2_verifies, uncached_spy
+):
+    """The bearer resolves before the rate-limit check, so a failed auth
+    must be cheap on its own. With no pre-cutoff digest-less rows, a burst
+    of bad bearers is all 401s, one resolve each, and zero Argon2 — even
+    while a new-shape token is still waiting for its backfill."""
+    conn, client = env
+    for i in range(3):
+        create_user_token(conn, user_id="usr_alice", label=f"t{i}")
+    token_id, plaintext = auth._mint_user_token_plaintext_with_id()
+    conn.execute(
+        "INSERT INTO tokens(id, token_hash, label, principal_type, principal_id, "
+        "created_at, last_used_at, revoked_at) "
+        "VALUES (?, ?, 'dormant', 'user', 'usr_alice', "
+        "'2026-09-01T00:00:00+00:00', NULL, NULL)",
+        (token_id, hash_token(plaintext)),
+    )
+    conn.commit()
+
+    bad = [
+        "mk_usr_" + secrets.token_urlsafe(32),
+        "mk_usr_deadbeefdeadbeef_" + secrets.token_urlsafe(32),
+    ] * 10
+    for token in bad:
+        r = client.get("/admin/metrics", headers=_bearer(token))
+        assert r.status_code == 401
+    assert uncached_spy.call_count == len(bad)
+    assert argon2_verifies.call_count == 0

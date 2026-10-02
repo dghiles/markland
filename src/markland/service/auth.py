@@ -89,6 +89,16 @@ _TOKEN_ID_HEX_LEN = 16
 # verbatim, which may contain `_` and `-` (urlsafe alphabet).
 _TOKEN_PARSE_RE = re.compile(r"^mk_(usr|agt)_([0-9a-f]{16})_(.+)$")
 
+# Legacy-shape tokens (no embedded token_id) were minted until markland-9dm
+# (#69, 488711b) went live: its deploy run ran 15:37:42-15:38:29Z on
+# 2026-05-04, and every later deploy descends from it. Fallback (c) scans
+# only rows created before this, so an unknown bearer never pays Argon2 for
+# new-shape rows. Deliberately days late: a late cutoff only adds new-shape
+# rows to the scan, while an early one would lock a legacy token out.
+# Compared as a string: created_at is always
+# datetime.now(timezone.utc).isoformat().
+LEGACY_TOKEN_CUTOFF = "2026-05-10T00:00:00+00:00"
+
 
 @dataclass(frozen=True)
 class ParsedToken:
@@ -456,9 +466,11 @@ def resolve_token(conn: sqlite3.Connection, plaintext: str) -> Principal | None:
         verify. Covers new-shape tokens minted before the digest release,
         and any minted by an older release during a rollback.
 
-    (c) Legacy fallback: Argon2-verify each live row that has no digest
-        yet. Legacy-shape tokens (no embedded token_id) can only be found
-        this way.
+    (c) Legacy fallback: Argon2-verify each live, digest-less row created
+        before ``LEGACY_TOKEN_CUTOFF``. Legacy-shape tokens (no embedded
+        token_id) can only be that old. An unknown bearer pays for these
+        rows only, so failed auth costs no Argon2 once they are backfilled
+        or revoked.
 
     A successful (b) or (c) writes the digest onto the row it verified,
     folded into the ``last_used_at`` touch. It never writes on a PK or type
@@ -583,11 +595,12 @@ def _resolve_by_token_id(
 def _resolve_legacy(
     conn: sqlite3.Connection, plaintext: str, digest: str
 ) -> Principal | None:
-    """(c): Argon2-verify each live row that has no digest yet.
+    """(c): Argon2-verify each live, digest-less row from before the cutoff.
 
     Legacy tokens (issued before the token-id prefix migration) have no
     embedded token_id, so the only way to find their row is to verify each
-    candidate. New-shape tokens that miss (b) also fall through here (see
+    candidate, and they can only be older than ``LEGACY_TOKEN_CUTOFF``.
+    New-shape tokens that miss (b) also fall through here (see
     :func:`resolve_token`). A row with a digest is never a candidate: a
     set, different digest means a different token.
     """
@@ -596,8 +609,9 @@ def _resolve_legacy(
         SELECT t.id, t.token_hash, t.principal_type, t.principal_id
         FROM tokens t
         WHERE t.revoked_at IS NULL AND t.token_digest IS NULL
-          AND {_NOT_REVOKED_AGENT}
-        """
+          AND t.created_at < ? AND {_NOT_REVOKED_AGENT}
+        """,
+        (LEGACY_TOKEN_CUTOFF,),
     ).fetchall()
     for token_id, token_hash, principal_type, principal_id in rows:
         if verify_token(plaintext, token_hash):
