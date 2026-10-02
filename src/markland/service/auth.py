@@ -187,6 +187,18 @@ def verify_token(plaintext: str, hashed: str) -> bool:
         return False
 
 
+def token_digest(plaintext: str) -> str:
+    """Indexed lookup digest for a bearer token: SHA-256 hex of the plaintext.
+
+    A fast hash is enough only because every token this module mints has
+    256 random bits (``secrets.token_urlsafe(32)``), so no preimage can be
+    guessed. Never use it for short or user-chosen secrets (device
+    user_codes, passwords): those need a slow KDF. Never log it, and never
+    accept it as a credential.
+    """
+    return hashlib.sha256(plaintext.encode("utf-8")).hexdigest()
+
+
 # --- Resolved-token cache ----------------------------------------------------
 #
 # Every authenticated request resolves its bearer token, and every resolve
@@ -344,18 +356,21 @@ def create_user_token(
 ) -> tuple[str, str]:
     """Create a new user token. Returns (token_id, plaintext).
 
-    The plaintext is shown to the user ONCE and never persisted — only its hash.
+    The plaintext is shown to the user ONCE and never persisted — only its
+    Argon2 hash and its SHA-256 lookup digest.
     """
     token_id, plaintext = _mint_user_token_plaintext_with_id()
+    # Keep the Argon2 hash: the pre-digest release authenticates only
+    # through it, so a rollback must still find one (markland-tex).
     hashed = hash_token(plaintext)
     conn.execute(
         """
         INSERT INTO tokens (
-            id, token_hash, label, principal_type, principal_id,
+            id, token_hash, token_digest, label, principal_type, principal_id,
             created_at, last_used_at, revoked_at
-        ) VALUES (?, ?, ?, 'user', ?, ?, NULL, NULL)
+        ) VALUES (?, ?, ?, ?, 'user', ?, ?, NULL, NULL)
         """,
-        (token_id, hashed, label, user_id, _now()),
+        (token_id, hashed, token_digest(plaintext), label, user_id, _now()),
     )
     conn.commit()
     from markland.service import metrics as _metrics
@@ -379,11 +394,15 @@ def _create_token_for_agent(
     operator script.
     """
     token_id, plaintext = _mint_agent_token_plaintext_with_id()
+    # Argon2 hash kept for rollback safety, as in create_user_token.
     conn.execute(
-        "INSERT INTO tokens(id, token_hash, label, principal_type, principal_id, "
-        "created_at, last_used_at, revoked_at) "
-        "VALUES (?, ?, ?, 'agent', ?, ?, NULL, NULL)",
-        (token_id, hash_token(plaintext), (label or "").strip(), agent_id, _now()),
+        "INSERT INTO tokens(id, token_hash, token_digest, label, principal_type, "
+        "principal_id, created_at, last_used_at, revoked_at) "
+        "VALUES (?, ?, ?, ?, 'agent', ?, ?, NULL, NULL)",
+        (
+            token_id, hash_token(plaintext), token_digest(plaintext),
+            (label or "").strip(), agent_id, _now(),
+        ),
     )
     conn.commit()
     from markland.service import metrics as _metrics
