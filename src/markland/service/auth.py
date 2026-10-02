@@ -3,11 +3,7 @@
 Token plaintext format (post-markland-9dm)
 ------------------------------------------
 
-New tokens embed their row-id as a public, non-secret prefix so that
-``resolve_token`` can fetch by primary key (O(1)) instead of scanning
-every non-revoked row and running an Argon2id verify per row.
-
-Plaintext shape::
+New tokens embed their row-id as a public, non-secret prefix::
 
     mk_usr_<token_id_hex>_<random_secret>      # user tokens
     mk_agt_<token_id_hex>_<random_secret>      # agent tokens
@@ -16,13 +12,20 @@ Where ``<token_id_hex>`` is the ``tok_<hex>`` row-id with the ``tok_``
 prefix dropped (16 hex chars). The DB primary key is the full
 ``tok_<hex>`` form; the parser re-attaches the prefix.
 
-Legacy tokens (issued before this PR) have shape ``mk_usr_<urlsafe32>``
-with no embedded token_id. ``resolve_token`` falls back to the O(N) scan
-for them. The fall-through is also correctness-critical for the rare
-case where a legacy plaintext's secret happens to start with 16 hex
-chars + ``_``: the parser will match, the PK lookup will miss, and we
-MUST continue to the legacy scan rather than return None. See the
-``resolve_token`` docstring for details.
+Legacy tokens (issued before markland-9dm, PR #69) have shape
+``mk_usr_<urlsafe32>`` with no embedded token_id.
+
+Lookup (markland-tex)
+---------------------
+
+Every row minted now stores ``token_digest`` (SHA-256 of the plaintext,
+uniquely indexed), and ``resolve_token`` finds a token with one indexed
+lookup and no Argon2. A row written before that has no digest until its
+first successful resolve. That resolve falls back to Argon2 (by the
+embedded token_id, or for legacy tokens by a scan) and backfills the
+digest. The Argon2 ``token_hash`` is still written at mint, so a rollback
+to the pre-digest release keeps working. See the ``resolve_token``
+docstring.
 """
 
 from __future__ import annotations
@@ -86,15 +89,25 @@ _TOKEN_ID_HEX_LEN = 16
 # verbatim, which may contain `_` and `-` (urlsafe alphabet).
 _TOKEN_PARSE_RE = re.compile(r"^mk_(usr|agt)_([0-9a-f]{16})_(.+)$")
 
+# Legacy-shape tokens (no embedded token_id) were minted until markland-9dm
+# (#69, 488711b) went live: its deploy run ran 15:37:42-15:38:29Z on
+# 2026-05-04, and every later deploy descends from it. Fallback (c) scans
+# only rows created before this, so an unknown bearer never pays Argon2 for
+# new-shape rows. Deliberately days late: a late cutoff only adds new-shape
+# rows to the scan, while an early one would lock a legacy token out.
+# Compared as a string: created_at is always
+# datetime.now(timezone.utc).isoformat().
+LEGACY_TOKEN_CUTOFF = "2026-05-10T00:00:00+00:00"
+
 
 @dataclass(frozen=True)
 class ParsedToken:
     """A successfully-parsed new-shape token plaintext.
 
     A successful parse does NOT imply the token is valid — the resolver
-    must still PK-lookup the row, cross-check ``principal_type``, and
-    Argon2-verify the plaintext against the stored hash. See
-    ``resolve_token`` for the fall-through-on-miss contract.
+    still requires a digest hit, or (for a row with no digest yet) a type
+    cross-check and an Argon2 verify. See ``resolve_token`` for the
+    fall-through-on-miss contract.
     """
 
     principal_type: Literal["user", "agent"]
@@ -117,7 +130,7 @@ def _format_agent_token_plaintext(token_id: str, secret_part: str) -> str:
 def _parse_token_plaintext(plaintext: str) -> ParsedToken | None:
     """Return ParsedToken if plaintext is the new shape; None for legacy.
 
-    None signals "fall back to O(N) scan." A non-None return does NOT
+    None means legacy shape: only the digest lookup or fallback (c) can find it. A non-None return does NOT
     by itself authenticate the token — the resolver still verifies it.
     """
     if not plaintext:
@@ -137,7 +150,7 @@ def _mint_user_token_plaintext_with_id() -> tuple[str, str]:
     """Mint a fresh user token. Returns ``(token_id, plaintext)``.
 
     The two values are coupled — the plaintext embeds ``token_id`` as
-    its public prefix, enabling O(1) lookup in ``resolve_token``.
+    its public prefix, which fallback (b) uses for rows with no digest yet.
     """
     token_id = _generate_token_id()
     secret_part = secrets.token_urlsafe(32)
@@ -187,13 +200,25 @@ def verify_token(plaintext: str, hashed: str) -> bool:
         return False
 
 
+def token_digest(plaintext: str) -> str:
+    """Indexed lookup digest for a bearer token: SHA-256 hex of the plaintext.
+
+    A fast hash is enough only because every token this module mints has
+    256 random bits (``secrets.token_urlsafe(32)``), so no preimage can be
+    guessed. Never use it for short or user-chosen secrets (device
+    user_codes, passwords): those need a slow KDF. Never log it, and never
+    accept it as a credential.
+    """
+    return hashlib.sha256(plaintext.encode("utf-8")).hexdigest()
+
+
 # --- Resolved-token cache ----------------------------------------------------
 #
-# Every authenticated request resolves its bearer token, and every resolve
-# costs Argon2id verifies (~0.1 CPU-s each): one for a new-shape token, one
-# per non-revoked row for a legacy-shape token. On 2026-09-26 a post-deploy
-# reconnect burst paid that on every request until the Fly shared-cpu burst
-# balance ran out. So successful resolutions are cached in-process:
+# Every authenticated request resolves its bearer token. On 2026-09-26 a
+# post-deploy reconnect burst paid an Argon2id scan (~1 CPU-s) on every
+# request until the Fly shared-cpu burst balance ran out. Resolves now use
+# an indexed digest lookup (markland-tex), and a row with no digest yet
+# pays Argon2 once. Successful resolutions are cached in-process:
 #
 # - A hit costs no SQL and no Argon2. It also skips the ``last_used_at``
 #   write, so that column is touched at most once per TTL per token.
@@ -344,18 +369,21 @@ def create_user_token(
 ) -> tuple[str, str]:
     """Create a new user token. Returns (token_id, plaintext).
 
-    The plaintext is shown to the user ONCE and never persisted — only its hash.
+    The plaintext is shown to the user ONCE and never persisted — only its
+    Argon2 hash and its SHA-256 lookup digest.
     """
     token_id, plaintext = _mint_user_token_plaintext_with_id()
+    # Keep the Argon2 hash: the pre-digest release authenticates only
+    # through it, so a rollback must still find one (markland-tex).
     hashed = hash_token(plaintext)
     conn.execute(
         """
         INSERT INTO tokens (
-            id, token_hash, label, principal_type, principal_id,
+            id, token_hash, token_digest, label, principal_type, principal_id,
             created_at, last_used_at, revoked_at
-        ) VALUES (?, ?, ?, 'user', ?, ?, NULL, NULL)
+        ) VALUES (?, ?, ?, ?, 'user', ?, ?, NULL, NULL)
         """,
-        (token_id, hashed, label, user_id, _now()),
+        (token_id, hashed, token_digest(plaintext), label, user_id, _now()),
     )
     conn.commit()
     from markland.service import metrics as _metrics
@@ -379,11 +407,15 @@ def _create_token_for_agent(
     operator script.
     """
     token_id, plaintext = _mint_agent_token_plaintext_with_id()
+    # Argon2 hash kept for rollback safety, as in create_user_token.
     conn.execute(
-        "INSERT INTO tokens(id, token_hash, label, principal_type, principal_id, "
-        "created_at, last_used_at, revoked_at) "
-        "VALUES (?, ?, ?, 'agent', ?, ?, NULL, NULL)",
-        (token_id, hash_token(plaintext), (label or "").strip(), agent_id, _now()),
+        "INSERT INTO tokens(id, token_hash, token_digest, label, principal_type, "
+        "principal_id, created_at, last_used_at, revoked_at) "
+        "VALUES (?, ?, ?, ?, 'agent', ?, ?, NULL, NULL)",
+        (
+            token_id, hash_token(plaintext), token_digest(plaintext),
+            (label or "").strip(), agent_id, _now(),
+        ),
     )
     conn.commit()
     from markland.service import metrics as _metrics
@@ -420,33 +452,44 @@ def create_agent_token(
 def resolve_token(conn: sqlite3.Connection, plaintext: str) -> Principal | None:
     """Resolve a Bearer token plaintext to a Principal.
 
-    Fast path (new-shape tokens, post-markland-9dm): parse the embedded
-    ``token_id`` prefix, fetch exactly one row by primary key, run a
-    single Argon2 verify. O(1) regardless of token-table size.
+    (a) Digest path: one lookup on ``tokens.token_digest`` (SHA-256 of the
+        plaintext, uniquely indexed). No Argon2. Every token minted since
+        markland-tex has a digest, and every older one gets it on its first
+        successful resolve below.
 
-    Legacy path (old-shape tokens, no embedded token_id): scan all
-    non-revoked rows. Bounded by the count of pre-migration tokens,
-    which only decreases over time as those tokens are revoked or
-    rotated. Removal of the legacy path is filed as a follow-up.
+    Rows with no digest yet (``token_digest IS NULL``) fall back to Argon2,
+    and only those rows are ever Argon2-verified: a row whose digest is set
+    and differs cannot be this token.
 
-    CRITICAL — fall-through on ANY fast-path miss:
-        The new-format parser regex matches new-shape tokens AND any
-        legacy plaintext whose secret happens to start with 16 lowercase
-        hex chars + ``_``. In that case the PK lookup misses (or argon2
-        verify fails on the wrong row, or principal_type cross-check
-        fails) and we MUST fall through to the legacy scan — otherwise
-        the legacy token silently stops working.
+    (b) New-shape fallback: parse the embedded ``token_id``, fetch that row
+        if it has no digest, cross-check ``principal_type``, run one Argon2
+        verify. Covers new-shape tokens minted before the digest release,
+        and any minted by an older release during a rollback.
 
-        Probability of natural occurrence is ~2.3e-12 per minted token;
-        an attacker with a leaked legacy plaintext could engineer this
-        shape, so the fall-through closes both correctness and grief
-        vectors.
+    (c) Legacy fallback: Argon2-verify each live, digest-less row created
+        before ``LEGACY_TOKEN_CUTOFF``. Legacy-shape tokens (no embedded
+        token_id) can only be that old. An unknown bearer pays for these
+        rows only, so failed auth costs no Argon2 once they are backfilled
+        or revoked.
+
+    A successful (b) or (c) writes the digest onto the row it verified,
+    folded into the ``last_used_at`` touch. It never writes on a PK or type
+    match alone: that would let a caller who knows a token_id bind their
+    own digest to someone else's row.
+
+    CRITICAL — fall through from (b) to (c) on ANY miss:
+        The parser regex matches new-shape tokens AND any legacy plaintext
+        whose secret happens to start with 16 lowercase hex chars + ``_``
+        (~3.6e-12 per token, 2^-38). Then (b) misses, and we MUST continue
+        to (c) — otherwise that legacy token silently stops working. An
+        attacker with a leaked legacy plaintext could also engineer the
+        shape, so the fall-through closes a grief vector too.
 
         See ``test_resolve_token_falls_through_to_legacy_on_pk_miss``
         for the regression guard.
 
     Caching: a successful result is cached for ``TOKEN_CACHE_TTL_S``; a
-    repeat within the TTL skips both paths above (no SQL, no Argon2, no
+    repeat within the TTL skips all of the above (no SQL, no Argon2, no
     ``last_used_at`` write). ``None`` is never cached. See the
     "Resolved-token cache" section for invalidation rules.
     """
@@ -467,36 +510,71 @@ def resolve_token(conn: sqlite3.Connection, plaintext: str) -> Principal | None:
 def _resolve_uncached(
     conn: sqlite3.Connection, plaintext: str
 ) -> Principal | None:
-    """Fast path, then legacy fall-through. See :func:`resolve_token`."""
+    """Digest lookup, then the Argon2 fallbacks. See :func:`resolve_token`."""
+    digest = token_digest(plaintext)
+    result = _resolve_by_digest(conn, digest)
+    if result is not None:
+        return result
     parsed = _parse_token_plaintext(plaintext)
     if parsed is not None:
-        result = _resolve_by_token_id(conn, parsed, plaintext)
+        result = _resolve_by_token_id(conn, parsed, plaintext, digest)
         if result is not None:
             return result
-        # Fast path missed (PK absent, type mismatch, or verify mismatch).
-        # Fall through to the legacy scan — see CRITICAL note above.
+        # (b) missed (no digest-less row at that id, type mismatch, or
+        # verify mismatch). Fall through to (c) — see CRITICAL note above.
 
-    return _resolve_legacy(conn, plaintext)
+    return _resolve_legacy(conn, plaintext, digest)
+
+
+# Tokens of a revoked agent can never authenticate (_build_principal_and_touch
+# returns None for them), and revoke_agent leaves the token rows themselves
+# unrevoked. Never spend Argon2 on them. Use with the tokens table aliased `t`.
+_NOT_REVOKED_AGENT = (
+    "NOT EXISTS (SELECT 1 FROM agents a WHERE t.principal_type = 'agent' "
+    "AND a.id = t.principal_id AND a.revoked_at IS NOT NULL)"
+)
+
+# A constant so a test can EXPLAIN it: it must stay a unique-index search.
+_DIGEST_LOOKUP_SQL = (
+    "SELECT id, principal_type, principal_id FROM tokens "
+    "WHERE token_digest = ? AND revoked_at IS NULL"
+)
+
+
+def _resolve_by_digest(
+    conn: sqlite3.Connection, digest: str
+) -> Principal | None:
+    """(a): one lookup on the unique ``idx_tokens_digest``. No Argon2."""
+    row = conn.execute(_DIGEST_LOOKUP_SQL, (digest,)).fetchone()
+    if row is None:
+        return None
+    token_id, principal_type, principal_id = row
+    return _build_principal_and_touch(
+        conn, token_id, principal_type, principal_id, digest
+    )
 
 
 def _resolve_by_token_id(
     conn: sqlite3.Connection,
     parsed: ParsedToken,
     plaintext: str,
+    digest: str,
 ) -> Principal | None:
-    """O(1) lookup by token_id PK, with type cross-check + argon2 verify.
+    """(b): the embedded token_id's row, only while it has no digest.
 
-    Returns ``Principal`` on success, ``None`` on PK miss / type mismatch /
-    verify mismatch / dangling user or revoked agent.
+    Type cross-check, one Argon2 verify, then backfill. Returns ``None`` on
+    PK miss / digest already set / revoked agent / type mismatch / verify
+    mismatch / dangling user.
 
     Caller MUST treat ``None`` as "fall through to legacy", not "auth
     failed." See :func:`resolve_token` for the rationale.
     """
     row = conn.execute(
-        """
-        SELECT id, token_hash, principal_type, principal_id
-        FROM tokens
-        WHERE id = ? AND revoked_at IS NULL
+        f"""
+        SELECT t.id, t.token_hash, t.principal_type, t.principal_id
+        FROM tokens t
+        WHERE t.id = ? AND t.revoked_at IS NULL AND t.token_digest IS NULL
+          AND {_NOT_REVOKED_AGENT}
         """,
         (parsed.token_id,),
     ).fetchone()
@@ -510,32 +588,35 @@ def _resolve_by_token_id(
     if not verify_token(plaintext, token_hash):
         return None
     return _build_principal_and_touch(
-        conn, token_id, principal_type, principal_id
+        conn, token_id, principal_type, principal_id, digest
     )
 
 
 def _resolve_legacy(
-    conn: sqlite3.Connection, plaintext: str
+    conn: sqlite3.Connection, plaintext: str, digest: str
 ) -> Principal | None:
-    """Pre-markland-9dm O(N) scan. Kept for legacy plaintexts only.
+    """(c): Argon2-verify each live, digest-less row from before the cutoff.
 
     Legacy tokens (issued before the token-id prefix migration) have no
-    embedded token_id, so we have no choice but to argon2-verify against
-    every non-revoked row until a match is found. New-shape tokens that
-    PK-miss in the fast path also fall through here (see
-    :func:`resolve_token` docstring).
+    embedded token_id, so the only way to find their row is to verify each
+    candidate, and they can only be older than ``LEGACY_TOKEN_CUTOFF``.
+    New-shape tokens that miss (b) also fall through here (see
+    :func:`resolve_token`). A row with a digest is never a candidate: a
+    set, different digest means a different token.
     """
     rows = conn.execute(
-        """
-        SELECT id, token_hash, principal_type, principal_id
-        FROM tokens
-        WHERE revoked_at IS NULL
-        """
+        f"""
+        SELECT t.id, t.token_hash, t.principal_type, t.principal_id
+        FROM tokens t
+        WHERE t.revoked_at IS NULL AND t.token_digest IS NULL
+          AND t.created_at < ? AND {_NOT_REVOKED_AGENT}
+        """,
+        (LEGACY_TOKEN_CUTOFF,),
     ).fetchall()
     for token_id, token_hash, principal_type, principal_id in rows:
         if verify_token(plaintext, token_hash):
             return _build_principal_and_touch(
-                conn, token_id, principal_type, principal_id
+                conn, token_id, principal_type, principal_id, digest
             )
     return None
 
@@ -545,11 +626,17 @@ def _build_principal_and_touch(
     token_id: str,
     principal_type: str,
     principal_id: str,
+    digest: str,
 ) -> Principal | None:
-    """Build the Principal, then best-effort update ``tokens.last_used_at``.
+    """Build the Principal, then best-effort touch the token row.
 
-    Refactored unchanged from the original ``resolve_token`` body. Failure
-    to update ``last_used_at`` must NOT block auth.
+    The touch sets ``last_used_at`` and backfills ``token_digest`` when the
+    row has none (``COALESCE`` keeps an existing digest). Callers pass a row
+    that just matched, either by a digest hit or by a successful Argon2
+    verify of that exact row. Never pass one that matched only by PK or
+    type: a caller who knows a token_id could then bind their own digest
+    to someone else's row. Failure to write must NOT block auth: the row
+    keeps no digest, and the next uncached resolve retries.
     """
     if principal_type == "user":
         user_row = conn.execute(
@@ -560,8 +647,9 @@ def _build_principal_and_touch(
             return None
         try:
             conn.execute(
-                "UPDATE tokens SET last_used_at = ? WHERE id = ?",
-                (_now(), token_id),
+                "UPDATE tokens SET last_used_at = ?, "
+                "token_digest = COALESCE(token_digest, ?) WHERE id = ?",
+                (_now(), digest, token_id),
             )
             conn.commit()
         except sqlite3.Error:
@@ -592,8 +680,9 @@ def _build_principal_and_touch(
             return None
         try:
             conn.execute(
-                "UPDATE tokens SET last_used_at = ? WHERE id = ?",
-                (_now(), token_id),
+                "UPDATE tokens SET last_used_at = ?, "
+                "token_digest = COALESCE(token_digest, ?) WHERE id = ?",
+                (_now(), digest, token_id),
             )
             conn.commit()
         except sqlite3.Error:
@@ -657,3 +746,27 @@ def list_tokens(conn: sqlite3.Connection, *, user_id: str) -> list[TokenRecord]:
         )
         for r in rows
     ]
+
+
+def token_digest_counts(conn: sqlite3.Connection) -> dict[str, int]:
+    """How far the digest backfill has got (scripts/admin/token_digest_status.py).
+
+    - ``live``: non-revoked tokens whose agent, if any, isn't revoked.
+    - ``without_digest``: live tokens not backfilled yet. Each still costs
+      one Argon2 verify on its next successful resolve.
+    - ``legacy_scan``: live, no digest, created before LEGACY_TOKEN_CUTOFF.
+      Every failed auth still Argon2-verifies each of these rows; 0 means
+      failed auth costs no Argon2 (markland-ts6).
+    """
+    row = conn.execute(
+        f"""
+        SELECT
+            COUNT(*),
+            COALESCE(SUM(t.token_digest IS NULL), 0),
+            COALESCE(SUM(t.token_digest IS NULL AND t.created_at < ?), 0)
+        FROM tokens t
+        WHERE t.revoked_at IS NULL AND {_NOT_REVOKED_AGENT}
+        """,
+        (LEGACY_TOKEN_CUTOFF,),
+    ).fetchone()
+    return {"live": row[0], "without_digest": row[1], "legacy_scan": row[2]}

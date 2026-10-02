@@ -24,7 +24,6 @@ from markland.service.auth import (
     _resolve_legacy,
     create_user_token,
     hash_token,
-    verify_token,
 )
 from markland.service.sessions import SESSION_COOKIE_NAME, issue_session
 from markland.web.app import create_app
@@ -52,8 +51,11 @@ def clock(monkeypatch) -> FakeClock:
 
 
 @pytest.fixture
-def verify_spy():
-    with patch("markland.service.auth.verify_token", wraps=verify_token) as spy:
+def uncached_spy():
+    """Counts fresh (non-cache) resolutions."""
+    with patch(
+        "markland.service.auth._resolve_uncached", wraps=auth._resolve_uncached
+    ) as spy:
         yield spy
 
 
@@ -104,17 +106,19 @@ def _insert_legacy_token(conn, *, user_id: str, token_id: str) -> str:
 # --- one resolve per request --------------------------------------------------
 
 
-def test_invalid_bearer_on_protected_path_costs_one_scan(env, verify_spy, scan_spy):
+def test_invalid_bearer_on_protected_path_costs_one_scan(env, argon2_verifies, scan_spy):
     """Before: RateLimit scanned, found nothing, then PrincipalMiddleware
-    scanned again — 2N argon2 verifies per 401."""
+    scanned again — 2N argon2 verifies per 401. Now only digest-less rows
+    are ever verified, and still only once per request."""
     conn, client = env
     for i in range(3):
         create_user_token(conn, user_id="usr_alice", label=f"t{i}")
+    _insert_legacy_token(conn, user_id="usr_alice", token_id="tok_legacy")
 
     r = client.get("/admin/metrics", headers=_bearer("mk_usr_not_a_real_token"))
     assert r.status_code == 401
     assert scan_spy.call_count == 1
-    assert verify_spy.call_count == 3
+    assert argon2_verifies.call_count == 1  # the legacy row, once — not twice
 
 
 def test_invalid_bearer_is_rescanned_on_every_request(env, scan_spy):
@@ -127,23 +131,26 @@ def test_invalid_bearer_is_rescanned_on_every_request(env, scan_spy):
     assert scan_spy.call_count == 3
 
 
-def test_valid_bearer_on_protected_path_costs_one_verify(env, verify_spy):
+def test_valid_bearer_on_protected_path_resolves_once_without_argon2(
+    env, uncached_spy, argon2_verifies
+):
     conn, client = env
     _, token = create_user_token(conn, user_id="usr_alice", label="t")
     r = client.get("/admin/metrics", headers=_bearer(token))
     assert r.status_code == 403  # authenticated, not an admin
-    assert verify_spy.call_count == 1
+    assert uncached_spy.call_count == 1
+    assert argon2_verifies.call_count == 0
 
 
-def test_bearer_on_unprotected_path_resolves_once(env, verify_spy):
+def test_bearer_on_unprotected_path_resolves_once(env, uncached_spy):
     """Only RateLimitMiddleware sees this request's bearer."""
     conn, client = env
     _, token = create_user_token(conn, user_id="usr_alice", label="t")
     assert client.get("/health", headers=_bearer(token)).status_code == 200
-    assert verify_spy.call_count == 1
+    assert uncached_spy.call_count == 1
 
 
-def test_principal_middleware_without_rate_limit_in_front(tmp_path, verify_spy):
+def test_principal_middleware_without_rate_limit_in_front(tmp_path, uncached_spy):
     """PrincipalMiddleware with no RateLimitMiddleware in front still
     authenticates, resolving exactly once per request."""
     conn = init_db(tmp_path / "t.db")
@@ -164,11 +171,11 @@ def test_principal_middleware_without_rate_limit_in_front(tmp_path, verify_spy):
     client = TestClient(app)
     r = client.get("/mcp/ping", headers=_bearer(token))
     assert r.status_code == 200 and r.json() == {"id": "usr_bob"}
-    assert verify_spy.call_count == 1
+    assert uncached_spy.call_count == 1
 
     r = client.get("/mcp/ping", headers=_bearer("mk_usr_nope"))
     assert r.status_code == 401
-    assert verify_spy.call_count == 2  # one row scanned once
+    assert uncached_spy.call_count == 2  # the bad bearer, resolved once
 
 
 def test_transient_error_in_rate_limit_resolve_is_retried_not_memoized(env):
@@ -176,15 +183,16 @@ def test_transient_error_in_rate_limit_resolve_is_retried_not_memoized(env):
     turning a transient DB error into a 401."""
     conn, client = env
     _, token = create_user_token(conn, user_id="usr_alice", label="t")
+    real_lookup = auth._resolve_by_digest
     calls = []
 
-    def flaky_verify(pt, hashed):
+    def flaky_lookup(c, digest):
         calls.append(1)
         if len(calls) == 1:
             raise sqlite3.InterfaceError("simulated")
-        return verify_token(pt, hashed)
+        return real_lookup(c, digest)
 
-    with patch("markland.service.auth.verify_token", side_effect=flaky_verify):
+    with patch("markland.service.auth._resolve_by_digest", side_effect=flaky_lookup):
         r = client.get("/admin/metrics", headers=_bearer(token))
     assert r.status_code == 403  # authenticated on the retry
     assert len(calls) == 2
@@ -193,16 +201,16 @@ def test_transient_error_in_rate_limit_resolve_is_retried_not_memoized(env):
 # --- cache across requests ----------------------------------------------------
 
 
-def test_repeat_requests_hit_the_cache(env, verify_spy):
+def test_repeat_requests_hit_the_cache(env, uncached_spy):
     conn, client = env
     _, token = create_user_token(conn, user_id="usr_alice", label="t")
     for _ in range(5):
         assert client.get("/admin/metrics", headers=_bearer(token)).status_code == 403
-    assert verify_spy.call_count == 1
+    assert uncached_spy.call_count == 1
 
 
-def test_legacy_token_costs_one_scan_per_ttl_across_requests(
-    env, verify_spy, scan_spy, clock
+def test_legacy_token_scans_once_then_resolves_by_digest(
+    env, argon2_verifies, scan_spy, clock
 ):
     conn, client = env
     for i in range(4):
@@ -212,12 +220,12 @@ def test_legacy_token_costs_one_scan_per_ttl_across_requests(
     for _ in range(5):
         assert client.get("/admin/metrics", headers=_bearer(legacy)).status_code == 403
     assert scan_spy.call_count == 1
-    assert verify_spy.call_count == 5
+    assert argon2_verifies.call_count == 1  # only the digest-less row
 
     clock.advance(auth.TOKEN_CACHE_TTL_S + 1)
     assert client.get("/admin/metrics", headers=_bearer(legacy)).status_code == 403
-    assert scan_spy.call_count == 2
-    assert verify_spy.call_count == 10
+    assert scan_spy.call_count == 1  # backfilled: a digest hit, no scan
+    assert argon2_verifies.call_count == 1
 
 
 # --- invalidation through the real endpoints ------------------------------------
@@ -300,3 +308,37 @@ def test_admin_promotion_out_of_process_lands_within_ttl(env, clock):
 
     clock.advance(auth.TOKEN_CACHE_TTL_S + 1)
     assert client.get("/admin/metrics", headers=_bearer(token)).status_code == 200
+
+
+# --- failed auth is cheap (markland-ts6) ------------------------------------------
+
+
+def test_failed_auth_over_http_costs_no_argon2_without_pre_cutoff_rows(
+    env, argon2_verifies, uncached_spy
+):
+    """The bearer resolves before the rate-limit check, so a failed auth
+    must be cheap on its own. With no pre-cutoff digest-less rows, a burst
+    of bad bearers is all 401s, one resolve each, and zero Argon2 — even
+    while a new-shape token is still waiting for its backfill."""
+    conn, client = env
+    for i in range(3):
+        create_user_token(conn, user_id="usr_alice", label=f"t{i}")
+    token_id, plaintext = auth._mint_user_token_plaintext_with_id()
+    conn.execute(
+        "INSERT INTO tokens(id, token_hash, label, principal_type, principal_id, "
+        "created_at, last_used_at, revoked_at) "
+        "VALUES (?, ?, 'dormant', 'user', 'usr_alice', "
+        "'2026-09-01T00:00:00+00:00', NULL, NULL)",
+        (token_id, hash_token(plaintext)),
+    )
+    conn.commit()
+
+    bad = [
+        "mk_usr_" + secrets.token_urlsafe(32),
+        "mk_usr_deadbeefdeadbeef_" + secrets.token_urlsafe(32),
+    ] * 10
+    for token in bad:
+        r = client.get("/admin/metrics", headers=_bearer(token))
+        assert r.status_code == 401
+    assert uncached_spy.call_count == len(bad)
+    assert argon2_verifies.call_count == 0

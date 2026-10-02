@@ -35,10 +35,13 @@ metrics. Real-time CRDT editing, teams/orgs, and OAuth are explicitly out of sco
   /api/auth/device-{start,poll,authorize}` plus the `GET /device` consent page and
   `GET /setup` runbook) is the Claude Code onboarding path and mints a user token
   on authorize. Per-user API tokens (`mk_usr_…`) and per-agent tokens (`mk_agt_…`)
-  are argon2id-hashed and minted from `/settings/tokens` / `/settings/agents`.
-  Token plaintext embeds the row's primary key (`mk_usr_<16hex>_<urlsafe32>`)
-  so `resolve_token` does an O(1) PK lookup + single argon2 verify, with a
-  legacy O(N) fallback for tokens minted before PR #69. Cookie posture:
+  are minted from `/settings/tokens` / `/settings/agents` and stored as a
+  uniquely-indexed SHA-256 lookup digest plus an argon2id hash (kept so a
+  rollback still authenticates). `resolve_token` is one indexed digest lookup
+  with no argon2. A row written before the digest (markland-tex) falls back
+  to argon2 once and has its digest backfilled. The fallback goes by the
+  embedded primary key in `mk_usr_<16hex>_<urlsafe32>`, or, for legacy
+  pre-PR #69 tokens, by a scan of pre-cutoff rows. Cookie posture:
   `SameSite=Strict`, `HttpOnly`, `Secure` in prod; payload embeds the
   user's `session_epoch`, bumped on logout to invalidate outstanding
   cookies server-side (PR #70). CSP drops `script-src 'unsafe-inline'`
@@ -146,11 +149,14 @@ One line per table:
 
 - `users` — `id`, `email` (unique), `display_name`, `is_admin`, `created_at`,
   `session_epoch` (server-side revocation counter, bumped on logout).
-- `tokens` — argon2id-hashed API tokens for users (`mk_usr_…`) and agents
-  (`mk_agt_…`), keyed by `(principal_type, principal_id)`. Plaintext shape
-  `mk_<usr|agt>_<16hex>_<urlsafe32>` embeds the row's primary key for O(1)
-  resolution; legacy `mk_<usr|agt>_<urlsafe32>` plaintexts (pre-PR #69) still
-  authenticate via fallback scan.
+- `tokens` — API tokens for users (`mk_usr_…`) and agents (`mk_agt_…`), keyed
+  by `(principal_type, principal_id)`. `token_digest` (SHA-256, unique index
+  `idx_tokens_digest`) is the lookup key; `token_hash` (argon2id) is kept for
+  rollback and for rows not yet backfilled. Plaintext shape
+  `mk_<usr|agt>_<16hex>_<urlsafe32>` embeds the row's primary key; legacy
+  `mk_<usr|agt>_<urlsafe32>` plaintexts (pre-PR #69) authenticate via a scan
+  of pre-cutoff digest-less rows until their first resolve backfills them.
+  `scripts/admin/token_digest_status.py` reports backfill progress.
 - `waitlist` — retained pre-launch landing email capture.
 - `agents` — `id` (`agt_…`), `owner_type` (user|service), `owner_id`,
   `display_name`, `revoked_at`.

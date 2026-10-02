@@ -2,12 +2,12 @@
 
 RateLimitMiddleware (outermost) resolves the bearer on every path for
 rate-limit tiering; PrincipalMiddleware (inner, on /mcp and /admin/)
-needs the same answer to gate the request. A resolve of an unknown or
-legacy-shape token is a full Argon2id scan of the tokens table, so the
-outcome is memoized in ``request.state``, which wraps the per-request
-``scope["state"]`` dict that every BaseHTTPMiddleware layer shares. The
-memo includes an explicit invalid verdict, so a bad token is scanned
-once per request instead of twice.
+needs the same answer to gate the request. A resolve is SQL on the shared
+connection plus, while any row still lacks its lookup digest, Argon2
+verifies (markland-tex). So the outcome is memoized in ``request.state``,
+which wraps the per-request ``scope["state"]`` dict that every
+BaseHTTPMiddleware layer shares. The memo includes an explicit invalid
+verdict, so a bad token is resolved once per request instead of twice.
 
 Either middleware may run without the other (RateLimit alone on an
 unprotected path, PrincipalMiddleware alone in a bare app); whichever
