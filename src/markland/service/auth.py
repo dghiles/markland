@@ -130,8 +130,9 @@ def _format_agent_token_plaintext(token_id: str, secret_part: str) -> str:
 def _parse_token_plaintext(plaintext: str) -> ParsedToken | None:
     """Return ParsedToken if plaintext is the new shape; None for legacy.
 
-    None means legacy shape: only the digest lookup or fallback (c) can find it. A non-None return does NOT
-    by itself authenticate the token — the resolver still verifies it.
+    None means legacy shape: only the digest lookup or fallback (c) can
+    find it. A non-None return does NOT by itself authenticate the token —
+    the resolver still verifies it.
     """
     if not plaintext:
         return None
@@ -755,8 +756,9 @@ def token_digest_counts(conn: sqlite3.Connection) -> dict[str, int]:
     - ``without_digest``: live tokens not backfilled yet. Each still costs
       one Argon2 verify on its next successful resolve.
     - ``legacy_scan``: live, no digest, created before LEGACY_TOKEN_CUTOFF.
-      Every failed auth still Argon2-verifies each of these rows; 0 means
-      failed auth costs no Argon2 (markland-ts6).
+      Every unknown or revoked bearer still Argon2-verifies each of these
+      rows; 0 means those cost no Argon2 (markland-ts6). A forged bearer
+      naming a real, not-yet-backfilled token id still costs one verify.
     """
     row = conn.execute(
         f"""
