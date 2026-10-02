@@ -163,16 +163,17 @@ The items below are what it leaves open.
 - **Make failed auth cheap.** Mostly done by the digest lookup (markland-tex,
   2026-10-02). A bearer that doesn't resolve now pays Argon2 only for live
   rows that were created before `LEGACY_TOKEN_CUTOFF` and have no digest yet:
-  the un-rotated legacy tokens. Once those are backfilled or revoked, it pays
-  nothing. `scripts/admin/token_digest_status.py` shows the count as
-  "scanned by every failed auth". Close markland-ts6 when it reads 0.
+  un-rotated legacy tokens, plus new-shape tokens minted 05-04 to 05-10. Once
+  those are backfilled or revoked, it pays nothing, except that a forged
+  bearer naming a real, not-yet-backfilled token id costs one verify.
+  `scripts/admin/token_digest_status.py` shows the count as "scanned by every
+  failed auth". Close markland-ts6 when it reads 0.
 - **Argon2 still runs on the event loop on a cache miss** of a row with no
   digest yet (its first resolve after markland-tex; then it has one). Don't
   move resolves to a threadpool until the sqlite redesign lands. With
-  concurrent resolves on
-  the shared connection, the cache would keep corrupted principals (another
-  user's id, a false `is_admin`) for up to 60 s. The digest lookup
-  (markland-tex) removed most of this cost.
+  concurrent resolves on the shared connection, the cache would keep
+  corrupted principals (another user's id, a false `is_admin`) for up to
+  60 s. The digest lookup (markland-tex) removed most of this cost.
 - **Give the post-deploy observer a metrics token.** Its first run
   (2026-09-27) couldn't read Fly's Prometheus API: the deploy token got HTTP
   403. Add an org-scoped read-only token as a repo secret so the observer

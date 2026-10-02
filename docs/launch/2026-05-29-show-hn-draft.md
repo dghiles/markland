@@ -39,7 +39,7 @@ A few specifics I expect HN to ask about:
   Fly.io. Built for one writer plus many readers per doc; not trying
   to compete with Notion at the database-of-everything level.
 - **What's the auth model?** Magic-link sign-in for humans (no
-  passwords), Argon2id-hashed bearer tokens for agents, append-only
+  passwords), hashed bearer tokens for agents, append-only
   audit log on every mutation. Pre-release security review filed 18
   findings; all 18 are shipped (P0/P1/P2/P3).
 - **What about real-time?** Not yet. v1 is advisory presence (badges,

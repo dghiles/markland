@@ -429,11 +429,13 @@ no token material. Like every admin script it opens the DB through
 flyctl ssh console -a markland -C "/app/.venv/bin/python scripts/admin/token_digest_status.py"
 ```
 
-- `without a digest yet` falls as clients reconnect. Each token's first
-  resolve after the digest release pays one Argon2 verify and backfills
-  the digest.
+- `without a digest yet` falls as clients reconnect. A new-shape token's
+  first resolve after the digest release pays one Argon2 verify and
+  backfills the digest. A legacy token pays up to one verify per row in
+  `scanned by every failed auth`.
 - `scanned by every failed auth` is how many Argon2 verifies an unknown or
-  revoked bearer costs. Once it reads 0, failed auth costs no Argon2.
+  revoked bearer costs. Once it reads 0, those cost no Argon2. A forged
+  bearer that names a real, not-yet-backfilled token id still costs one.
 
 Short timeouts make it worse. A client that gives up at httpx's 5 s default
 leaves the server finishing work nobody will read, and every retry queues

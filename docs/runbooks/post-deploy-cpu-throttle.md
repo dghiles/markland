@@ -12,10 +12,12 @@ demonstrated end to end):
 
 1. Any machine update (deploy, rollback, `fly scale`) resets the shared-cpu
    burst balance to about 50 CPU-s and drops every MCP connection.
-2. Every MCP client reconnects at once. Authenticated requests are expensive:
-   each one resolved its token twice, and legacy-shape tokens (no embedded
-   token id) are argon2id-verified against every active token, about
-   1 CPU-s per request in prod.
+2. Every MCP client reconnects at once. Authenticated requests were
+   expensive: each one resolved its token twice, and legacy-shape tokens (no
+   embedded token id) were argon2id-verified against every active token,
+   about 1 CPU-s per request in prod. (#90 removed the double resolve and
+   cached results; markland-tex, #95, replaced the scan with an indexed
+   digest lookup.)
 3. The burst (about 80 requests in 80s) drained the balance in about 60s.
    Fly then throttled the VM to its 6.25% shared-cpu baseline for about
    15 minutes, and `/health` timed out.
