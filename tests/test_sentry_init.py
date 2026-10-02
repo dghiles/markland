@@ -43,3 +43,23 @@ def test_sentry_initialized_when_dsn_set(monkeypatch, tmp_path):
     # Magic-link / CSRF / share-token redaction must be wired up.
     from markland.log_scrubbing import scrub_sentry_event
     assert kwargs.get("before_send") is scrub_sentry_event
+
+
+def test_sentry_never_captures_frame_local_variables(monkeypatch, tmp_path):
+    """Resolver frames hold bearer plaintexts and digests in locals named
+    `plaintext`, `header` and `digest`, which Sentry's name denylist does not
+    scrub (markland-as3). Local-variable capture must stay off, whatever the
+    variable is called."""
+    monkeypatch.setenv("SENTRY_DSN", "https://fake@sentry.io/1")
+    monkeypatch.setenv("MARKLAND_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("MARKLAND_SESSION_SECRET", "t")
+
+    from markland.config import reset_config
+    reset_config()
+
+    with patch("sentry_sdk.init") as init_mock:
+        import importlib
+        import markland.run_app
+        importlib.reload(markland.run_app)
+
+    assert init_mock.call_args.kwargs.get("include_local_variables") is False

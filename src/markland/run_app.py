@@ -56,6 +56,10 @@ if config.sentry_dsn:
             # Strip magic-link tokens, share tokens, CSRF tokens and
             # Authorization headers before events leave the process.
             before_send=scrub_sentry_event,
+            # Frame locals carry secrets under names the scrubber can't
+            # predict (bearer plaintexts in `plaintext`/`header`, token
+            # digests), so never send them (markland-as3).
+            include_local_variables=False,
         )
         logger.info("Sentry initialized")
     except ImportError:
