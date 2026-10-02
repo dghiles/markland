@@ -746,3 +746,27 @@ def list_tokens(conn: sqlite3.Connection, *, user_id: str) -> list[TokenRecord]:
         )
         for r in rows
     ]
+
+
+def token_digest_counts(conn: sqlite3.Connection) -> dict[str, int]:
+    """How far the digest backfill has got (scripts/admin/token_digest_status.py).
+
+    - ``live``: non-revoked tokens whose agent, if any, isn't revoked.
+    - ``without_digest``: live tokens not backfilled yet. Each still costs
+      one Argon2 verify on its next successful resolve.
+    - ``legacy_scan``: live, no digest, created before LEGACY_TOKEN_CUTOFF.
+      Every failed auth still Argon2-verifies each of these rows; 0 means
+      failed auth costs no Argon2 (markland-ts6).
+    """
+    row = conn.execute(
+        f"""
+        SELECT
+            COUNT(*),
+            COALESCE(SUM(t.token_digest IS NULL), 0),
+            COALESCE(SUM(t.token_digest IS NULL AND t.created_at < ?), 0)
+        FROM tokens t
+        WHERE t.revoked_at IS NULL AND {_NOT_REVOKED_AGENT}
+        """,
+        (LEGACY_TOKEN_CUTOFF,),
+    ).fetchone()
+    return {"live": row[0], "without_digest": row[1], "legacy_scan": row[2]}

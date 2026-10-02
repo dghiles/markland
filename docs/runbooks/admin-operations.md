@@ -41,6 +41,7 @@ Available scripts:
 | `lookup_user.py <email>` | Show user row + doc/grant/token counts. |
 | `list_users.py [--since N] [--limit N]` | List all users with footprint counts (newest first). |
 | `list_admin_tokens.py` | List metadata of admin-bound tokens (no plaintexts; revocation cleanup). |
+| `token_digest_status.py` | Count live tokens still without a lookup digest, and how many every failed auth still Argon2-verifies (markland-tex). |
 | `umami_summary.py [--days N]` | Pull Umami stats/referrers/top pages from prod env. |
 | `purge_waitlist.py <domain> [--dry-run]` | Delete waitlist rows for one email domain (spam cleanup). |
 
@@ -416,8 +417,23 @@ curl -sS --max-time 90 -o /dev/null -w '%{http_code} %{time_total}s\n' https://m
 ```
 
 If you need to prove MCP works, make a single call with a new-shape token
-(`mk_usr_<16 hex>_…`, which takes the O(1) path), never a loop. Then check the
+(`mk_usr_<16 hex>_…`: at most one Argon2 verify, then a digest lookup), never a loop. Then check the
 throttle metric a couple of minutes later instead of probing again.
+
+After a deploy that touches auth, check the token-digest backfill once,
+about 10 minutes after clients have reconnected. It prints counts only, with
+no token material. Like every admin script it opens the DB through
+`init_db`, which is a no-op on an already-migrated DB:
+
+```bash
+flyctl ssh console -a markland -C "/app/.venv/bin/python scripts/admin/token_digest_status.py"
+```
+
+- `without a digest yet` falls as clients reconnect. Each token's first
+  resolve after the digest release pays one Argon2 verify and backfills
+  the digest.
+- `scanned by every failed auth` is how many Argon2 verifies an unknown or
+  revoked bearer costs. Once it reads 0, failed auth costs no Argon2.
 
 Short timeouts make it worse. A client that gives up at httpx's 5 s default
 leaves the server finishing work nobody will read, and every retry queues

@@ -507,3 +507,71 @@ def test_type_mismatch_on_a_digestless_row_skips_argon2(conn, argon2_verifies):
     assert argon2_verifies.call_count == 0  # type check first; (c) skips post-cutoff
     assert _digest_of(conn, token_id) is None
     assert resolve_token(conn, agent_plaintext) is not None  # the real token still works
+
+
+# --- operator status ------------------------------------------------------------
+
+
+def test_token_digest_counts(conn):
+    u = create_user(conn, email="a@x", display_name="A")
+    create_user_token(conn, user_id=u.id, label="minted")
+    _insert_as_previous_release(
+        conn, token_id="tok_legacy", plaintext="mk_usr_" + secrets.token_urlsafe(32),
+        principal_type="user", principal_id=u.id, created_at=PRE_CUTOFF,
+    )
+    token_id, plaintext = auth._mint_user_token_plaintext_with_id()
+    _insert_as_previous_release(
+        conn, token_id=token_id, plaintext=plaintext,
+        principal_type="user", principal_id=u.id, created_at=POST_CUTOFF,
+    )
+    _insert_as_previous_release(
+        conn, token_id="tok_revoked", plaintext="mk_usr_" + secrets.token_urlsafe(32),
+        principal_type="user", principal_id=u.id, created_at=PRE_CUTOFF,
+    )
+    conn.execute(
+        "UPDATE tokens SET revoked_at = ? WHERE id = 'tok_revoked'", (POST_CUTOFF,)
+    )
+    conn.commit()
+    agent = create_agent(conn, u.id, "gone")
+    _insert_as_previous_release(
+        conn, token_id="tok_deadagent", plaintext="mk_agt_" + secrets.token_urlsafe(32),
+        principal_type="agent", principal_id=agent.id, created_at=PRE_CUTOFF,
+    )
+    revoke_agent(conn, agent.id, owner_user_id=u.id)  # its token can never resolve
+
+    assert auth.token_digest_counts(conn) == {
+        "live": 3, "without_digest": 2, "legacy_scan": 1,
+    }
+    assert resolve_token(conn, plaintext) is not None  # backfills the new-shape row
+    assert auth.token_digest_counts(conn) == {
+        "live": 3, "without_digest": 1, "legacy_scan": 1,
+    }
+
+
+def test_token_digest_counts_on_an_empty_table(conn):
+    assert auth.token_digest_counts(conn) == {
+        "live": 0, "without_digest": 0, "legacy_scan": 0,
+    }
+
+
+def test_token_digest_status_script_prints_counts_only(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("MARKLAND_DATA_DIR", str(tmp_path))
+    reset_config()
+    try:
+        c = init_db(tmp_path / "markland.db")
+        u = create_user(c, email="a@x", display_name="A")
+        _, plaintext = create_user_token(c, user_id=u.id, label="t")
+        c.close()
+        capsys.readouterr()  # drop the token_create metric line
+        script = Path(__file__).resolve().parents[1] / "scripts/admin/token_digest_status.py"
+        with pytest.raises(SystemExit) as exit_info:
+            runpy.run_path(str(script), run_name="__main__")
+        assert exit_info.value.code == 0
+    finally:
+        reset_config()
+    out = capsys.readouterr().out
+    assert re.search(r"live tokens:\s+1\b", out)
+    assert re.search(r"without a digest yet:\s+0\b", out)
+    assert re.search(r"scanned by every failed auth:\s+0\b", out)
+    assert plaintext not in out
+    assert token_digest(plaintext) not in out
