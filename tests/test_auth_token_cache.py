@@ -1,10 +1,10 @@
 """Tests for the in-process cache of successful token resolutions.
 
-Why this exists: a legacy-shape token (no embedded token_id) costs one
-argon2id verify per non-revoked row on every resolve — ~1 CPU-s per
-request in prod. The 2026-09-26 outage was a reconnect burst paying that
-cost on every request until the Fly burst balance ran out. The cache
-makes the scan happen at most once per TTL per token.
+Why this exists: on 2026-09-26 a post-deploy reconnect burst paid an
+Argon2id scan (~1 CPU-s) on every request until the Fly burst balance ran
+out. Resolves now use an indexed digest lookup (markland-tex). A cache hit
+still costs no SQL on the shared connection and no last_used_at write, and
+a token with no digest yet still pays Argon2 on its first resolve.
 """
 
 from __future__ import annotations
@@ -25,7 +25,6 @@ from markland.service.auth import (
     hash_token,
     resolve_token,
     revoke_token,
-    verify_token,
 )
 from markland.service.users import create_user
 
@@ -49,8 +48,11 @@ def clock(monkeypatch) -> FakeClock:
 
 
 @pytest.fixture
-def verify_spy():
-    with patch("markland.service.auth.verify_token", wraps=verify_token) as spy:
+def uncached_spy():
+    """Counts fresh (non-cache) resolutions."""
+    with patch(
+        "markland.service.auth._resolve_uncached", wraps=auth._resolve_uncached
+    ) as spy:
         yield spy
 
 
@@ -77,17 +79,17 @@ def conn(tmp_path):
 # --- cache hits skip the DB and argon2 ----------------------------------------
 
 
-def test_second_resolve_is_a_cache_hit_with_zero_verifies(conn, verify_spy):
+def test_second_resolve_is_a_cache_hit(conn, uncached_spy):
     u = create_user(conn, email="a@x", display_name="A")
     _, plaintext = create_user_token(conn, user_id=u.id, label="t")
 
     first = resolve_token(conn, plaintext)
     assert first is not None
-    assert verify_spy.call_count == 1
+    assert uncached_spy.call_count == 1
 
     second = resolve_token(conn, plaintext)
     assert second == first
-    assert verify_spy.call_count == 1  # cache hit: no argon2
+    assert uncached_spy.call_count == 1  # cache hit: no fresh resolve
 
 
 def test_cache_hit_issues_no_sql(conn):
@@ -104,26 +106,24 @@ def test_cache_hit_issues_no_sql(conn):
     assert statements == []
 
 
-def test_legacy_token_costs_one_scan_per_ttl_not_per_resolve(
-    conn, verify_spy, clock
+def test_legacy_token_costs_one_scan_ever_then_digest_hits(
+    conn, argon2_verifies, uncached_spy, clock
 ):
     u = create_user(conn, email="a@x", display_name="A")
     for i in range(4):
         create_user_token(conn, user_id=u.id, label=f"other{i}")
     legacy = _insert_legacy_token(conn, user_id=u.id, token_id="tok_legacy_last")
-    n_rows = 5
 
     for _ in range(10):
         assert resolve_token(conn, legacy) is not None
-    assert verify_spy.call_count == n_rows  # one full scan, then hits
+    # One scan, of the only digest-less row; then cache hits.
+    assert argon2_verifies.call_count == 1
+    assert uncached_spy.call_count == 1
 
-    clock.advance(auth.TOKEN_CACHE_TTL_S - 1)
+    clock.advance(auth.TOKEN_CACHE_TTL_S + 1)
     assert resolve_token(conn, legacy) is not None
-    assert verify_spy.call_count == n_rows  # still inside the TTL
-
-    clock.advance(2)
-    assert resolve_token(conn, legacy) is not None
-    assert verify_spy.call_count == 2 * n_rows  # expired: one more scan
+    assert uncached_spy.call_count == 2  # the entry really expired
+    assert argon2_verifies.call_count == 1  # but backfilled: a digest hit
 
 
 def test_cache_is_keyed_by_sha256_and_never_holds_the_plaintext(conn):
@@ -139,13 +139,16 @@ def test_cache_is_keyed_by_sha256_and_never_holds_the_plaintext(conn):
 # --- failures are never cached ------------------------------------------------
 
 
-def test_failed_resolve_is_not_cached(conn, verify_spy):
+def test_failed_resolve_is_not_cached(conn, argon2_verifies):
     u = create_user(conn, email="a@x", display_name="A")
     create_user_token(conn, user_id=u.id, label="t")
+    _insert_legacy_token(conn, user_id=u.id, token_id="tok_legacy")
 
     assert resolve_token(conn, "mk_usr_bogus") is None
     assert resolve_token(conn, "mk_usr_bogus") is None
-    assert verify_spy.call_count == 2  # one row scanned per attempt
+    # The digest-less legacy row is re-verified on each attempt: nothing
+    # remembered the failure. (The minted row has a digest: never verified.)
+    assert argon2_verifies.call_count == 2
     assert len(auth._token_cache) == 0
 
 
@@ -238,34 +241,38 @@ def test_revoke_agent_evicts_cached_agent_token(conn):
     assert resolve_token(conn, plaintext) is None
 
 
-def test_invalidate_token_cache_forces_fresh_resolution(conn, verify_spy):
+def test_invalidate_token_cache_forces_fresh_resolution(conn, uncached_spy):
     u = create_user(conn, email="a@x", display_name="A")
     _, plaintext = create_user_token(conn, user_id=u.id, label="t")
     resolve_token(conn, plaintext)
     auth.invalidate_token_cache()
     resolve_token(conn, plaintext)
-    assert verify_spy.call_count == 2
+    assert uncached_spy.call_count == 2
 
 
 def test_revoke_racing_an_in_flight_resolve_does_not_repopulate_cache(conn):
-    """The resolver reads the row, then (while argon2 runs) the token is
+    """The resolver reads the row, then (before it returns) the token is
     revoked in another thread. The in-flight request may still succeed,
     but its result must not be cached — the NEXT request must see the
     revocation."""
     u = create_user(conn, email="a@x", display_name="A")
     token_id, plaintext = create_user_token(conn, user_id=u.id, label="t")
-
+    real_build = auth._build_principal_and_touch
     fired = []
 
-    def verify_then_revoke(pt, hashed):
-        ok = verify_token(pt, hashed)
+    def build_then_revoke(*args):
+        principal = real_build(*args)
         if not fired:
             fired.append(True)
             assert revoke_token(conn, token_id=token_id, user_id=u.id)
-        return ok
+        return principal
 
-    with patch("markland.service.auth.verify_token", side_effect=verify_then_revoke):
-        resolve_token(conn, plaintext)  # in flight across the revoke
+    with patch(
+        "markland.service.auth._build_principal_and_touch",
+        side_effect=build_then_revoke,
+    ):
+        # In flight across the revoke: this request still succeeds.
+        assert resolve_token(conn, plaintext) is not None
 
     assert resolve_token(conn, plaintext) is None
 
@@ -377,18 +384,20 @@ def test_cache_is_safe_under_concurrent_threads():
     assert len(cache) <= 64
 
 
-def test_warm_resolve_from_many_threads_never_touches_argon2(conn, verify_spy):
+def test_warm_resolve_from_many_threads_never_touches_argon2(
+    conn, argon2_verifies, uncached_spy
+):
     u = create_user(conn, email="a@x", display_name="A")
-    _, plaintext = create_user_token(conn, user_id=u.id, label="t")
-    expected = resolve_token(conn, plaintext)
-    assert verify_spy.call_count == 1
+    legacy = _insert_legacy_token(conn, user_id=u.id, token_id="tok_legacy")
+    expected = resolve_token(conn, legacy)
+    assert argon2_verifies.call_count == 1  # the one scan that backfilled it
 
     results: list = []
     lock = threading.Lock()
 
     def worker() -> None:
         for _ in range(200):
-            p = resolve_token(conn, plaintext)
+            p = resolve_token(conn, legacy)
             with lock:
                 results.append(p)
 
@@ -399,4 +408,5 @@ def test_warm_resolve_from_many_threads_never_touches_argon2(conn, verify_spy):
         t.join()
     assert len(results) == 1600
     assert all(p == expected for p in results)
-    assert verify_spy.call_count == 1
+    assert argon2_verifies.call_count == 1
+    assert uncached_spy.call_count == 1  # every warm resolve was a cache hit

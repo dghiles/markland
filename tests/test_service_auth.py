@@ -2,7 +2,6 @@
 
 import secrets
 import sqlite3
-from unittest.mock import patch
 
 import pytest
 
@@ -18,6 +17,7 @@ from markland.service.auth import (
     list_tokens,
     resolve_token,
     revoke_token,
+    token_digest,
     verify_token,
 )
 from markland.service.agents import create_agent
@@ -257,29 +257,18 @@ def test_resolve_token_legacy_format_still_works(tmp_path):
     assert p.principal_id == "usr_bob"
 
 
-def test_resolve_token_argon2_verify_call_count_for_new_shape(tmp_path):
-    """Confirms O(1) on the happy path: exactly ONE argon2 verify call when
-    a real new-shape token is presented, regardless of #tokens in the DB.
-
-    NOTE: a parser-matching plaintext that PK-misses falls through to legacy
-    and does 1 + N verifies — covered separately by
-    test_resolve_token_falls_through_to_legacy_on_pk_miss. This test is
-    the happy path, where the fast path resolves and no fall-through occurs.
-    """
+def test_resolve_token_new_shape_makes_no_argon2_verify(tmp_path, argon2_verifies):
+    """A minted token resolves through the indexed digest lookup: zero
+    Argon2 verifies, however many tokens exist. (Rows with no digest yet
+    still pay Argon2 — see tests/test_auth_token_digest.py.)"""
     conn = init_db(tmp_path / "t.db")
     u = create_user(conn, email="carol@x", display_name="Carol")
-    plaintexts = []
-    for i in range(50):
-        _tok_id, plaintext = create_user_token(conn, user_id=u.id, label=f"t{i}")
-        plaintexts.append(plaintext)
-    from markland.service.auth import verify_token as real_verify
-    with patch(
-        "markland.service.auth.verify_token", wraps=real_verify
-    ) as spy:
-        # Resolving an existing new-shape token: one PK hit, one verify.
-        p = resolve_token(conn, plaintexts[42])
-        assert p is not None
-        assert spy.call_count == 1
+    plaintexts = [
+        create_user_token(conn, user_id=u.id, label=f"t{i}")[1] for i in range(5)
+    ]
+    p = resolve_token(conn, plaintexts[3])
+    assert p is not None
+    assert argon2_verifies.call_count == 0
 
 
 # CRITICAL — false-positive fall-through
@@ -290,7 +279,7 @@ def test_resolve_token_falls_through_to_legacy_on_pk_miss(tmp_path):
     will parse as new-format. The PK lookup misses (no row at that id).
     Resolver MUST fall through to the legacy O(N) scan, not return None.
 
-    Without this fall-through, ~2.3e-12 fraction of legacy tokens silently
+    Without this fall-through, ~3.6e-12 (2^-38) fraction of legacy tokens silently
     stop working; an attacker with a leaked legacy plaintext could also
     forge a parser-matching shape to grief auth.
     """
@@ -314,15 +303,20 @@ def test_resolve_token_falls_through_to_legacy_on_pk_miss(tmp_path):
     p = resolve_token(conn, legacy_plaintext)
     assert p is not None
     assert p.principal_id == "usr_dan"
+    # ...and the row it verified now carries its digest (markland-tex).
+    digest = conn.execute(
+        "SELECT token_digest FROM tokens WHERE id = ?", (legacy_id,)
+    ).fetchone()[0]
+    assert digest == token_digest(legacy_plaintext)
 
 
 def test_resolve_token_type_mismatch_returns_none(tmp_path):
     """Forge mk_usr_<id>_<secret> for a token_id whose row is type=agent.
 
-    The type cross-check rejects without running argon2; in any case
-    the secret doesn't match so the row would not authenticate. Result
-    must be None (no fall-through to legacy here either, since there
-    are no legacy tokens to find).
+    The agent row was minted with a digest, so neither Argon2 fallback
+    considers it, and the forged digest matches nothing. Result must be
+    None. (The type cross-check itself, on a row with no digest yet, is
+    covered in tests/test_auth_token_digest.py.)
     """
     conn = init_db(tmp_path / "t.db")
     u = create_user(conn, email="eve@x", display_name="Eve")
