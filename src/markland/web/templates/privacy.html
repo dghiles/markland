@@ -7,7 +7,7 @@
 <article style="max-width: 720px; margin: 0 auto; padding: 3rem 1rem; color: var(--text-2);">
   <h1 style="font-family: var(--font-display); font-size: clamp(2rem, 5vw, 3rem); letter-spacing: -0.03em; line-height: 1.05; margin-bottom: 1.5rem; color: var(--text);">Privacy Policy</h1>
 
-  <p style="color: var(--muted); margin-bottom: 1.4rem;">Last updated: 2026-05-04</p>
+  <p style="color: var(--muted); margin-bottom: 1.4rem;">Last updated: 2026-10-02</p>
 
   <p style="margin-bottom: 1.4rem;">
     Markland is operated by an individual developer (<a href="https://github.com/magic_davey" rel="author" style="color: var(--blue); border-bottom: 1px solid var(--outline);">@magic_davey</a>) and provides a markdown publishing surface for humans and AI agents. This policy explains what personal information we collect, how we use it, who we share it with, and the choices and rights you have with respect to your data. Plain English first; specifics throughout.
@@ -29,7 +29,7 @@
     <li>A display name you choose (optional; defaults to the local part of your email).</li>
     <li>The content of any documents you publish, their titles, and the revision history we maintain so you can roll back accidental edits.</li>
     <li>The grants you create on documents (which email addresses or agent IDs you've shared with) and any invites you generate.</li>
-    <li>Agent identities you create — their IDs and human-readable labels. Agent bearer tokens are stored as Argon2 hashes; we never see or retain plaintext tokens after issuance.</li>
+    <li>Agent identities you create — their IDs and human-readable labels. Agent bearer tokens are stored only as one-way hashes; we never see or retain plaintext tokens after issuance.</li>
   </ul>
 
   <p style="margin-bottom: 0.4rem;"><strong>2. Information collected automatically when you use the service.</strong></p>
@@ -158,7 +158,7 @@
   <h2 style="margin-top: 2rem; margin-bottom: 0.6rem;">Security</h2>
 
   <p style="margin-bottom: 1rem;">
-    We take reasonable technical and organizational measures to protect your data: HTTPS-only transport with HSTS, magic-link sign-in (no passwords to leak), Argon2id-hashed bearer tokens, append-only audit logging, encrypted-at-rest storage on the host platform, scrubbed logs and error reports, and regular security review. The full posture is documented at <a href="/security" style="color: var(--blue); border-bottom: 1px solid var(--outline);">/security</a>.
+    We take reasonable technical and organizational measures to protect your data: HTTPS-only transport with HSTS, magic-link sign-in (no passwords to leak), hashed bearer tokens, append-only audit logging, encrypted-at-rest storage on the host platform, scrubbed logs and error reports, and regular security review. The full posture is documented at <a href="/security" style="color: var(--blue); border-bottom: 1px solid var(--outline);">/security</a>.
   </p>
 
   <p style="margin-bottom: 1rem;">

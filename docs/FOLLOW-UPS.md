@@ -160,18 +160,19 @@ The items below are what it leaves open.
   - a single DB thread that the loop awaits
   - a guarantee that every write path commits before returning
   Branch `fix/sqlite-threadsafe` has #87's tests and harness.
-- **Make failed auth cheap.** A bearer that doesn't resolve (unknown, revoked,
-  or a new-shape token that falls through) still pays the full Argon2 scan,
-  ~1 CPU-s. Failures aren't cached, and the bearer resolves before the
-  rate-limit check, so a 429 doesn't cap the cost. About 45 failed-auth requests
-  in the minute after a deploy would drain the ~50 s balance. The likeliest
-  source is a forgotten client retrying a revoked token after the legacy
-  rotation below.
-- **Argon2 still runs on the event loop on a cache miss.** Don't move resolves
-  to a threadpool until the sqlite redesign lands. With concurrent resolves on
+- **Make failed auth cheap.** Mostly done by the digest lookup (markland-tex,
+  2026-10-02). A bearer that doesn't resolve now pays Argon2 only for live
+  rows that were created before `LEGACY_TOKEN_CUTOFF` and have no digest yet:
+  the un-rotated legacy tokens. Once those are backfilled or revoked, it pays
+  nothing. `scripts/admin/token_digest_status.py` shows the count as
+  "scanned by every failed auth". Close markland-ts6 when it reads 0.
+- **Argon2 still runs on the event loop on a cache miss** of a row with no
+  digest yet (its first resolve after markland-tex; then it has one). Don't
+  move resolves to a threadpool until the sqlite redesign lands. With
+  concurrent resolves on
   the shared connection, the cache would keep corrupted principals (another
-  user's id, a false `is_admin`) for up to 60 s. The HMAC lookup below removes
-  most of this cost anyway.
+  user's id, a false `is_admin`) for up to 60 s. The digest lookup
+  (markland-tex) removed most of this cost.
 - **Give the post-deploy observer a metrics token.** Its first run
   (2026-09-27) couldn't read Fly's Prometheus API: the deploy token got HTTP
   403. Add an org-scoped read-only token as a repo secret so the observer
@@ -186,16 +187,21 @@ The items below are what it leaves open.
   non-revoked legacy rows (plaintext shape can't be recovered from the hash, so
   use `created_at` before the `markland-9dm` deploy, PR #69 on 2026-05-04, as
   the proxy). Then delete `_resolve_legacy` and the fall-through. Keep the
-  fall-through's regression test until the path is gone.
-- **Replace Argon2 with an indexed HMAC/SHA-256 lookup for API tokens.** Bearer
-  tokens are 256-bit random secrets, not passwords. A slow KDF adds nothing
-  against guessing at that entropy, and it costs a large CPU slice per request
-  on a 6.25%-baseline VM. Store `HMAC-SHA256(server_key, plaintext)` in an
-  indexed column, look it up directly, and compare in constant time. That
-  makes every resolve O(1) and cheap, with or without an embedded `token_id`.
-  Migrate lazily: compute the digest on the next successful resolve, or fold it
-  into the rotation above. The server key is a new Fly secret; decide how it
-  rotates before adopting.
+  fall-through's regression test until the path is gone. The digest lookup
+  (markland-tex) already skips Argon2 for backfilled rows. What remains is
+  phase 2, in `docs/specs/2026-09-27-token-digest-lookup-design.md` § Phase 2.
+  It starts when `token_digest_status.py` shows `without a digest yet: 0`, or
+  at a fixed date past the rollback horizon plus R2's 30-day retention:
+  - revoke the remaining digest-less rows
+  - delete fallbacks (b) and (c)
+  - stop writing Argon2 at mint
+  - update `privacy.html`
+- **~~Replace Argon2 with an indexed HMAC/SHA-256 lookup for API tokens.~~**
+  Shipped 2026-10-02 as a keyless SHA-256 digest (markland-tex). The decision
+  and its reasoning are in `docs/specs/2026-09-27-token-digest-lookup-design.md`.
+  Still open: invites (`service/invites.py`) run their own Argon2 linear scan
+  on unauthenticated routes, and the same design applies (see the beads
+  follow-up filed at release).
 - **VM headroom decision.** `shared-cpu-1x` gives 6.25% of a core plus a
   burst bank that every deploy resets to ~50 s. With the cache shipped, a
   cached request costs 0.003–0.008 CPU-s, and a prod-sized reconnect burst costs
