@@ -27,6 +27,18 @@ Export it from the config file first:
 export FLY_API_TOKEN=$(grep -A1 'access_token' ~/.fly/config.yml | head -1 | sed 's/.*access_token: *//')
 ```
 
+If `flyctl ssh console` times out (`error connecting to SSH server: dial:
+connect tcp [fdaa:…]:22: operation timed out`) while other `flyctl` commands
+still work, the WireGuard/SSH path is the problem, not the app. Run the same
+script through the Machines API instead:
+
+```bash
+M=$(flyctl machine list -a markland --json | python3 -c "import json,sys; print([m['id'] for m in json.load(sys.stdin) if m.get('state')=='started'][0])")
+flyctl machine exec "$M" "/app/.venv/bin/python /app/scripts/admin/<name>.py [args]" -a markland
+```
+
+Use absolute `/app/...` paths: `machine exec` doesn't start in `/app`.
+
 The Fly base image does NOT include the `sqlite3` CLI binary, and system
 Python doesn't have project deps installed — always use
 `/app/.venv/bin/python` with the named scripts below. They import the real
