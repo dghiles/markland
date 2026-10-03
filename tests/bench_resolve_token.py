@@ -1,11 +1,13 @@
 """Before/after CPU cost of resolve_token (markland-tex). Not collected by pytest.
 
-Run on the branch, then against main's code, and paste both outputs into
-the PR:
+Run it from the checkout under test, and to compare against another
+revision, run this same file with that checkout's environment:
 
-    uv run python -m tests.bench_resolve_token             # branch (worktree)
-    (cd /Users/daveyhiles/Developer/markland && \
-     uv run --no-sync python .worktrees/token-digest/tests/bench_resolve_token.py)   # main
+    uv run python -m tests.bench_resolve_token
+    uv run --project <other-checkout> --no-sync python <this-checkout>/tests/bench_resolve_token.py
+
+The file uses only APIs that exist before and after markland-tex, so the
+second form gives "before" numbers from a pre-digest checkout.
 
 Measures time.process_time(): CPU seconds, which is what Fly's shared-cpu
 quota throttles. Argon2 runs on 4 threads, so wall time under-reports it.
